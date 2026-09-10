@@ -1,0 +1,46 @@
+{
+  "captureCount": 4,
+  "countdownSeconds": 3,
+  "printerName": "Canon_SELPHY_CP1500",
+  "printerMedia": "Postcard(4x6in)",
+  "printDryRun": false,
+  "maxCopies": 3,
+  "mockCamera": false,
+  "liveView": true,
+  "staffPin": "1234",
+  "kiosk": true,
+  "idleResetSeconds": 90,
+  "keepSessionDays": 3,
+  "fitToPage": false,
+  "pricing": {
+    "currency": "$",
+    "frames": {
+      "grand_4": {
+        "price": 5,
+        "note": "1 strip"
+      },
+      "strip_3x2": {
+        "price": 8,
+        "note": "2 strips"
+      },
+      "strip_4x2": {
+        "price": 10,
+        "note": "2 strips"
+      }
+    },
+    "addons": [
+      {
+        "id": "keychain",
+        "name": "keychain",
+        "price": 8
+      },
+      {
+        "id": "charm",
+        "name": "charm",
+        "price": 5
+      }
+    ],
+    "extraCopy": 3,
+    "paymentNote": "$3 for each extra copy. Zelle/Cash only."
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "photobooth-kiosk",
+  "productName": "Xinhmo Booth",
+  "version": "1.0.0",
+  "description": "Offline self-service photobooth kiosk",
+  "main": "main.js",
+  "author": "Xinhmo",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "mock": "PB_MOCK_CAMERA=1 PB_PRINT_DRYRUN=1 electron .",
+    "windowed": "PB_KIOSK=0 electron .",
+    "check": "node scripts/selftest.js",
+    "dist": "electron-builder --mac --dir",
+    "pack": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^32.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.xinhmo.kiosk",
+    "productName": "Xinhmo Booth",
+    "files": ["**/*", "!sessions/**", "!logs/**", "!dist/**"],
+    "extraResources": [{ "from": "frames", "to": "frames" }],
+    "mac": {
+      "category": "public.app-category.photography",
+      "target": ["dir"]
+    }
+  }
+}

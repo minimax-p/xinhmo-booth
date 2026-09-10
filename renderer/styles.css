@@ -1,0 +1,1220 @@
+/*
+  Xinhmo booth kiosk styles.
+
+  Look comes from the Xinhmo menu poster: deep royal-blue stage, warm cream
+  paper panel with a stamp-scalloped edge and a dashed cut line, script
+  wordmark, Didot-ish serif headings, blue ink line work, wax-seal red accent.
+
+  Two hard rules drive the layout:
+    1. Nothing may ever be pushed off screen. Every screen is a flex column
+       with one scrollable middle and action bars pinned in view.
+    2. It must work in portrait (the real 1080x1920 kiosk panel) AND in
+       landscape (a laptop during testing). Orientation media queries switch
+       the edit screen between stacked and side-by-side.
+
+  Sizing is clamp(min, vmin, max) so type scales with the panel but never
+  gets absurd on a small window.
+*/
+
+:root {
+  /* ---------- palette, sampled from the poster ---------- */
+  --ink: #26357e;          /* primary blue ink on cream */
+  --ink-deep: #16215a;
+  --ink-soft: #6b77ae;     /* secondary text on cream */
+  --ink-line: rgba(38, 53, 126, 0.3);
+  --ink-wash: rgba(38, 53, 126, 0.08);
+
+  --paper: #fff8ee;        /* the cream card */
+  --paper-2: #f7ecd9;      /* inset / pressed paper */
+
+  --stage-1: #3b4d97;      /* blue ground behind the paper */
+  --stage-2: #1d2a68;
+
+  --seal: #8b0003;         /* wax seal red */
+  --ok: #2f7d5b;
+
+  /* ---------- type ---------- */
+  --script: 'Snell Roundhand', 'Apple Chancery', 'Segoe Script', cursive;
+  --serif: 'Didot', 'Bodoni 72', Didot, 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --sans: 'Avenir Next', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
+  --mono: 'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;
+
+  --fs-xs: clamp(11px, 1.5vmin, 16px);
+  --fs-sm: clamp(13px, 1.9vmin, 20px);
+  --fs-md: clamp(15px, 2.3vmin, 24px);
+  --fs-lg: clamp(19px, 3vmin, 32px);
+  --fs-xl: clamp(26px, 4.6vmin, 48px);
+  --fs-2xl: clamp(32px, 6.4vmin, 72px);
+  --fs-3xl: clamp(40px, 9vmin, 108px);
+
+  /* ---------- rhythm ---------- */
+  --gap-1: clamp(4px, 0.8vmin, 10px);
+  --gap-2: clamp(8px, 1.5vmin, 18px);
+  --gap-3: clamp(12px, 2.4vmin, 30px);
+  --gap-4: clamp(18px, 3.6vmin, 46px);
+
+  --tap: clamp(46px, 7.6vmin, 88px);   /* minimum finger target */
+  --radius: clamp(6px, 1vmin, 14px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--sans);
+  font-size: var(--fs-md);
+  color: var(--ink);
+  background:
+    radial-gradient(120% 80% at 50% -10%, var(--stage-1) 0%, var(--stage-2) 68%),
+    var(--stage-2);
+}
+
+/* Real booth hides the pointer; the windowed test build keeps it. */
+body.is-kiosk {
+  cursor: none;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: inherit;
+  font-size: inherit;
+}
+
+img {
+  display: block;
+}
+
+.hidden,
+[hidden] {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------------- screens */
+
+#screens {
+  height: 100dvh;
+  width: 100%;
+}
+
+.screen {
+  display: none;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(10px, 2.2vmin, 34px);
+  gap: var(--gap-3);
+  text-align: center;
+}
+
+.screen.is-active {
+  display: flex;
+}
+
+/* ---------------------------------------------------------------- paper */
+
+/*
+  The cream panel. The stamp edge is a four-way radial-gradient mask; it is
+  only applied where mask-composite is supported so an older engine simply
+  gets a clean rounded card instead of a broken one.
+*/
+.paper {
+  position: relative;
+  width: 100%;
+  max-width: clamp(320px, 96vw, 1180px);
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border-radius: clamp(8px, 1.4vmin, 18px);
+  padding: clamp(10px, 1.8vmin, 24px);
+}
+
+.paper-shadow {
+  filter: drop-shadow(0 clamp(6px, 1.6vmin, 22px) clamp(14px, 3.4vmin, 44px) rgba(9, 15, 48, 0.45));
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+}
+
+@supports (mask-composite: intersect) {
+  /*
+    Stamp edge. Four mask layers, each covering the whole card with a row of
+    half-circle notches along one edge; intersecting them punches all four
+    edges at once. Chromium only, which is all Electron is.
+  */
+  .paper {
+    --sc: clamp(7px, 1.15vmin, 15px);
+    border-radius: 0;
+    padding: clamp(14px, 2.4vmin, 30px);
+    mask:
+      radial-gradient(var(--sc) at 50% 0, #0000 98%, #000) 50% 0 / calc(4 * var(--sc)) 100% repeat-x,
+      radial-gradient(var(--sc) at 50% 100%, #0000 98%, #000) 50% 0 / calc(4 * var(--sc)) 100% repeat-x,
+      radial-gradient(var(--sc) at 0 50%, #0000 98%, #000) 0 50% / 100% calc(4 * var(--sc)) repeat-y,
+      radial-gradient(var(--sc) at 100% 50%, #0000 98%, #000) 0 50% / 100% calc(4 * var(--sc)) repeat-y;
+    mask-composite: intersect;
+  }
+}
+
+/* The dashed cut line, and the actual content box. */
+.cut {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-2);
+  padding: clamp(12px, 2.6vmin, 40px) clamp(12px, 3vmin, 48px);
+  border: 1px dashed var(--ink-line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+/* Wax seal, tucked inside the edge so the stamp mask never clips it. */
+.seal {
+  position: absolute;
+  top: clamp(6px, 1.4vmin, 18px);
+  right: clamp(6px, 1.4vmin, 18px);
+  width: clamp(34px, 6vmin, 74px);
+  height: clamp(34px, 6vmin, 74px);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #b3363a 0%, var(--seal) 58%, #5e0002 100%);
+  color: rgba(255, 248, 238, 0.9);
+  font-family: var(--script);
+  font-size: clamp(16px, 2.9vmin, 34px);
+  line-height: 1;
+  padding-bottom: 0.12em;
+  box-shadow: inset 0 -0.2vmin 0.6vmin rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- wordmark */
+
+.wordmark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15em;
+  color: var(--ink);
+  flex: 0 0 auto;
+}
+
+.wordmark-script {
+  font-family: var(--script);
+  font-size: var(--fs-xl);
+  line-height: 1.05;
+  padding: 0 0.12em;
+}
+
+.wordmark-rule {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  font-family: var(--serif);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.wordmark-rule i {
+  display: block;
+  width: clamp(16px, 4vmin, 52px);
+  height: 1px;
+  background: var(--ink-line);
+}
+
+/* Compact version for the pose and edit bars. */
+.wordmark-mini {
+  font-family: var(--script);
+  font-size: var(--fs-lg);
+  color: var(--ink);
+  line-height: 1;
+}
+
+/* ---------------------------------------------------------------- type */
+
+.display {
+  font-family: var(--serif);
+  font-size: var(--fs-3xl);
+  font-weight: 400;
+  line-height: 0.98;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.display-sm {
+  font-family: var(--serif);
+  font-size: var(--fs-2xl);
+  font-weight: 400;
+  line-height: 1.04;
+  color: var(--ink);
+  max-width: 20ch;
+}
+
+.lede {
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  color: var(--ink-soft);
+  max-width: 30ch;
+}
+
+.note {
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+  letter-spacing: 0.06em;
+  min-height: 1.3em;
+}
+
+.section-title {
+  font-family: var(--serif);
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-align: left;
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-2);
+  margin-bottom: var(--gap-2);
+}
+
+.section-hint {
+  font-family: var(--sans);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ink-soft);
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.primary-btn {
+  flex: 1 1 auto;
+  min-height: var(--tap);
+  padding: 0 clamp(16px, 3.2vmin, 44px);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--serif);
+  font-size: var(--fs-lg);
+  letter-spacing: 0.08em;
+  box-shadow: 0 clamp(3px, 0.8vmin, 10px) clamp(8px, 2vmin, 26px) -6px rgba(22, 33, 90, 0.6);
+  transition: transform 0.12s ease;
+}
+
+.primary-btn:disabled {
+  opacity: 0.35;
+  box-shadow: none;
+}
+
+.primary-btn:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.ghost-btn {
+  min-height: var(--tap);
+  padding: 0 clamp(14px, 2.6vmin, 34px);
+  border-radius: 999px;
+  border: 1px solid var(--ink-line);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: var(--fs-md);
+  letter-spacing: 0.06em;
+  background: transparent;
+}
+
+.ghost-btn:active {
+  background: var(--ink-wash);
+}
+
+.ghost-btn.wide {
+  width: 100%;
+}
+
+.ghost-btn.danger {
+  color: var(--seal);
+  border-color: rgba(139, 0, 3, 0.4);
+}
+
+.start-btn {
+  --size: min(clamp(150px, 32vmin, 340px), 42vh);
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--serif);
+  font-size: calc(var(--size) * 0.2);
+  letter-spacing: 0.06em;
+  box-shadow:
+    0 0 0 clamp(3px, 0.6vmin, 8px) var(--paper),
+    0 0 0 clamp(4px, 0.75vmin, 10px) var(--ink-line),
+    0 clamp(6px, 1.6vmin, 22px) clamp(14px, 3.4vmin, 44px) -10px rgba(22, 33, 90, 0.7);
+  animation: breathe 3.2s ease-in-out infinite;
+  flex: 0 0 auto;
+}
+
+.start-btn:active {
+  transform: scale(0.97);
+}
+
+/* ---------------------------------------------------------------- welcome */
+
+.cut-stack {
+  justify-content: space-between;
+  gap: var(--gap-2);
+}
+
+/* On the full-sheet screens the wordmark is the poster's headline, so it is
+   set large; the pose and edit bars keep the small version. */
+.screen-welcome .wordmark-script,
+.screen-printing .wordmark-script,
+.screen-done .wordmark-script {
+  font-size: var(--fs-2xl);
+}
+
+.cut-head,
+.cut-foot {
+  flex: 0 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gap-1);
+}
+
+.cut-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-3);
+}
+
+.copy-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gap-2);
+}
+
+/* Landscape: the sheet is wide and short, so the copy sits beside the action
+   instead of stacking and squeezing. */
+@media (orientation: landscape) {
+  .cut-body {
+    flex-direction: row;
+    justify-content: center;
+    gap: clamp(24px, 6vmin, 90px);
+  }
+
+  .copy-block {
+    max-width: 46%;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .copy-block .lede {
+    text-align: left;
+  }
+}
+
+/* ---------------------------------------------------------------- pose */
+
+.screen-pose {
+  padding: clamp(8px, 1.6vmin, 22px);
+  gap: var(--gap-2);
+}
+
+.stage-frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: clamp(320px, 96vw, 1180px);
+  background: #0d1130;
+  border: clamp(3px, 0.7vmin, 9px) solid var(--paper);
+  border-radius: clamp(6px, 1vmin, 14px);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 clamp(6px, 1.6vmin, 22px) clamp(14px, 3.4vmin, 44px) -14px rgba(0, 0, 0, 0.8);
+}
+
+.live {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scaleX(-1); /* mirrored, so posing feels natural */
+}
+
+.live:not([src]) {
+  display: none;
+}
+
+.live-off {
+  position: absolute;
+  color: rgba(255, 248, 238, 0.55);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stage-frame:has(#countdown:not([hidden])) .live-off {
+  opacity: 0;
+}
+
+.countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--serif);
+  font-size: min(34vmin, 46vh);
+  line-height: 1;
+  color: var(--paper);
+  text-shadow: 0 0 6vmin rgba(0, 0, 0, 0.75);
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease-out;
+}
+
+.flash.on {
+  opacity: 0.95;
+  transition: opacity 0.05s ease-in;
+}
+
+/* Shot counter, styled like a little postage stamp. */
+.shot-pill {
+  position: absolute;
+  top: clamp(8px, 1.6vmin, 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: clamp(4px, 0.8vmin, 10px) clamp(10px, 2vmin, 26px);
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px dashed var(--ink-line);
+  font-family: var(--serif);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.just-shot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(13, 17, 48, 0.92);
+  padding: clamp(10px, 2.4vmin, 34px);
+}
+
+.just-shot img {
+  max-width: 82%;
+  max-height: 82%;
+  border: clamp(4px, 1vmin, 14px) solid var(--paper);
+  box-shadow: 0 2vmin 5vmin -1vmin rgba(0, 0, 0, 0.7);
+}
+
+.pose-bar {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: clamp(320px, 96vw, 1180px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-3);
+  padding: clamp(8px, 1.4vmin, 18px) clamp(12px, 2.4vmin, 30px);
+  background: var(--paper);
+  border-radius: clamp(6px, 1vmin, 14px);
+}
+
+.pose-hint {
+  font-family: var(--serif);
+  font-size: var(--fs-md);
+  color: var(--ink);
+  text-align: left;
+  flex: 1 1 auto;
+}
+
+.pose-bar .primary-btn {
+  flex: 0 0 auto;
+  min-width: clamp(140px, 26vmin, 300px);
+}
+
+@media (orientation: portrait) {
+  .pose-bar {
+    flex-direction: column;
+    gap: var(--gap-2);
+    padding: clamp(12px, 2.4vmin, 30px);
+  }
+
+  .pose-hint {
+    text-align: center;
+  }
+
+  .pose-bar .primary-btn {
+    width: 100%;
+  }
+}
+
+/* ---------------------------------------------------------------- edit */
+
+.screen-edit {
+  padding: clamp(8px, 1.6vmin, 22px);
+  gap: var(--gap-2);
+  justify-content: flex-start;
+}
+
+.cut-edit {
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: var(--gap-2);
+  text-align: left;
+}
+
+.edit-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--gap-3);
+}
+
+.edit-preview {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+}
+
+.preview-canvas {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  max-height: 100%;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  background: #fff;
+  border: clamp(3px, 0.6vmin, 8px) solid #fff;
+  box-shadow: 0 clamp(4px, 1.2vmin, 18px) clamp(10px, 2.6vmin, 34px) -8px rgba(22, 33, 90, 0.5);
+}
+
+.edit-controls {
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-3);
+  padding-right: var(--gap-1);
+}
+
+/* Landscape (laptop, or a wide panel): preview beside the controls so the
+   action bar is never pushed under the fold. */
+@media (orientation: landscape) {
+  .edit-main {
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+}
+
+.thumbs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, clamp(58px, 13vmin, 132px)));
+  justify-content: start;
+  gap: var(--gap-2);
+}
+
+.thumb {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  padding: 0;
+  background: var(--paper-2);
+  border: clamp(2px, 0.45vmin, 6px) solid transparent;
+  outline: 1px solid var(--ink-line);
+  outline-offset: 0;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumb.selected {
+  border-color: var(--ink);
+  outline-color: var(--ink);
+}
+
+.thumb.dimmed {
+  opacity: 0.4;
+}
+
+.thumb-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: clamp(18px, 3.4vmin, 34px);
+  height: clamp(18px, 3.4vmin, 34px);
+  padding: 0 0.4em;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--serif);
+  font-size: var(--fs-xs);
+  display: grid;
+  place-items: center;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-2);
+}
+
+.chip {
+  flex: 0 0 auto;
+  min-height: clamp(38px, 6vmin, 68px);
+  padding: 0 clamp(12px, 2.2vmin, 28px);
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--ink-line);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.chip.active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.edit-bar {
+  flex: 0 0 auto;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  padding-top: var(--gap-2);
+  border-top: 1px dashed var(--ink-line);
+}
+
+.copies {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  flex: 0 0 auto;
+}
+
+.copies-label {
+  font-family: var(--serif);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.step {
+  width: clamp(38px, 6vmin, 66px);
+  height: clamp(38px, 6vmin, 66px);
+  border-radius: 50%;
+  border: 1px solid var(--ink-line);
+  color: var(--ink);
+  font-size: var(--fs-md);
+  line-height: 1;
+}
+
+.step:active {
+  background: var(--ink-wash);
+}
+
+.copies-val {
+  min-width: 1.4em;
+  font-family: var(--serif);
+  font-size: var(--fs-lg);
+  text-align: center;
+}
+
+@media (orientation: portrait) {
+  .edit-bar {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .edit-bar .primary-btn {
+    flex: 1 0 55%;
+  }
+}
+
+/* ---------------------------------------------------------------- printing / done */
+
+.spinner {
+  display: flex;
+  gap: var(--gap-2);
+  align-items: center;
+}
+
+.spinner i {
+  width: clamp(6px, 1.1vmin, 14px);
+  height: clamp(6px, 1.1vmin, 14px);
+  border-radius: 50%;
+  background: var(--ink);
+  animation: bounce 1.2s ease-in-out infinite;
+}
+
+.spinner i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.spinner i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.done-btn {
+  --size: min(clamp(140px, 28vmin, 300px), 38vh);
+  width: var(--size);
+  height: var(--size);
+  border-radius: clamp(10px, 2vmin, 28px);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--serif);
+  font-size: calc(var(--size) * 0.13);
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  padding: 0 0.6em;
+  flex: 0 0 auto;
+  box-shadow: 0 clamp(6px, 1.6vmin, 22px) clamp(14px, 3.4vmin, 44px) -12px rgba(22, 33, 90, 0.7);
+}
+
+.done-btn:active {
+  transform: scale(0.98);
+}
+
+/* ---------------------------------------------------------------- staff */
+
+.staff-corner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: clamp(60px, 12vmin, 150px);
+  height: clamp(60px, 12vmin, 150px);
+  z-index: 90;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(11, 16, 44, 0.88);
+  padding: clamp(10px, 2.4vmin, 34px);
+}
+
+/*
+  The staff card is a flex column: title pinned, body scrolls, close button
+  pinned. This is what stopped the panel from being readable on a laptop.
+*/
+.modal-card {
+  width: min(560px, 94vw);
+  max-height: min(92dvh, 900px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-2);
+  background: var(--paper);
+  border-radius: clamp(6px, 1vmin, 14px);
+  padding: clamp(14px, 2.6vmin, 32px);
+  text-align: center;
+  box-shadow: 0 clamp(8px, 2vmin, 28px) clamp(20px, 5vmin, 70px) -14px rgba(0, 0, 0, 0.8);
+}
+
+.modal-title {
+  flex: 0 0 auto;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: var(--fs-lg);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-2);
+  padding: var(--gap-1) 0;
+}
+
+.modal-sub {
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+}
+
+#pinPad {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-2);
+}
+
+.pin-display {
+  height: 1.6em;
+  font-size: var(--fs-lg);
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+  color: var(--ink);
+}
+
+.pin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap-2);
+}
+
+.pin-key {
+  min-height: clamp(42px, 7vmin, 78px);
+  border-radius: var(--radius);
+  border: 1px solid var(--ink-line);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: var(--fs-lg);
+}
+
+.pin-key:active {
+  background: var(--ink-wash);
+}
+
+.status-list {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-2);
+}
+
+.status-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap-2);
+  padding: clamp(8px, 1.6vmin, 18px);
+  background: var(--paper-2);
+  border-radius: var(--radius);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.status-dot {
+  flex: 0 0 auto;
+  width: clamp(7px, 1.2vmin, 13px);
+  height: clamp(7px, 1.2vmin, 13px);
+  border-radius: 50%;
+  margin-top: 0.45em;
+  background: var(--ink-soft);
+}
+
+.status-dot.ok {
+  background: var(--ok);
+}
+
+.status-dot.bad {
+  background: var(--seal);
+}
+
+.status-label {
+  font-family: var(--serif);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: block;
+  color: var(--ink);
+}
+
+.status-detail {
+  color: var(--ink-soft);
+}
+
+.staff-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-2);
+}
+
+.modal-foot {
+  flex: 0 0 auto;
+}
+
+/* ---------------------------------------------------------------- toast */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(12px, 3vmin, 40px);
+  transform: translateX(-50%);
+  z-index: 120;
+  max-width: min(680px, 88vw);
+  padding: clamp(10px, 1.8vmin, 22px) clamp(14px, 2.8vmin, 34px);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px dashed var(--ink-line);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 clamp(6px, 1.6vmin, 22px) clamp(14px, 3.4vmin, 44px) -14px rgba(0, 0, 0, 0.8);
+}
+
+.toast.bad {
+  border: 1px solid var(--seal);
+  color: var(--seal);
+}
+
+/* ---------------------------------------------------------------- motion */
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.028);
+  }
+}
+
+@keyframes bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-0.9vmin);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .start-btn,
+  .spinner i {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------- menu
+   Welcome-screen price list, built to read like the paper poster: glyph,
+   price, then what you get. Glyphs are generated from the frame geometry. */
+.menu {
+  width: 100%;
+  max-width: clamp(280px, 84%, 620px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(6px, 1.4vmin, 16px);
+  color: var(--ink);
+}
+
+.menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.6vmin, 18px);
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 2vmin, 22px);
+}
+
+.menu-glyph {
+  flex: 0 0 auto;
+  width: clamp(34px, 7vmin, 62px);
+  display: block;
+  color: var(--ink);
+  opacity: 0.9;
+}
+
+.menu-glyph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: clamp(44px, 9vmin, 84px);
+}
+
+.menu-price {
+  font-family: Didot, Georgia, "Times New Roman", serif;
+  font-size: clamp(17px, 3.4vmin, 34px);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.menu-note {
+  font-size: clamp(12px, 2.1vmin, 20px);
+  opacity: 0.78;
+}
+
+.menu-addons {
+  margin: clamp(2px, 0.8vmin, 8px) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: clamp(8px, 2vmin, 24px);
+  font-size: clamp(12px, 2.1vmin, 20px);
+}
+
+.menu-addons-label {
+  font-family: Didot, Georgia, "Times New Roman", serif;
+  font-size: clamp(14px, 2.5vmin, 24px);
+  opacity: 0.85;
+}
+
+.menu-addon b {
+  font-family: Didot, Georgia, "Times New Roman", serif;
+  font-weight: 600;
+}
+
+.menu-fine {
+  margin: 0;
+  font-size: clamp(10px, 1.7vmin, 15px);
+  opacity: 0.66;
+  text-align: center;
+}
+
+/* Short screens: the menu is the first thing to give up room. */
+@media (max-height: 620px) {
+  .menu-glyph { width: clamp(28px, 5.5vmin, 44px); }
+  .menu-list { gap: clamp(4px, 1vmin, 10px); }
+}
+
+/* ---------------------------------------------------------------- receipt
+   Thank-you screen receipt: a little printed slip recapping the order, set
+   in a monospace face with dotted leader lines so the price column lines up
+   like a real register tape. */
+.receipt {
+  width: 100%;
+  max-width: clamp(260px, 78%, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.2vmin, 12px);
+  padding: clamp(12px, 2.2vmin, 26px) clamp(14px, 2.6vmin, 28px);
+  background: var(--paper-2);
+  border: 1px dashed var(--ink-line);
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  color: var(--ink);
+}
+
+.receipt-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 1.4vmin, 14px);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.receipt-rule {
+  border-top: 1px dashed var(--ink-line);
+}
+
+.receipt-lines {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 1vmin, 10px);
+}
+
+.receipt-row {
+  display: flex;
+  align-items: baseline;
+  gap: clamp(4px, 1vmin, 10px);
+  font-size: var(--fs-sm);
+}
+
+.receipt-name {
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.receipt-fill {
+  flex: 1 1 auto;
+  min-width: clamp(10px, 2vmin, 20px);
+  border-bottom: 1px dotted var(--ink-soft);
+  margin-bottom: 0.28em;
+}
+
+.receipt-price {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.receipt-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.receipt-note {
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.receipt-snip {
+  text-align: center;
+  color: var(--ink-line);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.05em;
+}

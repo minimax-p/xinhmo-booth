@@ -1,0 +1,146 @@
+[
+  {
+    "id": "classic_4",
+    "name": "Classic",
+    "width": 1200,
+    "height": 1800,
+    "background": "#FFF8EE",
+    "caption": "Xinhmo",
+    "captionColor": "#26357E",
+    "captionScale": 0.058,
+    "border": {
+      "color": "#26357E",
+      "width": 3,
+      "inset": 34,
+      "dash": [
+        16,
+        12
+      ]
+    },
+    "slots": [
+      {
+        "x": 88,
+        "y": 108,
+        "w": 476,
+        "h": 690
+      },
+      {
+        "x": 636,
+        "y": 108,
+        "w": 476,
+        "h": 690
+      },
+      {
+        "x": 88,
+        "y": 838,
+        "w": 476,
+        "h": 690
+      },
+      {
+        "x": 636,
+        "y": 838,
+        "w": 476,
+        "h": 690
+      }
+    ]
+  },
+  {
+    "id": "strip_3",
+    "name": "Trio",
+    "width": 1200,
+    "height": 1800,
+    "background": "#26357E",
+    "caption": "Xinhmo",
+    "captionColor": "#FFF8EE",
+    "captionScale": 0.058,
+    "border": {
+      "color": "#FFF8EE",
+      "width": 3,
+      "inset": 34,
+      "dash": [
+        16,
+        12
+      ]
+    },
+    "slots": [
+      {
+        "x": 148,
+        "y": 92,
+        "w": 904,
+        "h": 470
+      },
+      {
+        "x": 148,
+        "y": 606,
+        "w": 904,
+        "h": 470
+      },
+      {
+        "x": 148,
+        "y": 1120,
+        "w": 904,
+        "h": 470
+      }
+    ]
+  },
+  {
+    "id": "duo",
+    "name": "Duo",
+    "width": 1200,
+    "height": 1800,
+    "background": "#FFF8EE",
+    "caption": "Xinhmo",
+    "captionColor": "#26357E",
+    "captionScale": 0.058,
+    "border": {
+      "color": "#26357E",
+      "width": 3,
+      "inset": 34,
+      "dash": [
+        16,
+        12
+      ]
+    },
+    "slots": [
+      {
+        "x": 108,
+        "y": 122,
+        "w": 984,
+        "h": 712
+      },
+      {
+        "x": 108,
+        "y": 874,
+        "w": 984,
+        "h": 712
+      }
+    ]
+  },
+  {
+    "id": "big_one",
+    "name": "Single",
+    "width": 1200,
+    "height": 1800,
+    "background": "#FFF8EE",
+    "caption": "Xinhmo",
+    "captionColor": "#26357E",
+    "captionScale": 0.058,
+    "border": {
+      "color": "#26357E",
+      "width": 3,
+      "inset": 34,
+      "dash": [
+        16,
+        12
+      ]
+    },
+    "slots": [
+      {
+        "x": 100,
+        "y": 118,
+        "w": 1000,
+        "h": 1450
+      }
+    ]
+  }
+]

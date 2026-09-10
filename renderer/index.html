@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+    <title>Xinhmo Booth</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- Staff corner: press and hold to open the staff panel. -->
+    <div id="staffCorner" class="staff-corner" aria-hidden="true"></div>
+
+    <div id="screens">
+      <!-- 1. Welcome -->
+      <section class="screen screen-welcome is-active" data-screen="welcome">
+        <div class="paper-shadow">
+          <div class="paper">
+            <div class="cut cut-stack">
+              <div class="cut-head">
+                <div class="wordmark">
+                  <span class="wordmark-script">Xinhmo</span>
+                  <span class="wordmark-rule"><i></i>photo booth<i></i></span>
+                </div>
+              </div>
+              <div class="cut-body">
+                <div class="copy-block">
+                  <h1 class="display">Tap to start</h1>
+                  <p class="lede">Pick a frame, strike a pose, printed in about a minute.</p>
+                </div>
+                <div class="menu" id="menu">
+                  <ul class="menu-list" id="menuList"></ul>
+                  <p class="menu-addons" id="menuAddons"></p>
+                  <p class="menu-fine" id="menuFine"></p>
+                </div>
+                <button class="start-btn" id="startBtn">Start</button>
+              </div>
+              <div class="cut-foot">
+                <p class="note" id="welcomeNote"></p>
+              </div>
+            </div>
+            <span class="seal" aria-hidden="true">X</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Get ready -->
+      <section class="screen screen-pose" data-screen="pose">
+        <div class="stage-frame">
+          <img id="liveImg" class="live" alt="" />
+          <div class="live-off" id="liveOff">Camera preview is off</div>
+          <div class="countdown" id="countdown" hidden></div>
+          <div class="flash" id="flash"></div>
+          <div class="shot-pill" id="shotPill">Photo 1 of 4</div>
+          <div class="just-shot" id="justShot" hidden><img id="justShotImg" alt="" /></div>
+        </div>
+        <div class="pose-bar">
+          <span class="wordmark-mini" aria-hidden="true">Xinhmo</span>
+          <p class="pose-hint" id="poseHint">Stand in frame and tap when you are ready.</p>
+          <button class="primary-btn" id="shootBtn">I'm ready</button>
+        </div>
+      </section>
+
+      <!-- 3. Edit -->
+      <section class="screen screen-edit" data-screen="edit">
+        <div class="paper-shadow">
+          <div class="paper">
+            <div class="cut cut-edit">
+              <div class="edit-main">
+                <div class="edit-preview">
+                  <canvas id="previewCanvas" class="preview-canvas"></canvas>
+                </div>
+                <div class="edit-controls">
+                  <div class="picker">
+                    <h2 class="section-title">Your photos <span class="section-hint" id="pickHint"></span></h2>
+                    <div class="thumbs" id="photoThumbs"></div>
+                  </div>
+                  <div class="picker">
+                    <h2 class="section-title">Frame</h2>
+                    <div class="chips" id="frameChips"></div>
+                  </div>
+                  <div class="picker">
+                    <h2 class="section-title">Look</h2>
+                    <div class="chips" id="filterChips"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="edit-bar">
+                <button class="ghost-btn" id="retakeBtn">Start over</button>
+                <div class="copies">
+                  <span class="copies-label">Copies</span>
+                  <button class="step" id="copiesDown" aria-label="Fewer copies">&minus;</button>
+                  <span class="copies-val" id="copiesVal">1</span>
+                  <button class="step" id="copiesUp" aria-label="More copies">+</button>
+                </div>
+                <button class="primary-btn" id="printBtn">Print</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Printing -->
+      <section class="screen screen-printing" data-screen="printing">
+        <div class="paper-shadow">
+          <div class="paper">
+            <div class="cut cut-stack">
+              <div class="cut-head">
+                <div class="wordmark">
+                  <span class="wordmark-script">Xinhmo</span>
+                  <span class="wordmark-rule"><i></i>photo booth<i></i></span>
+                </div>
+              </div>
+              <div class="cut-body">
+                <div class="copy-block">
+                  <h1 class="display-sm" id="printTitle">Printing your photos</h1>
+                  <p class="lede" id="printSub">This takes about a minute. Please wait by the printer.</p>
+                </div>
+                <div class="spinner" id="printSpinner"><i></i><i></i><i></i></div>
+              </div>
+              <div class="cut-foot">
+                <button class="ghost-btn hidden" id="printBackBtn">Back</button>
+              </div>
+            </div>
+            <span class="seal" aria-hidden="true">X</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Thank you -->
+      <section class="screen screen-done" data-screen="done">
+        <div class="paper-shadow">
+          <div class="paper">
+            <div class="cut cut-stack">
+              <div class="cut-head">
+                <div class="wordmark">
+                  <span class="wordmark-script">Xinhmo</span>
+                  <span class="wordmark-rule"><i></i>photo booth<i></i></span>
+                </div>
+              </div>
+              <div class="cut-body">
+                <div class="copy-block">
+                  <h1 class="display">All done</h1>
+                  <p class="lede">Take your photos from the printer. Thanks for coming.</p>
+                </div>
+                <div class="receipt" id="receipt">
+                  <div class="receipt-head"><span>&#10022;</span><span>Xinhmo Photo Booth</span><span>&#10022;</span></div>
+                  <div class="receipt-rule"></div>
+                  <div class="receipt-lines" id="receiptLines"></div>
+                  <div class="receipt-rule"></div>
+                  <div class="receipt-total" id="receiptTotal"></div>
+                  <p class="receipt-note" id="receiptNote"></p>
+                  <p class="receipt-snip">&#9986; - - - - - - - - - - - - - - - - - - - -</p>
+                </div>
+                <button class="done-btn" id="doneBtn">Start another</button>
+              </div>
+              <div class="cut-foot"></div>
+            </div>
+            <span class="seal" aria-hidden="true">X</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Staff panel -->
+    <div class="modal hidden" id="staffModal">
+      <div class="modal-card">
+        <h2 class="modal-title" id="staffTitle">Staff</h2>
+
+        <div class="modal-body">
+          <div id="pinPad">
+            <p class="modal-sub">Enter the staff code.</p>
+            <div class="pin-display" id="pinDisplay"></div>
+            <div class="pin-grid" id="pinGrid"></div>
+          </div>
+
+          <div id="staffPanel" class="hidden">
+            <div class="status-list" id="staffStatus"></div>
+            <div class="staff-actions">
+              <button class="ghost-btn" id="staffRecheck">Check again</button>
+              <button class="ghost-btn" id="staffCamera">Restart camera</button>
+              <button class="ghost-btn" id="staffTestPrint">Test print</button>
+              <button class="ghost-btn" id="staffLogs">Open logs</button>
+              <button class="ghost-btn danger" id="staffQuit">Shut down booth</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-foot">
+          <button class="ghost-btn wide" id="staffClose">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Non-blocking message strip -->
+    <div class="toast hidden" id="toast"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
