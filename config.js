@@ -81,9 +81,12 @@ const DEFAULTS = {
       strip_3x2: { price: 8, note: '2 strips' },
       strip_4x2: { price: 10, note: '2 strips' },
     },
+    // An add-on with a heightMm is something the printer makes: one strip
+    // shrunk to that height, cut out by hand. Without it, it is just a line on
+    // the bill. Staff sell these by quantity, often long after the photos.
     addons: [
-      { id: 'keychain', name: 'keychain', price: 8 },
-      { id: 'charm', name: 'charm', price: 5 },
+      { id: 'keychain', name: 'keychain', price: 8, heightMm: 55 },
+      { id: 'charm', name: 'charm', price: 5, heightMm: 35 },
     ],
     extraCopy: 3,
     paymentNote: '$3 for each extra copy. Zelle/Cash only.',

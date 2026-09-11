@@ -160,27 +160,119 @@ function createWindow() {
 // Lifecycle
 // --------------------------------------------------------------------------
 
-/** Print one queued order. This is the only place a job reaches the printer. */
-async function printOrder(order) {
-  const n = Math.max(1, Math.min(cfg.maxCopies, parseInt(order.copies, 10) || 1));
-  if (!order.imagePath || !fs.existsSync(order.imagePath)) {
-    return { ok: false, error: 'The photo file for this order is missing.' };
-  }
-  log.info('[main] releasing', order.code, order.imagePath, 'copies=' + n);
-  return printer.print(order.imagePath, n);
+/** A list of add-on ids becomes {keychain: 2, charm: 1}. */
+function countExtras(extras) {
+  const out = {};
+  for (const id of Array.isArray(extras) ? extras : []) out[id] = (out[id] || 0) + 1;
+  return out;
+}
+
+/** How many of `type` are bought but not yet printed, across one order. */
+function owed(order, type) {
+  const want = ((order.qty || {})[type]) || 0;
+  const done = ((order.printed || {})[type]) || 0;
+  return Math.max(0, want - done);
 }
 
 /**
- * Print only the keychain sheet. Separate from printOrder because the common
- * case is someone who has already collected their photos and then asks for a
- * keychain: reprinting the strips too would cost a sheet and confuse them.
+ * Print the photos an order is still owed. Quantity lives on the order, so
+ * selling a second copy an hour later is the same operation as the first.
  */
-async function printKeychain(order) {
-  if (!order.keychainPath || !fs.existsSync(order.keychainPath)) {
-    return { ok: false, error: 'No keychain sheet was saved for this order.' };
+async function printPhotos(order) {
+  const n = owed(order, 'print');
+  if (n < 1) return { ok: false, error: 'Nothing owed on this order.' };
+  if (!order.imagePath || !fs.existsSync(order.imagePath)) {
+    return { ok: false, error: 'The photo file for this order is missing.' };
   }
-  log.info('[main] keychain for', order.code, order.keychainPath);
-  return printer.print(order.keychainPath, 1);
+  log.info('[main] printing', order.code, 'x' + n);
+  const res = await printer.print(order.imagePath, n);
+  if (res && res.ok) {
+    const printed = Object.assign({}, order.printed, { print: (order.printed?.print || 0) + n });
+    queue.update(order.code, { printed });
+  }
+  return res;
+}
+
+/**
+ * Fill one sheet with small prints owed across every order, and print it.
+ *
+ * Pooling is the point. A keychain insert uses about an eighth of a 4x6, so
+ * printing them per order would spend a whole sheet on one sale. Orders are
+ * taken oldest first, so nobody waits indefinitely for a sheet to fill, and
+ * staff can force one out half empty whenever the queue has gone quiet.
+ */
+async function printBatch(type) {
+  const addon = ((cfg.pricing || {}).addons || []).find((a) => a.id === type);
+  if (!addon || !addon.heightMm) return { ok: false, error: 'That add-on is not a print.' };
+  if (!win || win.isDestroyed()) return { ok: false, error: 'The booth window is not available.' };
+
+  // One entry per physical item, oldest order first.
+  const cells = [];
+  for (const o of queue.all().sort((a, b) => a.createdAt - b.createdAt)) {
+    if (!o.stripPath || !fs.existsSync(o.stripPath)) continue;
+    let n = owed(o, type);
+    while (n-- > 0) cells.push({ code: o.code, path: o.stripPath });
+  }
+  if (!cells.length) return { ok: false, error: 'No ' + type + 's are waiting.' };
+
+  const payload = {
+    heightMm: addon.heightMm,
+    gapMm: (cfg.keychain || {}).gapMm || 4,
+    cells: cells.map((c) => ({
+      code: c.code,
+      dataUrl: 'data:image/jpeg;base64,' + fs.readFileSync(c.path).toString('base64'),
+    })),
+  };
+
+  // The renderer owns every canvas in this app, so it builds the sheet too.
+  let built;
+  try {
+    built = await win.webContents.executeJavaScript(
+      `buildBatchSheet(${JSON.stringify(payload)})`
+    );
+  } catch (err) {
+    log.error('[main] batch sheet failed:', err.message);
+    return { ok: false, error: 'Could not lay out the sheet.' };
+  }
+  if (!built || !built.dataUrl) return { ok: false, error: 'Could not lay out the sheet.' };
+
+  const out = path.join(SESSIONS_ROOT, `${type}_sheet_${Date.now()}.jpg`);
+  fs.writeFileSync(out, Buffer.from(built.dataUrl.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+  log.info(`[main] ${type} sheet: ${built.used} of ${cells.length} waiting`);
+
+  const res = await printer.print(out, 1);
+  if (res && res.ok) {
+    // Credit the sheet back to the orders it came from, in the same order.
+    let left = built.used;
+    for (const o of queue.all().sort((a, b) => a.createdAt - b.createdAt)) {
+      if (left <= 0) break;
+      const n = Math.min(left, owed(o, type));
+      if (n <= 0) continue;
+      const printed = Object.assign({}, o.printed, { [type]: ((o.printed || {})[type] || 0) + n });
+      queue.update(o.code, { printed });
+      left -= n;
+    }
+  }
+  return Object.assign({ used: built.used, waiting: cells.length, file: out }, res);
+}
+
+/** What is waiting to be printed small, for the staff phone to show. */
+function batchStatus() {
+  return ((cfg.pricing || {}).addons || [])
+    .filter((a) => a.heightMm)
+    .map((a) => {
+      const orders = queue
+        .all()
+        .filter((o) => owed(o, a.id) > 0)
+        .map((o) => ({ code: o.code, n: owed(o, a.id) }));
+      return {
+        id: a.id,
+        name: a.name,
+        heightMm: a.heightMm,
+        waiting: orders.reduce((n, o) => n + o.n, 0),
+        orders,
+      };
+    });
 }
 
 app.whenReady().then(async () => {
@@ -213,8 +305,9 @@ app.whenReady().then(async () => {
     server = staffServer.start({
       queue,
       cfg,
-      onRelease: printOrder,
-      onKeychain: printKeychain,
+      onRelease: printPhotos,
+      onBatch: printBatch,
+      batchStatus,
       isLocked: () => boothLocked,
       // Staff change timings from the phone. Saved through config so the
       // clamps apply, then pushed straight at the renderer: a booth that had
@@ -224,9 +317,10 @@ app.whenReady().then(async () => {
         Object.assign(cfg, next);
         send('app:settings', rendererConfig());
         log.info('[main] settings updated from the staff phone');
-        return { ok: true, settings: timingSettings() };
+        return { ok: true, settings: timingSettings(), phases: timingPhases() };
       },
       timings: () => timingSettings(),
+      phases: () => timingPhases(),
       onStartSession: () => {
         boothLocked = false;
         log.info('[main] booth unlocked from the staff phone');
@@ -371,14 +465,24 @@ function pruneOldSessions() {
  */
 function timingSettings() {
   return [
-    { key: 'readySeconds', label: 'Get ready', hint: 'Before the first photo', value: cfg.readySeconds, min: 0, max: 120 },
-    { key: 'captureCount', label: 'Photos', hint: 'How many shots', value: cfg.captureCount, min: 1, max: 20, unit: '' },
-    { key: 'countdownSeconds', label: 'Between photos', hint: 'Countdown per shot', value: cfg.countdownSeconds, min: 1, max: 30 },
-    { key: 'beepLastSeconds', label: 'Beeps for', hint: 'Last seconds of each countdown', value: cfg.beepLastSeconds, min: 0, max: 10 },
-    { key: 'pickSeconds', label: 'Pick photos', hint: 'Review step 1', value: cfg.pickSeconds, min: 5, max: 300 },
-    { key: 'frameSeconds', label: 'Pick a frame', hint: 'Review step 2', value: cfg.frameSeconds, min: 5, max: 300 },
-    { key: 'filterSeconds', label: 'Pick a look', hint: 'Review step 3', value: cfg.filterSeconds, min: 5, max: 300 },
-    { key: 'idleResetSeconds', label: 'Give up after', hint: 'Idle before resetting', value: cfg.idleResetSeconds, min: 15, max: 600 },
+    { key: 'readySeconds', label: 'Get ready', hint: 'Group gets in frame', value: cfg.readySeconds, min: 0, max: 120, phase: 'before', glyph: '◱' },
+    { key: 'captureCount', label: 'How many photos', hint: 'Shots per session', value: cfg.captureCount, min: 1, max: 20, unit: 'photos', phase: 'shoot', glyph: '◉' },
+    { key: 'countdownSeconds', label: 'Gap between photos', hint: 'Time to change pose', value: cfg.countdownSeconds, min: 1, max: 30, phase: 'shoot', glyph: '◷' },
+    { key: 'beepLastSeconds', label: 'Beep for the last', hint: 'Warns the shot is coming', value: cfg.beepLastSeconds, min: 0, max: 10, phase: 'shoot', glyph: '♪' },
+    { key: 'pickSeconds', label: 'Pick photos', hint: 'Review step 1 of 3', value: cfg.pickSeconds, min: 5, max: 300, phase: 'choose', glyph: '❶' },
+    { key: 'frameSeconds', label: 'Pick a frame', hint: 'Review step 2 of 3', value: cfg.frameSeconds, min: 5, max: 300, phase: 'choose', glyph: '❷' },
+    { key: 'filterSeconds', label: 'Pick a look', hint: 'Review step 3 of 3', value: cfg.filterSeconds, min: 5, max: 300, phase: 'choose', glyph: '❸' },
+    { key: 'idleResetSeconds', label: 'Give up after', hint: 'If nobody touches anything', value: cfg.idleResetSeconds, min: 15, max: 600, phase: 'safety', glyph: '⚠' },
+  ];
+}
+
+/** Phases, so eight near-identical number boxes read as four short stages. */
+function timingPhases() {
+  return [
+    { id: 'before', name: 'Before the photos', tint: '#3b4d97' },
+    { id: 'shoot', name: 'Taking the photos', tint: '#1d7a4c' },
+    { id: 'choose', name: 'Choosing', tint: '#8b6b00' },
+    { id: 'safety', name: 'If something goes wrong', tint: '#8b0003' },
   ];
 }
 
@@ -476,31 +580,36 @@ ipcMain.handle('order:submit', async (_e, order) => {
     const out = path.join(dir, `print_${Date.now()}.jpg`);
     const b64 = String(order.dataUrl).replace(/^data:image\/\w+;base64,/, '');
     fs.writeFileSync(out, Buffer.from(b64, 'base64'));
-    // Saved next to the print. Nothing prints it yet; staff decide that.
-    let keychainPath = null;
-    if (order.keychainDataUrl) {
+    // One strip at full resolution, kept so any small print can be made from
+    // this session later without the customer coming back.
+    let stripPath = null;
+    if (order.stripDataUrl) {
       try {
-        keychainPath = path.join(dir, `keychain_${Date.now()}.jpg`);
-        const kb = String(order.keychainDataUrl).replace(/^data:image\/\w+;base64,/, '');
-        fs.writeFileSync(keychainPath, Buffer.from(kb, 'base64'));
+        stripPath = path.join(dir, `strip_${Date.now()}.jpg`);
+        const sb = String(order.stripDataUrl).replace(/^data:image\/\w+;base64,/, '');
+        fs.writeFileSync(stripPath, Buffer.from(sb, 'base64'));
       } catch (err) {
-        log.error('[main] keychain save failed:', err.message);
-        keychainPath = null;
+        log.error('[main] strip save failed:', err.message);
+        stripPath = null;
       }
     }
 
     const entry = queue.add({
       dir,
       imagePath: out,
-      keychainPath,
+      stripPath,
       copies: Math.max(1, Math.min(cfg.maxCopies, parseInt(order.copies, 10) || 1)),
       frameId: order.frameId,
       frameName: order.frameName,
       items: order.items || [],
       total: order.total || 0,
-      // Whatever the customer already ticked. Staff can still change it on the
-      // phone before taking the money.
-      extras: Array.isArray(order.extras) ? order.extras : [],
+      // Quantities, not flags: staff sell more of these later, and "how many"
+      // is the question they are actually asked.
+      qty: Object.assign(
+        { print: Math.max(1, Math.min(cfg.maxCopies, parseInt(order.copies, 10) || 1)) },
+        countExtras(order.extras)
+      ),
+      printed: { print: 0 },
       styleId: order.styleId || null,
     });
     return { ok: true, code: entry.code, total: entry.total, items: entry.items };

@@ -65,10 +65,10 @@ class Queue {
         code: this.newCode(),
         createdAt: Date.now(),
         status: 'pending',
-        copies: 1,
         items: [],
         total: 0,
-        extras: [],
+        qty: { print: 1 },
+        printed: {},
       },
       order
     );
@@ -76,6 +76,11 @@ class Queue {
     this.save();
     log.info(`[queue] order ${entry.code} added, $${entry.total}`);
     return entry;
+  }
+
+  /** Everything still on file, pending or not. Add-ons get sold after release. */
+  all() {
+    return this.orders.slice();
   }
 
   get(code) {

@@ -215,8 +215,8 @@ function restoreSettings() {
     const files = fs.readdirSync(path.join(sessionsRoot, dirs[0]));
     t('shots saved', files.filter((f) => f.startsWith('shot_')).length === 3);
     t('composite saved', files.filter((f) => f.startsWith('print_')).length === 1);
-    t('keychain sheet built whether or not it was bought',
-      files.filter((f) => f.startsWith('keychain_')).length === 1);
+    t('a strip is kept for later small prints, bought or not',
+      files.filter((f) => f.startsWith('strip_')).length === 1);
 
     const order = (await staff('/api/queue')).body.pending.find((o) => o.code === code);
     t('order queued under that code', !!order);
@@ -229,8 +229,26 @@ function restoreSettings() {
 
     const rel = await staff('/api/release?code=' + code, { method: 'POST' });
     t('photos release to the printer', rel.ok && rel.body.status === 'released', rel.body.status);
-    const kc = await staff('/api/keychain?code=' + code, { method: 'POST' });
-    t('keychain prints on its own, after the photos have gone', kc.ok === true);
+    // Selling an add-on after the photos have gone is an amendment to this
+    // order, which is the whole reason quantities live on the order.
+    const more = await staff('/api/order?code=' + code, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keychain: 3 }),
+    });
+    t('staff can add to a released order', more.ok && more.body.qty.keychain === 3,
+      JSON.stringify(more.body.qty));
+    t('and it re-prices', more.body.total === 8 + 3 * 8, '$' + more.body.total);  // Trio + 3 keychains
+
+    const waiting = (await staff('/api/queue')).body.batches.find((b) => b.id === 'keychain');
+    t('they queue up for a shared sheet', waiting && waiting.waiting === 3,
+      waiting && waiting.waiting + ' waiting');
+
+    const sheet = await staff('/api/batch?type=keychain', { method: 'POST' });
+    t('one sheet carries them all', sheet.ok && sheet.body.used === 3,
+      'used ' + (sheet.body && sheet.body.used));
+    const after = (await staff('/api/queue')).body.batches.find((b) => b.id === 'keychain');
+    t('and nothing is left owing', !after || after.waiting === 0);
 
     const timing = await staff('/api/settings');
     t('timings are exposed for the phone to edit',

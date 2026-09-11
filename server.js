@@ -54,18 +54,29 @@ function readBody(req) {
   });
 }
 
-/** Recompute a total from the frame price plus whatever staff has added. */
+/**
+ * Recompute a total from quantities. The first photo print is the layout
+ * price; further copies and every add-on are priced per unit, so selling one
+ * more of anything an hour later is the same arithmetic as selling it at the
+ * booth.
+ */
 function retotal(order, pricing) {
+  const qty = order.qty || {};
   const framePrice = ((pricing.frames || {})[order.frameId] || {}).price || 0;
   const items = [{ label: order.frameName || order.frameId, amount: framePrice }];
-  const extraCopies = Math.max(0, (order.copies || 1) - 1);
+
+  const extraCopies = Math.max(0, (qty.print || 1) - 1);
   if (extraCopies) {
-    items.push({ label: `extra copy x${extraCopies}`, amount: extraCopies * (pricing.extraCopy || 0) });
+    items.push({
+      label: `extra copy x${extraCopies}`,
+      amount: extraCopies * (pricing.extraCopy || 0),
+    });
   }
-  for (const id of order.extras || []) {
-    const a = (pricing.addons || []).find((x) => x.id === id);
-    if (a) items.push({ label: a.name, amount: a.price });
+  for (const a of pricing.addons || []) {
+    const n = qty[a.id] || 0;
+    if (n > 0) items.push({ label: `${a.name} x${n}`, amount: n * a.price });
   }
+
   order.items = items;
   order.total = items.reduce((n, i) => n + i.amount, 0);
   return order;
@@ -77,7 +88,7 @@ function retotal(order, pricing) {
  * @param {object} opts.cfg
  * @param {(order) => Promise<{ok:boolean,error?:string}>} opts.onRelease
  */
-function start({ queue, cfg, onRelease, onKeychain, isLocked, onStartSession, onSettings, timings }) {
+function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartSession, onSettings, timings, phases }) {
   const pin = String(cfg.staffPin || '');
   const port = cfg.staffPort || 8080;
 
@@ -106,7 +117,9 @@ function start({ queue, cfg, onRelease, onKeychain, isLocked, onStartSession, on
         pending: queue.pending(),
         recent: queue.recent(),
         pricing: cfg.pricing || {},
+        maxCopies: cfg.maxCopies || 3,
         locked: isLocked ? !!isLocked() : false,
+        batches: batchStatus ? batchStatus() : [],
       });
     }
 
@@ -134,7 +147,7 @@ function start({ queue, cfg, onRelease, onKeychain, isLocked, onStartSession, on
         const r = onSettings(patch);
         return json(res, 200, r || { ok: true });
       }
-      return json(res, 200, { settings: timings ? timings() : [] });
+      return json(res, 200, { settings: timings ? timings() : [], phases: phases ? phases() : [] });
     }
 
     if (p === '/api/thumb') {
@@ -144,61 +157,57 @@ function start({ queue, cfg, onRelease, onKeychain, isLocked, onStartSession, on
       return fs.createReadStream(o.imagePath).pipe(res);
     }
 
+    /**
+     * Change what an order is for, whenever. Deliberately not gated on status:
+     * the common sale is someone wandering back after collecting their photos,
+     * and the alternative -- a second order that cannot see the first one's
+     * picture -- would mean either a reshoot or a dangling reference.
+     */
     if (p === '/api/order' && req.method === 'POST') {
       const o = queue.get(url.searchParams.get('code'));
       if (!o) return json(res, 404, { error: 'no such order' });
-      if (o.status !== 'pending') return json(res, 409, { error: 'already released' });
       const body = await readBody(req);
-      if (Array.isArray(body.extras)) o.extras = body.extras;
-      if (Number.isFinite(body.copies)) o.copies = Math.max(1, Math.min(9, body.copies));
+      const qty = Object.assign({}, o.qty);
+
+      if (Number.isFinite(body.print)) {
+        qty.print = Math.max(1, Math.min(cfg.maxCopies || 3, body.print));
+      }
+      for (const a of (cfg.pricing || {}).addons || []) {
+        if (Number.isFinite(body[a.id])) qty[a.id] = Math.max(0, Math.min(20, body[a.id]));
+      }
+      // Never book fewer than have already come out of the printer.
+      for (const k of Object.keys(qty)) {
+        qty[k] = Math.max(qty[k], (o.printed || {})[k] || 0);
+      }
+
+      o.qty = qty;
       retotal(o, cfg.pricing || {});
       queue.save();
       return json(res, 200, o);
     }
 
+    /** Fill one sheet with the small prints owed across every order. */
+    if (p === '/api/batch' && req.method === 'POST') {
+      if (!onBatch) return json(res, 501, { error: 'not supported' });
+      const type = url.searchParams.get('type');
+      try {
+        const r = await onBatch(type);
+        return json(res, r && r.ok ? 200 : 409, r || { error: 'failed' });
+      } catch (err) {
+        return json(res, 500, { error: err.message });
+      }
+    }
+
     if (p === '/api/release' && req.method === 'POST') {
       const o = queue.get(url.searchParams.get('code'));
       if (!o) return json(res, 404, { error: 'no such order' });
-      if (o.status !== 'pending') return json(res, 409, { error: 'already released' });
-      queue.update(o.code, { status: 'printing' });
       try {
         const r = await onRelease(o);
         if (r && r.ok) {
           queue.update(o.code, { status: 'released', releasedAt: Date.now(), error: null });
         } else {
-          queue.update(o.code, { status: 'pending', error: (r && r.error) || 'print failed' });
+          queue.update(o.code, { error: (r && r.error) || 'print failed' });
         }
-        return json(res, r && r.ok ? 200 : 500, queue.get(o.code));
-      } catch (err) {
-        queue.update(o.code, { status: 'pending', error: err.message });
-        return json(res, 500, { error: err.message });
-      }
-    }
-
-    /**
-     * Keychains are sold at the table, often after the photos have already
-     * been handed over, so this is its own action: it prints the keychain
-     * sheet and nothing else, and it works whether or not the order has been
-     * released. The add-on is recorded on the order so the total stays honest.
-     */
-    if (p === '/api/keychain' && req.method === 'POST') {
-      const o = queue.get(url.searchParams.get('code'));
-      if (!o) return json(res, 404, { error: 'no such order' });
-      if (!o.keychainPath) return json(res, 409, { error: 'no keychain sheet for this order' });
-      if (!onKeychain) return json(res, 501, { error: 'not supported' });
-      if (!(o.extras || []).includes('keychain')) {
-        o.extras = (o.extras || []).concat('keychain');
-        retotal(o, cfg.pricing || {});
-      }
-      try {
-        const r = await onKeychain(o);
-        queue.update(o.code, {
-          extras: o.extras,
-          items: o.items,
-          total: o.total,
-          keychainPrinted: !!(r && r.ok),
-          error: r && r.ok ? null : (r && r.error) || 'keychain print failed',
-        });
         return json(res, r && r.ok ? 200 : 500, queue.get(o.code));
       } catch (err) {
         queue.update(o.code, { error: err.message });
@@ -287,27 +296,40 @@ const PAGE = `<!doctype html>
   .booth .start{width:100%;padding:17px;background:var(--ink);color:var(--paper);font-size:17px}
   .booth.open{background:transparent;color:var(--paper);padding:4px 4px 10px;text-align:center;
     font-size:13px;opacity:.6}
-  .kc{width:100%;margin-top:8px;background:transparent;color:var(--ink);
-    border:1px solid var(--line);font-weight:600;padding:12px;font-size:14px}
-  .kc.small{width:auto;margin:0 0 0 10px;padding:6px 10px;font-size:12px;
-    color:var(--paper);border-color:rgba(255,248,238,.35)}
+  .qrows{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+  .qrow{display:flex;align-items:center;gap:10px;padding:5px 0}
+  .qname{font-size:14px;text-transform:capitalize}
+  .qname b{font-weight:600;color:var(--soft)}
+  .done{display:block;font-size:11px;color:var(--ok)}
+  .qrow .stepper{margin-left:auto}
+  .qrow .stepper span{min-width:34px}
+  .batchcard{background:var(--paper);color:var(--ink);border-radius:16px;padding:12px 14px;
+    margin-bottom:12px;border-left:5px solid var(--ok)}
+  .bhead{display:flex;align-items:baseline;gap:8px;font-size:14px;margin-bottom:10px}
+  .bhead .ago{margin-left:auto;text-align:right}
+  .bprint{background:var(--ok);color:#fff;margin:0}
   .past{align-items:center}
   .tabs{display:flex;gap:8px;margin-left:auto}
   .tab{background:transparent;color:var(--paper);border:1px solid rgba(255,248,238,.3);
     padding:8px 12px;font-size:13px;border-radius:999px;font-weight:500}
   .tab[aria-selected="true"]{background:var(--paper);color:var(--ink)}
-  .flow{display:flex;flex-direction:column;gap:10px}
-  .fstep{background:var(--paper);color:var(--ink);border-radius:16px;padding:12px 14px;
-    display:flex;align-items:center;gap:12px}
-  .fstep .n{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--paper);
-    display:grid;place-items:center;font-size:13px;font-weight:700;flex:0 0 auto}
+  .estimate{margin:10px 2px 14px;font-size:14px;opacity:.8;text-align:center}
+  .flow{display:flex;flex-direction:column;gap:16px}
+  .phase{background:var(--paper);color:var(--ink);border-radius:16px;overflow:hidden;
+    border-left:6px solid var(--tint)}
+  .phead{margin:0;padding:11px 14px;font:600 12px/1 system-ui;letter-spacing:.12em;
+    text-transform:uppercase;color:#fff;background:var(--tint)}
+  .fstep{display:flex;align-items:center;gap:12px;padding:12px 14px;
+    border-top:1px solid var(--line)}
+  .phase .fstep:first-of-type{border-top:0}
+  .gly{width:28px;height:28px;border-radius:8px;background:var(--tint);color:#fff;
+    display:grid;place-items:center;font-size:15px;flex:0 0 auto;opacity:.9}
   .fstep .lab{font-weight:600;font-size:15px}
   .fstep .hint{display:block;font-weight:400;font-size:12px;color:var(--soft)}
-  .fstep .val{margin-left:auto;display:flex;align-items:center;gap:8px;flex:0 0 auto}
-  .fstep input{width:74px;padding:10px;font-size:19px;text-align:center;border-radius:10px;
+  .fstep .val{margin-left:auto;display:flex;align-items:baseline;gap:6px;flex:0 0 auto}
+  .fstep input{width:76px;padding:10px;font-size:20px;text-align:center;border-radius:10px;
     border:1px solid var(--line);background:#fff;color:var(--ink);font-weight:700}
-  .fstep .unit{font-size:12px;color:var(--soft);width:16px}
-  .arrow{text-align:center;color:rgba(255,248,238,.4);font-size:14px;line-height:1;margin:-4px 0}
+  .fstep .unit{font-size:11px;color:var(--soft);width:32px;text-align:left}
   .saverow{position:sticky;bottom:0;padding:12px 0 0;background:linear-gradient(transparent,var(--ink) 30%)}
   .saved{text-align:center;font-size:13px;opacity:.75;padding-top:8px}
 </style></head><body>
@@ -326,11 +348,11 @@ const PAGE = `<!doctype html>
     </span>
   </header>
   <main>
-    <div id="queueView"><div id="booth"></div><div id="list"></div>
+    <div id="queueView"><div id="booth"></div><div id="batch"></div><div id="list"></div>
       <h2 id="pastHead" hidden>Done</h2><div id="past"></div>
     </div>
     <div id="setView" hidden>
-      <h2 style="margin-top:8px">How long each step lasts</h2>
+      <p class="estimate" id="estimate"></p>
       <div class="flow" id="flow"></div>
       <div class="saverow"><button class="go" id="saveSet">Save timings</button></div>
       <p class="saved" id="setMsg">Changes reach the booth straight away. It does not need restarting.</p>
@@ -364,25 +386,56 @@ const PAGE = `<!doctype html>
 
   // Timing view. Drawn as the booth's own flow with a number in each step, so
   // an operator who has never seen the code can still see what they are changing.
-  var settings=[];
+  var settings=[], phases=[];
   function loadSettings(){
     api('/api/settings').then(function(r){return r.json()}).then(function(d){
-      settings=d.settings||[]; renderFlow();
+      settings=d.settings||[]; phases=d.phases||[]; renderFlow();
     }).catch(function(){});
   }
+
+  /**
+   * Grouped by stage rather than listed flat. Eight near-identical rows of
+   * "label / number / s" are impossible to tell apart at a glance, which is
+   * how an operator ends up editing the wrong one; four short stages with
+   * their own colour, and a running total of what a session costs in time,
+   * gives each number somewhere to belong.
+   */
   function renderFlow(){
     var f=$('flow'); f.innerHTML='';
-    settings.forEach(function(row,i){
-      if(i)f.insertAdjacentHTML('beforeend','<div class="arrow">&#9660;</div>');
-      var el=document.createElement('div'); el.className='fstep';
-      el.innerHTML='<span class="n">'+(i+1)+'</span>'+
-        '<span class="lab">'+row.label+'<span class="hint">'+row.hint+'</span></span>'+
-        '<span class="val"><input type="number" inputmode="numeric" data-k="'+row.key+'" '+
-          'min="'+row.min+'" max="'+row.max+'" value="'+row.value+'" />'+
-          '<span class="unit">'+(row.unit===''?'':'s')+'</span></span>';
-      f.appendChild(el);
+    var byPhase={}; settings.forEach(function(r){(byPhase[r.phase]=byPhase[r.phase]||[]).push(r)});
+
+    phases.forEach(function(ph){
+      var rows=byPhase[ph.id]||[]; if(!rows.length)return;
+      var sec=document.createElement('section'); sec.className='phase';
+      sec.style.setProperty('--tint',ph.tint);
+      sec.innerHTML='<h3 class="phead">'+ph.name+'</h3>';
+      rows.forEach(function(row){
+        var el=document.createElement('label'); el.className='fstep';
+        el.innerHTML='<span class="gly">'+(row.glyph||'')+'</span>'+
+          '<span class="lab">'+row.label+'<span class="hint">'+row.hint+'</span></span>'+
+          '<span class="val"><input type="number" inputmode="numeric" data-k="'+row.key+'" '+
+            'min="'+row.min+'" max="'+row.max+'" value="'+row.value+'" />'+
+            '<span class="unit">'+(row.unit||'sec')+'</span></span>';
+        el.querySelector('input').addEventListener('input',estimate);
+        sec.appendChild(el);
+      });
+      f.appendChild(sec);
     });
+    estimate();
   }
+
+  // What these numbers add up to is the thing staff actually care about, and
+  // it is not obvious from eight separate boxes.
+  function estimate(){
+    var v={}; $('flow').querySelectorAll('input[data-k]').forEach(function(i){
+      v[i.getAttribute('data-k')]=parseInt(i.value,10)||0;
+    });
+    var secs=(v.readySeconds||0)+(v.captureCount||0)*((v.countdownSeconds||0)+2)+
+      (v.pickSeconds||0)+(v.frameSeconds||0)+(v.filterSeconds||0);
+    var m=Math.floor(secs/60), sc=secs%60;
+    $('estimate').textContent='A session takes about '+(m?m+' min ':'')+sc+' sec';
+  }
+
   $('saveSet').addEventListener('click',function(){
     var b=this, body={};
     $('flow').querySelectorAll('input[data-k]').forEach(function(i){
@@ -419,6 +472,7 @@ const PAGE = `<!doctype html>
   function render(d){
     pricing=d.pricing||{};
     booth(d.locked);
+    batch(d.batches||[]);
     var list=$('list'); var pend=d.pending||[];
     $('count').textContent=pend.length?pend.length+' waiting':'all clear';
     if(!pend.length){list.innerHTML='<div class="empty">Nothing waiting.<br>Orders show up here the moment someone finishes.</div>'}
@@ -428,19 +482,48 @@ const PAGE = `<!doctype html>
     }
     var past=d.recent||[];
     $('pastHead').hidden=!past.length;
+    // Released orders keep their full card. A keychain sold ten minutes later
+    // is an amendment to this order, not a new one, because this is where the
+    // photo lives.
     $('past').innerHTML='';
     past.forEach(function(o){
-      var row=document.createElement('div'); row.className='past';
-      row.innerHTML='<span>'+o.code+' &middot; '+(o.status==='void'?'voided':'printed')+'</span>'+
-        '<span>'+money(o.total)+'</span>';
-      // Most keychains are sold here: after the photos are already in a hand.
-      if(o.keychainPath&&o.status!=='void'){
-        var b=document.createElement('button'); b.className='kc small';
-        b.textContent=o.keychainPrinted?'Keychain again':'+ Keychain';
-        b.addEventListener('click',function(){keychain(o,b)});
-        row.appendChild(b);
+      if(o.status==='void'){
+        $('past').insertAdjacentHTML('beforeend',
+          '<div class="past"><span>'+o.code+' &middot; voided</span><span>'+money(o.total)+'</span></div>');
+        return;
       }
-      $('past').appendChild(row);
+      $('past').appendChild(card(o));
+    });
+  }
+
+  /**
+   * Small prints waiting across every order. A keychain uses about an eighth
+   * of a sheet, so printing them one order at a time throws most of the paper
+   * away; this pools them and prints one full sheet, with each little strip
+   * stamped with its pickup code so the pile can be sorted after cutting.
+   */
+  function batch(list){
+    var el=$('batch');
+    var live=(list||[]).filter(function(b){return b.waiting>0});
+    if(!live.length){el.innerHTML='';return}
+    el.innerHTML=live.map(function(b){
+      return '<div class="batchcard"><div class="bhead"><b>'+b.waiting+' '+b.name+
+        (b.waiting>1?'s':'')+'</b> waiting<span class="ago">'+
+        b.orders.map(function(o){return o.code+(o.n>1?' x'+o.n:'')}).join(', ')+'</span></div>'+
+        '<button class="go bprint" data-type="'+b.id+'">Print a sheet of '+b.name+'s</button></div>';
+    }).join('');
+    el.querySelectorAll('.bprint').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var type=btn.getAttribute('data-type');
+        btn.disabled=true; var was=btn.textContent; btn.textContent='Printing sheet...';
+        api('/api/batch?type='+type,{method:'POST'})
+          .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})
+          .then(function(x){
+            if(x.ok){refresh()}
+            else{btn.disabled=false;btn.textContent=was;alert((x.j&&x.j.error)||'Sheet failed.')}
+          })
+          .catch(function(){btn.disabled=false;btn.textContent=was});
+      });
     });
   }
 
@@ -465,41 +548,46 @@ const PAGE = `<!doctype html>
     img.src='/api/thumb?code='+o.code+'&k='+encodeURIComponent(K); img.alt='';
     var right=document.createElement('div');
 
+    var owed=function(t){return Math.max(0,((o.qty||{})[t]||0)-((o.printed||{})[t]||0))};
     var head='<div style="display:flex;align-items:baseline;gap:10px">'+
       '<span class="code">'+o.code+'</span><span class="ago">'+ago(o.createdAt)+'</span></div>';
     var lines='<div class="lines">'+(o.items||[]).map(function(i){
       return '<div><span>'+i.label+'</span><span>'+money(i.amount)+'</span></div>'}).join('')+
       '<div class="total"><span>Total</span><span>'+money(o.total)+'</span></div></div>';
 
-    var chips='<div class="chips">'+(pricing.addons||[]).map(function(a){
-      var on=(o.extras||[]).indexOf(a.id)>=0;
-      return '<button class="chip" data-add="'+a.id+'" aria-pressed="'+on+'">'+a.name+' '+money(a.price)+'</button>';
-    }).join('')+
-      '<span class="stepper"><button data-cop="-1">&minus;</button>'+
-      '<span>'+o.copies+' cop'+(o.copies===1?'y':'ies')+'</span>'+
-      '<button data-cop="1">+</button></span></div>';
+    // One row per thing that can be sold, each with its own count. Quantities
+    // rather than on/off, because "how many" is what staff actually get asked.
+    var products=[{id:'print',name:'photo print'}].concat((pricing.addons||[]).map(function(a){
+      return {id:a.id,name:a.name,price:a.price};
+    }));
+    var rows=products.map(function(pr){
+      var n=(o.qty||{})[pr.id]||0, done=(o.printed||{})[pr.id]||0;
+      return '<div class="qrow"><span class="qname">'+pr.name+
+        (pr.price?' <b>'+money(pr.price)+'</b>':'')+
+        (done?'<span class="done">'+done+' printed</span>':'')+'</span>'+
+        '<span class="stepper"><button data-q="'+pr.id+'" data-d="-1">&minus;</button>'+
+        '<span>'+n+'</span><button data-q="'+pr.id+'" data-d="1">+</button></span></div>';
+    }).join('');
 
-    right.innerHTML=head+lines+chips+
-      '<button class="go">Paid '+money(o.total)+' &middot; Print</button>'+
-      (o.keychainPath?'<button class="kc">'+(o.keychainPrinted?'Print keychain again':'Add keychain &middot; print it now')+'</button>':'')+
+    var owedPrints=owed('print');
+    right.innerHTML=head+lines+'<div class="qrows">'+rows+'</div>'+
+      '<button class="go"'+(owedPrints?'':' disabled')+'>'+
+        (owedPrints?'Paid '+money(o.total)+' &middot; Print '+owedPrints+' photo'+(owedPrints>1?'s':'')
+                   :'Photos printed')+
+      '</button>'+
       (o.error?'<p class="err">'+o.error+'</p>':'')+
       '<button class="void">Void this order</button>';
 
-    right.querySelectorAll('[data-add]').forEach(function(b){
+    right.querySelectorAll('[data-q]').forEach(function(b){
       b.addEventListener('click',function(){
-        var id=b.getAttribute('data-add'); var ex=(o.extras||[]).slice();
-        var i=ex.indexOf(id); if(i>=0)ex.splice(i,1); else ex.push(id);
-        patch(o,{extras:ex});
+        var id=b.getAttribute('data-q');
+        var body={}; body[id]=((o.qty||{})[id]||0)+parseInt(b.getAttribute('data-d'),10);
+        patch(o,body);
       });
     });
-    right.querySelectorAll('[data-cop]').forEach(function(b){
-      b.addEventListener('click',function(){
-        patch(o,{copies:(o.copies||1)+parseInt(b.getAttribute('data-cop'),10)});
-      });
+    right.querySelector('.go').addEventListener('click',function(){
+      if(!this.disabled)release(o,this);
     });
-    right.querySelector('.go').addEventListener('click',function(){release(o,this)});
-    var kcBtn=right.querySelector('.kc');
-    if(kcBtn)kcBtn.addEventListener('click',function(){keychain(o,this)});
     right.querySelector('.void').addEventListener('click',function(){
       if(!confirm('Void order '+o.code+'? It will not print.'))return;
       busy[o.code]=1;
@@ -508,19 +596,6 @@ const PAGE = `<!doctype html>
 
     el.appendChild(img); el.appendChild(right);
     return el;
-  }
-
-  function keychain(o,btn){
-    btn.disabled=true; var was=btn.textContent; btn.textContent='Printing keychain...';
-    busy[o.code]=1;
-    api('/api/keychain?code='+o.code,{method:'POST'})
-      .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})
-      .then(function(x){
-        delete busy[o.code];
-        if(x.ok){refresh()}
-        else{btn.disabled=false;btn.textContent=was;alert((x.j&&x.j.error)||'Keychain print failed.')}
-      })
-      .catch(function(){delete busy[o.code];btn.disabled=false;btn.textContent=was});
   }
 
   function patch(o,body){
