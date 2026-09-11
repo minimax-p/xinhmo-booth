@@ -53,6 +53,7 @@ wording you see on screen:
 | On screen | Where |
 |---|---|
 | `$5`, `Grand`, `4 on the print · 1 strip` | `buildMenu()` |
+| Decoration names on the frame step | `buildDecorChips()` |
 | `Photo 3 of 10` | `runCaptureSequence()` |
 | `Nice. Get set for the next one.` | `runCaptureSequence()` |
 | `2 of 4 chosen` | `buildThumbs()` |
@@ -86,18 +87,31 @@ Do not hard-code a colour anywhere else. If you find yourself typing `#26357e`
 into a rule, use `var(--ink)` instead — otherwise the next person changing the
 palette will miss it.
 
-**The printed frame colours are separate.** Those are the four colourways a
-customer picks between, and they live in `config.js` under `styles` (and can be
-overridden in `settings.json`). They set what goes on paper, not on screen:
+**Frame decorations are separate, and they are not code.** Those are the art
+a customer picks between on the frame step, and they are PNG files in
+`frames/decor/`. Drop a PNG in that folder and it appears as a new option next
+time the booth starts — no edits anywhere.
 
-```js
-styles: [
-  { id: 'cream', name: 'Cream', background: '#FFF8EE', ink: '#26357E' },
-  ...
-]
+Draw them **564 × 1764** (one strip column, 300dpi) with a **transparent
+middle**, or they will cover the photographs. A two-column layout gets the same
+art over each column, since those get cut apart and handed to two people.
+
+`frames/decor/decor.json` is optional and only sets display names and order:
+
+```json
+[{ "file": "ribbon.png", "name": "Ribbon" }]
 ```
 
-Add an entry there and a new swatch appears on the frame step automatically.
+To get a correctly sized, correctly transparent file to start from:
+
+```bash
+node scripts/make-decor.js
+```
+
+That writes five placeholder designs. Open one in a drawing app and paint over
+it. Decorations draw *under* the frame's caption, so the wordmark survives; if
+your art has its own caption, blank `caption` for that layout in
+`frames/frames.json`.
 
 ---
 
