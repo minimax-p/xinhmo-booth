@@ -1725,3 +1725,59 @@ img.live:not([src]) {
 .chip.active .decor-thumb {
   border-color: var(--paper);
 }
+
+/* ----------------------------------------------------------- add-on rows
+   A count, not a switch. One keychain per group was never the common case. */
+.addon-rows {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 1vmin, 10px);
+}
+
+.addon-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  padding: clamp(4px, 0.9vmin, 10px) 0;
+  border-bottom: 1px dashed var(--ink-line);
+}
+
+.addon-row:last-child {
+  border-bottom: 0;
+}
+
+.addon-name {
+  font-family: var(--serif);
+  font-size: var(--fs-sm);
+  text-transform: capitalize;
+  color: var(--ink);
+}
+
+.addon-price {
+  display: block;
+  font-family: var(--sans);
+  font-size: var(--fs-xs);
+  text-transform: none;
+  color: var(--ink-soft);
+}
+
+.addon-count {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  flex: 0 0 auto;
+}
+
+.addon-val {
+  min-width: 1.4em;
+  font-family: var(--serif);
+  font-size: var(--fs-lg);
+  text-align: center;
+  color: var(--ink);
+}
+
+/* Zero is the resting state, so it should not shout. */
+.addon-val.is-zero {
+  color: var(--ink-line);
+}

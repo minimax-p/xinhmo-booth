@@ -73,13 +73,24 @@ const DEFAULTS = {
     // An add-on with a heightMm is something the printer makes: one strip
     // shrunk to that height, cut out by hand. Without it, it is just a line on
     // the bill. Staff sell these by quantity, often long after the photos.
+    //
+    // perSheet is how many fit on one 4x6 at that height, and it is what makes
+    // a queue a queue: it fills up, and a full one wants printing. Measured,
+    // not guessed -- 55mm gives 4 columns of 2, 35mm gives 6 of 3. Raise the
+    // height and you must lower this or the overflow silently rolls to the
+    // next sheet.
     addons: [
-      { id: 'keychain', name: 'keychain', price: 8, heightMm: 55 },
-      { id: 'charm', name: 'charm', price: 5, heightMm: 35 },
+      { id: 'keychain', name: 'keychain', price: 8, heightMm: 55, perSheet: 8 },
+      { id: 'charm', name: 'charm', price: 5, heightMm: 35, perSheet: 18 },
     ],
     extraCopy: 3,
     paymentNote: '$3 for each extra copy. Zelle/Cash only.',
   },
+
+  // Most a single customer can add of one thing at the booth. Staff can go
+  // higher on the phone; this is just a sane ceiling on a stepper nobody is
+  // supervising.
+  maxAddonsPerOrder: 9,
 
   // --- session ---
   idleResetSeconds: 90, // return to the welcome screen after this much inactivity

@@ -161,10 +161,13 @@ function createWindow() {
 // Lifecycle
 // --------------------------------------------------------------------------
 
-/** A list of add-on ids becomes {keychain: 2, charm: 1}. */
-function countExtras(extras) {
+/** Whatever the booth sent, reduced to clean {keychain: 2, charm: 1} counts. */
+function addonCounts(addons) {
   const out = {};
-  for (const id of Array.isArray(extras) ? extras : []) out[id] = (out[id] || 0) + 1;
+  for (const a of (cfg.pricing || {}).addons || []) {
+    const n = parseInt((addons || {})[a.id], 10);
+    if (Number.isFinite(n) && n > 0) out[a.id] = Math.min(n, 99);
+  }
   return out;
 }
 
@@ -207,11 +210,15 @@ async function printBatch(type) {
   if (!addon || !addon.heightMm) return { ok: false, error: 'That add-on is not a print.' };
   if (!win || win.isDestroyed()) return { ok: false, error: 'The booth window is not available.' };
 
-  // One entry per physical item, oldest order first.
+  // One entry per physical item, oldest order first, capped at a sheet. The
+  // rest stay owed and become the next queue, which is what "start a new
+  // queue" means here -- nothing is lost, it just moves to the next sheet.
+  const perSheet = Math.max(1, addon.perSheet || 8);
   const cells = [];
   for (const o of queue.all().sort((a, b) => a.createdAt - b.createdAt)) {
+    if (cells.length >= perSheet) break;
     if (!o.stripPath || !fs.existsSync(o.stripPath)) continue;
-    let n = owed(o, type);
+    let n = Math.min(owed(o, type), perSheet - cells.length);
     while (n-- > 0) cells.push({ code: o.code, path: o.stripPath });
   }
   if (!cells.length) return { ok: false, error: 'No ' + type + 's are waiting.' };
@@ -257,20 +264,35 @@ async function printBatch(type) {
   return Object.assign({ used: built.used, waiting: cells.length, file: out }, res);
 }
 
-/** What is waiting to be printed small, for the staff phone to show. */
+/**
+ * The small-print queues, one per add-on type.
+ *
+ * They are separate on purpose: a keychain and a charm are different sizes, so
+ * they cannot share a sheet, and pooling them into one number would tell staff
+ * nothing they could act on. Each queue holds one sheet's worth. Past that the
+ * overflow is real work waiting for a second sheet, and saying so is the whole
+ * point -- a queue that silently grows is one nobody prints.
+ */
 function batchStatus() {
   return ((cfg.pricing || {}).addons || [])
     .filter((a) => a.heightMm)
     .map((a) => {
+      const perSheet = Math.max(1, a.perSheet || 8);
       const orders = queue
         .all()
+        .sort((x, y) => x.createdAt - y.createdAt)
         .filter((o) => owed(o, a.id) > 0)
         .map((o) => ({ code: o.code, n: owed(o, a.id) }));
+      const waiting = orders.reduce((n, o) => n + o.n, 0);
       return {
         id: a.id,
         name: a.name,
         heightMm: a.heightMm,
-        waiting: orders.reduce((n, o) => n + o.n, 0),
+        perSheet,
+        waiting,
+        onSheet: Math.min(waiting, perSheet),
+        overflow: Math.max(0, waiting - perSheet),
+        full: waiting >= perSheet,
         orders,
       };
     });
@@ -497,6 +519,7 @@ function rendererConfig() {
   frameSeconds: cfg.frameSeconds,
   filterSeconds: cfg.filterSeconds,
   lockAfterSession: cfg.lockAfterSession,
+  maxAddonsPerOrder: cfg.maxAddonsPerOrder,
   reviewSeconds: cfg.reviewSeconds,
   decor: decor.all(),
   maxCopies: cfg.maxCopies,
@@ -608,7 +631,7 @@ ipcMain.handle('order:submit', async (_e, order) => {
       // is the question they are actually asked.
       qty: Object.assign(
         { print: Math.max(1, Math.min(cfg.maxCopies, parseInt(order.copies, 10) || 1)) },
-        countExtras(order.extras)
+        addonCounts(order.addons)
       ),
       printed: { print: 0 },
       styleId: order.styleId || null,

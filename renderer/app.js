@@ -27,7 +27,7 @@ const S = {
   decorId: null, // frame decoration, free
   decorImgs: {}, // id -> decoded overlay
   filterId: 'none',
-  extras: [], // paid add-ons (keychain, charm)
+  addons: {}, // paid add-ons by id -> how many
   copies: 1,
   locked: false,
   readyTimer: null,
@@ -118,7 +118,7 @@ async function init() {
   preloadDecor();
   buildDecorChips();
   buildFilterChips();
-  buildAddonChips();
+  buildAddonRows();
   buildPinPad();
   wireEvents();
 
@@ -141,7 +141,7 @@ async function init() {
     S.frames = S.cfg.frames || S.frames;
     buildMenu();
     buildDecorChips();
-    buildAddonChips();
+    buildAddonRows();
     syncChips();
     log('info', 'settings reloaded from staff');
   });
@@ -237,11 +237,11 @@ function computeOrder() {
     });
   }
 
-  // Staff can still add or remove these on the phone before taking payment;
-  // choosing here just means the customer is not relying on remembering to ask.
-  (S.extras || []).forEach((id) => {
-    const a = (pricing.addons || []).find((x) => x.id === id);
-    if (a) items.push({ label: a.name, amount: a.price });
+  // Staff can still change these on the phone before taking payment; choosing
+  // here just means nobody has to remember to ask.
+  (pricing.addons || []).forEach((a) => {
+    const n = S.addons[a.id] || 0;
+    if (n > 0) items.push({ label: `${a.name} x${n}`, amount: n * a.price });
   });
 
   return { cur, items, total: items.reduce((n, i) => n + i.amount, 0), frame };
@@ -538,7 +538,7 @@ async function startSession(frameId) {
   S.selected = [];
   S.filterId = 'none';
   S.decorId = null;
-  S.extras = [];
+  S.addons = {};
   S.copies = 1;
   S.frameId = frameId || pickDefaultFrame();
   syncChips();
@@ -888,28 +888,45 @@ function buildDecorChips() {
   });
 }
 
-/** Paid add-ons. These do change the total, so they show their price. */
-function buildAddonChips() {
-  const wrap = $('addonChips');
+/**
+ * Paid add-ons, each with its own count.
+ *
+ * These were on/off switches, which quietly assumed one keychain per group.
+ * A group of five wants five, and being told "ask staff afterwards" turns a
+ * sale into an errand. The stepper is the whole feature.
+ */
+function buildAddonRows() {
+  const wrap = $('addonRows');
   if (!wrap) return;
   const pricing = (S.cfg && S.cfg.pricing) || {};
   const cur = pricing.currency || '$';
   const addons = pricing.addons || [];
   wrap.innerHTML = '';
+
   addons.forEach((a) => {
-    const b = document.createElement('button');
-    b.className = 'chip';
-    b.dataset.addon = a.id;
-    b.textContent = `${a.name} · ${cur}${a.price}`;
-    b.addEventListener('click', () => {
-      const at = S.extras.indexOf(a.id);
-      if (at === -1) S.extras.push(a.id);
-      else S.extras.splice(at, 1);
-      syncChips();
-      updateTotals();
-    });
-    wrap.appendChild(b);
+    const row = document.createElement('div');
+    row.className = 'addon-row';
+    row.innerHTML =
+      `<span class="addon-name">${escapeHtml(a.name)}` +
+      `<span class="addon-price">${cur}${a.price} each</span></span>` +
+      `<span class="addon-count">` +
+      `<button class="step" data-addon="${a.id}" data-delta="-1" aria-label="Fewer ${escapeHtml(a.name)}">&minus;</button>` +
+      `<span class="addon-val" data-count="${a.id}">0</span>` +
+      `<button class="step" data-addon="${a.id}" data-delta="1" aria-label="More ${escapeHtml(a.name)}">+</button>` +
+      `</span>`;
+    wrap.appendChild(row);
   });
+
+  wrap.querySelectorAll('[data-addon]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const id = b.dataset.addon;
+      const max = (S.cfg && S.cfg.maxAddonsPerOrder) || 9;
+      const next = (S.addons[id] || 0) + Number(b.dataset.delta);
+      S.addons[id] = Math.max(0, Math.min(max, next));
+      syncChips();
+    });
+  });
+
   const hint = $('addonHint');
   if (hint) hint.textContent = addons.length ? 'pay at the table' : '';
 }
@@ -949,9 +966,11 @@ function syncChips() {
   document.querySelectorAll('#decorChips .chip').forEach((c) =>
     c.classList.toggle('active', (c.dataset.decor || null) === S.decorId)
   );
-  document.querySelectorAll('#addonChips .chip').forEach((c) =>
-    c.classList.toggle('active', S.extras.includes(c.dataset.addon))
-  );
+  document.querySelectorAll('[data-count]').forEach((el) => {
+    const n = S.addons[el.dataset.count] || 0;
+    el.textContent = String(n);
+    el.classList.toggle('is-zero', n === 0);
+  });
   updateTotals();
 }
 
@@ -1568,7 +1587,7 @@ async function doPrint() {
       items: order.items,
       total: order.total,
       stripDataUrl: stripUrl,
-      extras: S.extras.slice(),
+      addons: Object.assign({}, S.addons),
       decorId: S.decorId,
     });
 
