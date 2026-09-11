@@ -67,7 +67,7 @@ async function checkAsync(name, fn) {
   const config = require('../config');
   const cfg = config.load();
   check('settings load', () => typeof cfg === 'object');
-  check('captureCount sane', () => cfg.captureCount >= 1 && cfg.captureCount <= 8);
+  check('captureCount sane', () => cfg.captureCount >= 1 && cfg.captureCount <= 20);
   check('printer name set', () => !!cfg.printerName && cfg.printerName);
   check('staff pin set', () => !!String(cfg.staffPin).length);
 
@@ -76,7 +76,19 @@ async function checkAsync(name, fn) {
   const frames = require('../frames');
   const all = frames.all();
   check('at least one frame', () => all.length > 0 && `${all.length} frames`);
-  check('every frame has slots', () => all.every((f) => f.slots.length === f.slotCount));
+  // slotCount is how many DISTINCT photos a layout needs; slots.length is how
+  // many rectangles get drawn. A two-column strip repeats the same photos down
+  // both columns, so the two numbers are deliberately different.
+  check('every frame has slots', () =>
+    all.every((f) => f.slots.length >= f.slotCount && f.slotCount >= 1)
+  );
+  check('slot photo indexes are contiguous from zero', () =>
+    all.every((f) => {
+      const used = new Set(f.slots.map((s, i) => (Number.isFinite(s.photo) ? s.photo : i)));
+      for (let i = 0; i < f.slotCount; i++) if (!used.has(i)) return false;
+      return used.size === f.slotCount;
+    })
+  );
   check('slots fit inside the canvas', () =>
     all.every((f) =>
       f.slots.every((s) => s.x >= 0 && s.y >= 0 && s.x + s.w <= f.width && s.y + s.h <= f.height)
@@ -99,9 +111,10 @@ async function checkAsync(name, fn) {
   check('print aspect is 4x6', () =>
     all.every((f) => Math.abs(f.width / f.height - 2 / 3) < 0.02)
   );
-  check('a frame matches captureCount', () =>
-    all.some((f) => f.slotCount === cfg.captureCount) ||
-    `warning: no frame with ${cfg.captureCount} slots`
+  // Every layout must be fillable from one session's shots.
+  check('every layout fits within a session', () =>
+    all.every((f) => f.slotCount <= cfg.captureCount) ||
+    `a layout needs more than ${cfg.captureCount} photos`
   );
 
   // ---- logging ----
