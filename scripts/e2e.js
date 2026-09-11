@@ -148,12 +148,33 @@ function restoreSettings() {
     await evalJs('document.getElementById("pickNextBtn").click()');
     await sleep(300);
     t('next goes to the frame step', (await screen()) === 'frame');
-    await evalJs('document.querySelector(\'#styleChips .chip[data-style="navy"]\').click()');
-    await sleep(200);
-    t('the frame colourway applies',
-      (await evalJs('document.querySelector("#styleChips .chip.active").dataset.style')) === 'navy');
+    const decorCount = await evalJs('document.querySelectorAll("#decorChips .chip").length');
+    t('decorations are offered, plus None', decorCount >= 2, decorCount + ' options');
+    t('the layout cannot be changed after the shoot',
+      (await evalJs('!document.getElementById("frameChips")')) === true);
+
+    await evalJs('document.querySelector(\'#decorChips .chip[data-decor="corners"]\').click()');
+    await sleep(300);
+    t('the decoration applies',
+      (await evalJs('document.querySelector("#decorChips .chip.active").dataset.decor')) === 'corners');
     t('and costs nothing',
       (await evalJs('document.getElementById("runningTotal").textContent')) === '$8');
+
+    // The art is laid over the photos, so it has to reach the printed sheet.
+    const inked = await evalJs(`(() => {
+      const c = document.createElement('canvas');
+      composite(c);
+      const ctx = c.getContext('2d');
+      const f = currentFrame();
+      const r = f.border.rects[0];
+      const tf = safeTransform(f);
+      // Just inside the top-left corner bracket the art draws.
+      const at = (x, y) => ctx.getImageData(Math.round(x * tf.scale + tf.dx), Math.round(y * tf.scale + tf.dy), 1, 1).data;
+      const p = at(r.x + 24, r.y + 24);
+      return JSON.stringify([p[0], p[1], p[2]]);
+    })()`);
+    const ink = JSON.parse(inked);
+    t('the decoration reaches the print', ink[2] > ink[0] + 40, 'corner pixel ' + inked);
 
     await evalJs('document.getElementById("frameBackBtn").click()');
     await sleep(250);

@@ -146,20 +146,20 @@
                 <h1 class="review-title">Pick a frame</h1>
                 <span class="review-timer" id="frameTimer">30</span>
               </header>
-              <p class="review-sub">Free — change it as often as you like.</p>
+              <p class="review-sub">Laid over your photos. Free — try as many as you like.</p>
 
               <div class="edit-main">
                 <div class="edit-preview">
                   <canvas id="frameCanvas" class="preview-canvas"></canvas>
                 </div>
                 <div class="edit-controls">
+                  <!-- Decoration only. The layout was settled on the
+                       get-ready screen and the photos were framed for it;
+                       changing it here would re-crop shots that were composed
+                       for a different shape. -->
                   <div class="picker">
                     <h2 class="section-title">Frame <span class="section-hint">free</span></h2>
-                    <div class="chips" id="styleChips"></div>
-                  </div>
-                  <div class="picker">
-                    <h2 class="section-title">Layout <span class="section-hint">changes the price</span></h2>
-                    <div class="chips" id="frameChips"></div>
+                    <div class="chips chips-decor" id="decorChips"></div>
                   </div>
                 </div>
               </div>

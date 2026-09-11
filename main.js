@@ -25,6 +25,7 @@ const log = require('./logger');
 const { Camera } = require('./camera');
 const { Printer } = require('./printer');
 const frames = require('./frames');
+const decor = require('./decor');
 const { Queue } = require('./queue');
 const staffServer = require('./server');
 
@@ -497,7 +498,7 @@ function rendererConfig() {
   filterSeconds: cfg.filterSeconds,
   lockAfterSession: cfg.lockAfterSession,
   reviewSeconds: cfg.reviewSeconds,
-  styles: cfg.styles,
+  decor: decor.all(),
   maxCopies: cfg.maxCopies,
   idleResetSeconds: cfg.idleResetSeconds,
   thankYouSeconds: cfg.thankYouSeconds,

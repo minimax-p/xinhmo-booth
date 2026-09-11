@@ -24,7 +24,8 @@ const S = {
   photos: [], // { dataUrl, img }
   selected: [], // indexes into photos, in placement order
   frameId: null,
-  styleId: null, // decorative colourway, free
+  decorId: null, // frame decoration, free
+  decorImgs: {}, // id -> decoded overlay
   filterId: 'none',
   extras: [], // paid add-ons (keychain, charm)
   copies: 1,
@@ -113,10 +114,9 @@ async function init() {
 
   S.frames = S.cfg.frames || [];
   S.frameId = pickDefaultFrame();
-  S.styleId = ((S.cfg.styles || [])[0] || {}).id || null;
   buildMenu();
-  buildFrameChips();
-  buildStyleChips();
+  preloadDecor();
+  buildDecorChips();
   buildFilterChips();
   buildAddonChips();
   buildPinPad();
@@ -140,8 +140,7 @@ async function init() {
     S.cfg = Object.assign({}, S.cfg, next);
     S.frames = S.cfg.frames || S.frames;
     buildMenu();
-    buildFrameChips();
-    buildStyleChips();
+    buildDecorChips();
     buildAddonChips();
     syncChips();
     log('info', 'settings reloaded from staff');
@@ -314,9 +313,25 @@ function shotsNeeded() {
   return (S.cfg && S.cfg.captureCount) || 10;
 }
 
-function currentStyle() {
-  const list = (S.cfg && S.cfg.styles) || [];
-  return list.find((s) => s.id === S.styleId) || list[0] || null;
+/**
+ * The chosen decoration, or null for none. Decorations are art files laid over
+ * the finished strip; "none" is a real choice, not a missing one, so it is the
+ * first thing offered rather than something you get by deselecting.
+ */
+function currentDecor() {
+  if (!S.decorId) return null;
+  const meta = ((S.cfg && S.cfg.decor) || []).find((d) => d.id === S.decorId);
+  if (!meta) return null;
+  return { meta, img: S.decorImgs[meta.id] || null };
+}
+
+/** Decode every decoration once, at startup, so choosing one is instant. */
+function preloadDecor() {
+  ((S.cfg && S.cfg.decor) || []).forEach((d) => {
+    const img = new Image();
+    img.src = d.dataUrl;
+    S.decorImgs[d.id] = img;
+  });
 }
 
 // ---------------------------------------------------------------- live view
@@ -522,7 +537,7 @@ async function startSession(frameId) {
   S.photos = [];
   S.selected = [];
   S.filterId = 'none';
-  S.styleId = ((S.cfg.styles || [])[0] || {}).id || null;
+  S.decorId = null;
   S.extras = [];
   S.copies = 1;
   S.frameId = frameId || pickDefaultFrame();
@@ -845,51 +860,27 @@ function togglePhoto(idx) {
   drawPreview();
 }
 
-function buildFrameChips() {
-  const wrap = $('frameChips');
-  wrap.innerHTML = '';
-  S.frames.forEach((f) => {
-    const b = document.createElement('button');
-    b.className = 'chip';
-    b.dataset.frame = f.id;
-    b.textContent = `${f.name} · ${f.slotCount}`;
-    b.addEventListener('click', () => {
-      // The shoot was framed for one layout, so switching is an escape hatch,
-      // not the main path -- and a layout that needs more photos than were
-      // taken would leave a hole in the print, so refuse that one.
-      if (f.slotCount > S.photos.length) {
-        toast(`${f.name} needs ${f.slotCount} photos and you have ${S.photos.length}.`);
-        return;
-      }
-      S.frameId = f.id;
-      const max = f.slotCount;
-      if (S.selected.length > max) S.selected = S.selected.slice(0, max);
-      // Top up from unused photos so the frame is full where possible.
-      for (let i = 0; i < S.photos.length && S.selected.length < max; i++) {
-        if (!S.selected.includes(i)) S.selected.push(i);
-      }
-      buildThumbs();
-      syncChips();
-      drawPreview();
-    });
-    wrap.appendChild(b);
-  });
-}
-
-/** Frame colourways. Free, so they carry no price tag. */
-function buildStyleChips() {
-  const wrap = $('styleChips');
+/**
+ * Frame decorations. Free, so no price; shown as the art itself, because a
+ * name tells you nothing about what a decoration looks like.
+ */
+function buildDecorChips() {
+  const wrap = $('decorChips');
   if (!wrap) return;
   wrap.innerHTML = '';
-  ((S.cfg && S.cfg.styles) || []).forEach((s) => {
+
+  const options = [{ id: null, name: 'None' }].concat((S.cfg && S.cfg.decor) || []);
+  options.forEach((d) => {
     const b = document.createElement('button');
-    b.className = 'chip chip-swatch';
-    b.dataset.style = s.id;
+    b.className = 'chip chip-decor';
+    b.dataset.decor = d.id || '';
     b.innerHTML =
-      `<i class="swatch" style="background:${s.background};border-color:${s.ink}"></i>` +
-      `<span>${escapeHtml(s.name)}</span>`;
+      (d.dataUrl
+        ? `<i class="decor-thumb"><img src="${d.dataUrl}" alt=""></i>`
+        : '<i class="decor-thumb is-none"></i>') +
+      `<span>${escapeHtml(d.name)}</span>`;
     b.addEventListener('click', () => {
-      S.styleId = s.id;
+      S.decorId = d.id;
       syncChips();
       drawPreview();
     });
@@ -952,14 +943,11 @@ function syncChips() {
   // The crop guide follows whatever frame is currently selected.
   if (S.screen === 'pose') setCropMask(true);
 
-  document.querySelectorAll('#frameChips .chip').forEach((c) =>
-    c.classList.toggle('active', c.dataset.frame === S.frameId)
-  );
   document.querySelectorAll('#filterChips .chip').forEach((c) =>
     c.classList.toggle('active', c.dataset.filter === S.filterId)
   );
-  document.querySelectorAll('#styleChips .chip').forEach((c) =>
-    c.classList.toggle('active', c.dataset.style === S.styleId)
+  document.querySelectorAll('#decorChips .chip').forEach((c) =>
+    c.classList.toggle('active', (c.dataset.decor || null) === S.decorId)
   );
   document.querySelectorAll('#addonChips .chip').forEach((c) =>
     c.classList.toggle('active', S.extras.includes(c.dataset.addon))
@@ -986,8 +974,7 @@ function composite(canvas) {
   canvas.height = frame.height;
   const ctx = canvas.getContext('2d');
 
-  const style = currentStyle();
-  const paper = paperColour(frame, style);
+  const paper = frame.background || '#FFFFFF';
 
   // Paper first, edge to edge. The design is then drawn inside the safe area,
   // so whatever the printer trims off is the same colour as the border and the
@@ -1002,13 +989,13 @@ function composite(canvas) {
   ctx.save();
   ctx.translate(t.dx, t.dy);
   ctx.scale(t.scale, t.scale);
-  drawFrameDesign(ctx, frame, style);
+  drawFrameDesign(ctx, frame);
   ctx.restore();
   return true;
 }
 
-function paperColour(frame, style) {
-  return (style && style.background) || frame.background || '#FFFFFF';
+function paperColour(frame) {
+  return frame.background || '#FFFFFF';
 }
 
 /** Millimetres to print pixels, at whatever dpi the frames are authored for. */
@@ -1042,8 +1029,8 @@ function safeTransform(frame) {
 }
 
 /** Everything the print is made of, in the frame's own coordinates. */
-function drawFrameDesign(ctx, frame, style) {
-  const ink = (style && style.ink) || null;
+function drawFrameDesign(ctx, frame) {
+  const ink = null;
   const filter = FILTERS.find((f) => f.id === S.filterId) || FILTERS[0];
 
   frame.slots.forEach((slot, i) => {
@@ -1088,6 +1075,8 @@ function drawFrameDesign(ctx, frame, style) {
     ctx.restore();
   }
 
+  drawDecor(ctx, frame);
+
   if (frame.caption) {
     ctx.save();
     ctx.filter = 'none';
@@ -1113,6 +1102,30 @@ function drawFrameDesign(ctx, frame, style) {
   }
 
   drawCutLine(ctx, frame, ink);
+}
+
+/**
+ * Lay the chosen decoration over the strip.
+ *
+ * Art is authored at one column's proportions, so a two-column layout gets the
+ * same art over each column -- they are cut apart and handed to two people, so
+ * both need to be whole. A single-sheet layout gets it over the whole sheet.
+ *
+ * Drawn after the photos and the printed rule but under the caption, so the
+ * wordmark survives whatever the art does.
+ */
+function drawDecor(ctx, frame) {
+  const d = currentDecor();
+  if (!d || !d.img || !d.img.complete || !d.img.naturalWidth) return;
+  const rects = frame.border && frame.border.rects;
+  const targets =
+    Array.isArray(rects) && rects.length
+      ? rects
+      : [{ x: 0, y: 0, w: frame.width, h: frame.height }];
+  ctx.save();
+  ctx.filter = 'none';
+  targets.forEach((r) => ctx.drawImage(d.img, r.x, r.y, r.w, r.h));
+  ctx.restore();
 }
 
 /**
@@ -1164,15 +1177,14 @@ function stripRegion(frame) {
 function compositeStrip(canvas) {
   const frame = currentFrame();
   if (!frame) return false;
-  const style = currentStyle();
 
   const src = document.createElement('canvas');
   src.width = frame.width;
   src.height = frame.height;
   const sctx = src.getContext('2d');
-  sctx.fillStyle = paperColour(frame, style);
+  sctx.fillStyle = paperColour(frame);
   sctx.fillRect(0, 0, frame.width, frame.height);
-  drawFrameDesign(sctx, frame, style);
+  drawFrameDesign(sctx, frame);
 
   const strip = stripRegion(frame);
   canvas.width = strip.w;
@@ -1407,15 +1419,14 @@ function drawPreview() {
 function drawShowcase(canvas) {
   const frame = currentFrame();
   if (!frame) return false;
-  const style = currentStyle();
 
   const src = document.createElement('canvas');
   src.width = frame.width;
   src.height = frame.height;
   const sctx = src.getContext('2d');
-  sctx.fillStyle = paperColour(frame, style);
+  sctx.fillStyle = paperColour(frame);
   sctx.fillRect(0, 0, frame.width, frame.height);
-  drawFrameDesign(sctx, frame, style);
+  drawFrameDesign(sctx, frame);
 
   const rects = frame.border && frame.border.rects;
   const twin = Array.isArray(rects) && rects.length === 2;
@@ -1558,7 +1569,7 @@ async function doPrint() {
       total: order.total,
       stripDataUrl: stripUrl,
       extras: S.extras.slice(),
-      styleId: S.styleId,
+      decorId: S.decorId,
     });
 
     if (res && res.ok) {

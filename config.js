@@ -62,17 +62,6 @@ const DEFAULTS = {
   // dropped into a keychain. Built every session whether or not anyone buys one.
   keychain: { heightMm: 55, gapMm: 4 },
 
-  // --- frame styles ---
-  // Colourways for the printed frame. Purely cosmetic and deliberately free:
-  // the layout is what costs money, so a customer can fiddle with this as long
-  // as they like without anyone having to reprice the order.
-  styles: [
-    { id: 'cream', name: 'Cream', background: '#FFF8EE', ink: '#26357E' },
-    { id: 'navy', name: 'Navy', background: '#26357E', ink: '#FFF8EE' },
-    { id: 'blush', name: 'Blush', background: '#F6DFE2', ink: '#8B0003' },
-    { id: 'noir', name: 'Noir', background: '#1C1B22', ink: '#F3EDE2' },
-  ],
-
   // --- pricing --- (the poster is the source of truth; keep them in sync)
   pricing: {
     currency: '$',
