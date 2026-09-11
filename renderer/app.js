@@ -30,6 +30,7 @@ const S = {
   copies: 1,
   locked: false,
   readyTimer: null,
+  stepTimer: null,
   shooting: false,
   printing: false,
   liveUrl: null,
@@ -80,7 +81,7 @@ function sleep(ms) {
 /** Any customer inactivity eventually returns the booth to the welcome screen. */
 function resetIdle() {
   clearTimeout(S.idleTimer);
-  const idleScreens = ['ready', 'pose', 'edit'];
+  const idleScreens = ['ready', 'pose', 'pick', 'frame', 'filter'];
   if (!idleScreens.includes(S.screen)) return;
   const secs = (S.cfg && S.cfg.idleResetSeconds) || 90;
   S.idleTimer = setTimeout(() => {
@@ -725,8 +726,7 @@ async function runCaptureSequence() {
   buildThumbs();
   syncChips();
   updateCopies();
-  show('edit');
-  drawPreview();
+  gotoStep('pick');
 }
 
 function abandonSession() {
@@ -736,6 +736,7 @@ function abandonSession() {
   S.selected = [];
   clearInterval(S.readyTimer);
   S.readyTimer = null;
+  stopStepTimer();
   try {
     window.booth.setLiveView(false);
   } catch {}
@@ -749,6 +750,7 @@ function abandonSession() {
  */
 async function endCycle() {
   clearTimeout(S.doneTimer);
+  stopStepTimer();
   S.shooting = false;
   S.printing = false;
   S.photos = [];
@@ -1296,11 +1298,114 @@ function drawPreview() {
   requestAnimationFrame(() => {
     previewQueued = false;
     try {
-      composite($('previewCanvas'));
+      REVIEW_STEPS.forEach((st) => {
+        const c = $(st.id + 'Canvas');
+        if (c) drawShowcase(c);
+      });
     } catch (err) {
       log('error', 'preview draw failed: ' + err.message);
     }
   });
+}
+
+/**
+ * The preview people actually judge from. A two-column strip prints as one
+ * 4x6 that gets cut in half, and showing it as a single sheet made customers
+ * think they were getting one thing; drawing the two columns apart, with real
+ * space between them, shows what they end up holding. Everything else renders
+ * as the sheet it is.
+ */
+function drawShowcase(canvas) {
+  const frame = currentFrame();
+  if (!frame) return false;
+  const style = currentStyle();
+
+  const src = document.createElement('canvas');
+  src.width = frame.width;
+  src.height = frame.height;
+  const sctx = src.getContext('2d');
+  sctx.fillStyle = paperColour(frame, style);
+  sctx.fillRect(0, 0, frame.width, frame.height);
+  drawFrameDesign(sctx, frame, style);
+
+  const rects = frame.border && frame.border.rects;
+  const twin = Array.isArray(rects) && rects.length === 2;
+  if (!twin) {
+    canvas.width = frame.width;
+    canvas.height = frame.height;
+    canvas.getContext('2d').drawImage(src, 0, 0);
+    return true;
+  }
+
+  const [a, b] = rects;
+  const gap = Math.round(frame.width * 0.06);
+  canvas.width = a.w + b.w + gap;
+  canvas.height = Math.max(a.h, b.h);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(src, a.x, a.y, a.w, a.h, 0, 0, a.w, a.h);
+  ctx.drawImage(src, b.x, b.y, b.w, b.h, a.w + gap, 0, b.w, b.h);
+  return true;
+}
+
+// -------------------------------------------------------------- review steps
+
+/**
+ * Three screens, one decision each. The old single screen put photos, layout,
+ * frame, filter, copies and add-ons in one scrolling column, which is a lot to
+ * hand someone who is still holding their coat. Each step runs its own clock
+ * and moves on by itself, because a kiosk cannot afford to wait for someone
+ * who has already walked away.
+ */
+const REVIEW_STEPS = [
+  { id: 'pick', secs: 'pickSeconds' },
+  { id: 'frame', secs: 'frameSeconds' },
+  { id: 'filter', secs: 'filterSeconds' },
+];
+
+function stepIndex(id) {
+  return REVIEW_STEPS.findIndex((s) => s.id === id);
+}
+
+function gotoStep(id) {
+  const step = REVIEW_STEPS[stepIndex(id)];
+  if (!step) return;
+  show(id);
+  drawPreview();
+  runStepTimer(step);
+}
+
+function runStepTimer(step) {
+  clearInterval(S.stepTimer);
+  let left = (S.cfg && S.cfg[step.secs]) || 30;
+  const el = $(step.id + 'Timer');
+  const paint = () => {
+    if (el) el.textContent = String(Math.max(0, left));
+  };
+  paint();
+  S.stepTimer = setInterval(() => {
+    // Someone touching the screen is someone still deciding, so the clock is
+    // only there for the people who are not.
+    left--;
+    paint();
+    if (left <= 0) {
+      clearInterval(S.stepTimer);
+      S.stepTimer = null;
+      advanceStep(step.id);
+    }
+  }, 1000);
+}
+
+function advanceStep(from) {
+  const next = REVIEW_STEPS[stepIndex(from) + 1];
+  if (next) return gotoStep(next.id);
+  stopStepTimer();
+  doPrint();
+}
+
+function stopStepTimer() {
+  clearInterval(S.stepTimer);
+  S.stepTimer = null;
 }
 
 /** Wait until every selected photo has actually decoded. */
@@ -1325,7 +1430,6 @@ async function doPrint() {
     return;
   }
   S.printing = true;
-  $('printBtn').disabled = true;
 
   show('printing');
   $('printTitle').textContent = 'Saving your photos';
@@ -1374,7 +1478,6 @@ async function doPrint() {
     $('printBackBtn').classList.remove('hidden');
   } finally {
     S.printing = false;
-    $('printBtn').disabled = false;
   }
 }
 
@@ -1520,9 +1623,19 @@ function wireEvents() {
   // the get-ready screen, either when its timer runs out or when people say so.
   $('readyNowBtn').addEventListener('click', () => beginShooting());
 
-  $('retakeBtn').addEventListener('click', () => abandonSession());
-  $('printBtn').addEventListener('click', () => doPrint());
-  $('printBackBtn').addEventListener('click', () => show('edit'));
+  $('pickBackBtn').addEventListener('click', () => {
+    stopStepTimer();
+    abandonSession();
+  });
+  $('pickNextBtn').addEventListener('click', () => advanceStep('pick'));
+  $('frameBackBtn').addEventListener('click', () => gotoStep('pick'));
+  $('frameNextBtn').addEventListener('click', () => advanceStep('frame'));
+  $('filterBackBtn').addEventListener('click', () => gotoStep('frame'));
+  $('filterDoneBtn').addEventListener('click', () => {
+    stopStepTimer();
+    doPrint();
+  });
+  $('printBackBtn').addEventListener('click', () => gotoStep('filter'));
   $('doneBtn').addEventListener('click', () => endCycle());
 
   $('copiesUp').addEventListener('click', () => {
@@ -1601,7 +1714,7 @@ function wireEvents() {
 
   // Redraw the preview if the window resizes (projector or screen change).
   window.addEventListener('resize', () => {
-    if (S.screen === 'edit') drawPreview();
+    if (stepIndex(S.screen) !== -1) drawPreview();
   });
 }
 

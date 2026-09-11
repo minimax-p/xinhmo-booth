@@ -1602,3 +1602,62 @@ img.live:not([src]) {
   text-transform: uppercase;
   z-index: 2;
 }
+
+/* ============================================================ review steps
+   One decision per screen. The header carries where you are and how long is
+   left, so the clock is information rather than a threat. */
+.review-head {
+  flex: 0 0 auto;
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-2);
+}
+
+.review-step {
+  font-family: var(--serif);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.review-title {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(19px, 3.2vmin, 40px);
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.review-timer {
+  margin-left: auto;
+  min-width: 2.2em;
+  padding: 0.1em 0.5em;
+  border-radius: 999px;
+  border: 1px solid var(--ink-line);
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.review-sub {
+  flex: 0 0 auto;
+  width: 100%;
+  margin: 0;
+  text-align: left;
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+/* The showcase preview is not always a 4x6, so it must not be forced onto a
+   white card the way the old single-sheet preview was. */
+.screen-review .preview-canvas {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  filter: drop-shadow(0 clamp(4px, 1.2vmin, 18px) clamp(10px, 2.6vmin, 34px) rgba(22, 33, 90, 0.45));
+}

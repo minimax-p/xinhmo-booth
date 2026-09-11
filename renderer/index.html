@@ -100,48 +100,115 @@
         </div>
       </section>
 
-      <!-- 4. Edit -->
-      <section class="screen screen-edit" data-screen="edit">
+      <!-- 4. Review, one decision per screen. Each runs on its own clock so
+           the booth can never be held by someone who wandered off. -->
+      <section class="screen screen-review" data-screen="pick">
         <div class="paper-shadow">
           <div class="paper">
             <div class="cut cut-edit">
+              <header class="review-head">
+                <span class="review-step">Step 1 of 3</span>
+                <h1 class="review-title">Pick your photos</h1>
+                <span class="review-timer" id="pickTimer">30</span>
+              </header>
+              <p class="review-sub">These are the ones that get printed.</p>
+
               <div class="edit-main">
                 <div class="edit-preview">
-                  <canvas id="previewCanvas" class="preview-canvas"></canvas>
+                  <canvas id="pickCanvas" class="preview-canvas"></canvas>
                 </div>
                 <div class="edit-controls">
                   <div class="picker">
-                    <h2 class="section-title">Your photos <span class="section-hint" id="pickHint"></span></h2>
+                    <h2 class="section-title">Tap to pick <span class="section-hint" id="pickHint"></span></h2>
                     <div class="thumbs" id="photoThumbs"></div>
                   </div>
-                  <div class="picker">
-                    <h2 class="section-title">Layout <span class="section-hint">changes the price</span></h2>
-                    <div class="chips" id="frameChips"></div>
-                  </div>
+                </div>
+              </div>
+
+              <div class="edit-bar">
+                <button class="ghost-btn" id="pickBackBtn">Start over</button>
+                <button class="primary-btn" id="pickNextBtn">Next</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen screen-review" data-screen="frame">
+        <div class="paper-shadow">
+          <div class="paper">
+            <div class="cut cut-edit">
+              <header class="review-head">
+                <span class="review-step">Step 2 of 3</span>
+                <h1 class="review-title">Pick a frame</h1>
+                <span class="review-timer" id="frameTimer">30</span>
+              </header>
+              <p class="review-sub">Free — change it as often as you like.</p>
+
+              <div class="edit-main">
+                <div class="edit-preview">
+                  <canvas id="frameCanvas" class="preview-canvas"></canvas>
+                </div>
+                <div class="edit-controls">
                   <div class="picker">
                     <h2 class="section-title">Frame <span class="section-hint">free</span></h2>
                     <div class="chips" id="styleChips"></div>
                   </div>
                   <div class="picker">
+                    <h2 class="section-title">Layout <span class="section-hint">changes the price</span></h2>
+                    <div class="chips" id="frameChips"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="edit-bar">
+                <button class="ghost-btn" id="frameBackBtn">Back</button>
+                <button class="primary-btn" id="frameNextBtn">Next</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen screen-review" data-screen="filter">
+        <div class="paper-shadow">
+          <div class="paper">
+            <div class="cut cut-edit">
+              <header class="review-head">
+                <span class="review-step">Step 3 of 3</span>
+                <h1 class="review-title">Pick a look</h1>
+                <span class="review-timer" id="filterTimer">30</span>
+              </header>
+              <p class="review-sub">The filter only touches the photos, not the frame.</p>
+
+              <div class="edit-main">
+                <div class="edit-preview">
+                  <canvas id="filterCanvas" class="preview-canvas"></canvas>
+                </div>
+                <div class="edit-controls">
+                  <div class="picker">
                     <h2 class="section-title">Look <span class="section-hint">free</span></h2>
                     <div class="chips" id="filterChips"></div>
                   </div>
                   <div class="picker">
-                    <h2 class="section-title">Add a keychain <span class="section-hint" id="addonHint"></span></h2>
+                    <h2 class="section-title">Extras <span class="section-hint" id="addonHint"></span></h2>
                     <div class="chips" id="addonChips"></div>
+                  </div>
+                  <div class="picker">
+                    <h2 class="section-title">Copies</h2>
+                    <div class="copies">
+                      <button class="step" id="copiesDown" aria-label="Fewer copies">&minus;</button>
+                      <span class="copies-val" id="copiesVal">1</span>
+                      <button class="step" id="copiesUp" aria-label="More copies">+</button>
+                    </div>
                   </div>
                 </div>
               </div>
+
               <div class="edit-bar">
-                <button class="ghost-btn" id="retakeBtn">Start over</button>
-                <div class="copies">
-                  <span class="copies-label">Copies</span>
-                  <button class="step" id="copiesDown" aria-label="Fewer copies">&minus;</button>
-                  <span class="copies-val" id="copiesVal">1</span>
-                  <button class="step" id="copiesUp" aria-label="More copies">+</button>
-                </div>
+                <button class="ghost-btn" id="filterBackBtn">Back</button>
                 <span class="running-total" id="runningTotal"></span>
-                <button class="primary-btn" id="printBtn">Done</button>
+                <button class="primary-btn" id="filterDoneBtn">Done</button>
               </div>
             </div>
           </div>
