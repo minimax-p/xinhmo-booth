@@ -744,6 +744,9 @@ async function runCaptureSequence() {
 }
 
 function abandonSession() {
+  // Same rule as everywhere else: a locked booth is staff's to move, not a
+  // stray click's. "Start over" belongs to the session in progress.
+  if (S.locked) return;
   S.shooting = false;
   S.printing = false;
   S.photos = [];
