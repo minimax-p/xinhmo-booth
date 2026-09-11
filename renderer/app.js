@@ -1,7 +1,8 @@
 /*
   Xinhmo booth kiosk UI.
 
-  One state machine drives five screens: welcome, pose, edit, printing, done.
+  One state machine drives the screens: welcome, ready, pose, edit, saving,
+  pickup code, locked.
 
   The composite is drawn on a canvas at true print size (1200x1800). The same
   function draws the on-screen preview, so what the customer approves is exactly
@@ -23,8 +24,12 @@ const S = {
   photos: [], // { dataUrl, img }
   selected: [], // indexes into photos, in placement order
   frameId: null,
+  styleId: null, // decorative colourway, free
   filterId: 'none',
+  extras: [], // paid add-ons (keychain, charm)
   copies: 1,
+  locked: false,
+  readyTimer: null,
   shooting: false,
   printing: false,
   liveUrl: null,
@@ -75,7 +80,7 @@ function sleep(ms) {
 /** Any customer inactivity eventually returns the booth to the welcome screen. */
 function resetIdle() {
   clearTimeout(S.idleTimer);
-  const idleScreens = ['pose', 'edit'];
+  const idleScreens = ['ready', 'pose', 'edit'];
   if (!idleScreens.includes(S.screen)) return;
   const secs = (S.cfg && S.cfg.idleResetSeconds) || 90;
   S.idleTimer = setTimeout(() => {
@@ -107,9 +112,12 @@ async function init() {
 
   S.frames = S.cfg.frames || [];
   S.frameId = pickDefaultFrame();
+  S.styleId = ((S.cfg.styles || [])[0] || {}).id || null;
   buildMenu();
   buildFrameChips();
+  buildStyleChips();
   buildFilterChips();
+  buildAddonChips();
   buildPinPad();
   wireEvents();
 
@@ -122,6 +130,19 @@ async function init() {
   window.booth.onCameraStatus((s) => {
     if (s && s.error) log('info', 'camera status: ' + s.error);
   });
+  window.booth.onUnlock(unlockBooth);
+
+  // A renderer reload must not hand the booth to whoever is standing there:
+  // main keeps the lock, so ask it what state we are really in.
+  try {
+    const st = await window.booth.boothState();
+    if (st && st.locked) {
+      S.locked = true;
+      show('locked');
+      log('info', 'kiosk ready (booth locked)');
+      return;
+    }
+  } catch {}
 
   show('welcome');
   log('info', 'kiosk ready');
@@ -153,7 +174,8 @@ function buildMenu() {
 
   priced.forEach((f) => {
     const entry = byId[f.id];
-    const shots = `${f.slotCount} photo${f.slotCount > 1 ? 's' : ''}`;
+    // Everyone shoots ten; this number is how many of them reach the paper.
+    const shots = `${f.slotCount} on the print`;
     const b = document.createElement('button');
     b.className = 'menu-card';
     b.dataset.frame = f.id;
@@ -180,7 +202,12 @@ function buildMenu() {
   if (fine) fine.textContent = pricing.paymentNote || '';
 }
 
-/** What this session costs, from the chosen frame plus extra copies. */
+/**
+ * What this session costs. The layout is the base price, extra copies and
+ * add-ons stack on top. The frame colourway and the filter are deliberately
+ * absent: those are free, so people can play with them without anyone having
+ * to reprice anything.
+ */
 function computeOrder() {
   const pricing = (S.cfg && S.cfg.pricing) || {};
   const cur = pricing.currency || '$';
@@ -195,6 +222,14 @@ function computeOrder() {
       amount: extraCopies * (pricing.extraCopy || 0),
     });
   }
+
+  // Staff can still add or remove these on the phone before taking payment;
+  // choosing here just means the customer is not relying on remembering to ask.
+  (S.extras || []).forEach((id) => {
+    const a = (pricing.addons || []).find((x) => x.id === id);
+    if (a) items.push({ label: a.name, amount: a.price });
+  });
+
   return { cur, items, total: items.reduce((n, i) => n + i.amount, 0), frame };
 }
 
@@ -255,28 +290,32 @@ function currentFrame() {
 }
 
 /**
- * How many shots this session takes. The chosen layout decides, not a fixed
- * setting: Trio wants three and the others want four, and taking a photo that
- * no slot can hold only makes the picking step confusing. captureCount is the
- * fallback for the case where no frame is configured at all.
+ * How many shots this session takes: the same generous number for every
+ * layout, so nobody is shooting to a quota. The layout only decides how many
+ * of them end up on the paper, and picking four keepers out of ten beats being
+ * handed exactly the four you got.
  */
 function shotsNeeded() {
-  const f = currentFrame();
-  return (f && f.slotCount) || (S.cfg && S.cfg.captureCount) || 4;
+  return (S.cfg && S.cfg.captureCount) || 10;
+}
+
+function currentStyle() {
+  const list = (S.cfg && S.cfg.styles) || [];
+  return list.find((s) => s.id === S.styleId) || list[0] || null;
 }
 
 // ---------------------------------------------------------------- live view
 
 function onLiveFrame(buf) {
-  if (S.screen !== 'pose' || S.camMode === 'webcam') return;
+  if ((S.screen !== 'pose' && S.screen !== 'ready') || S.camMode === 'webcam') return;
   try {
     const blob = new Blob([buf], { type: 'image/jpeg' });
     const url = URL.createObjectURL(blob);
-    const img = $('liveImg');
+    const img = S.screen === 'ready' ? $('readyImg') : $('liveImg');
     const prev = S.liveUrl;
     img.src = url;
     S.liveUrl = url;
-    $('liveOff').style.display = 'none';
+    (S.screen === 'ready' ? $('readyOff') : $('liveOff')).style.display = 'none';
     // Release the previous frame after the swap so we never accumulate blobs.
     if (prev) setTimeout(() => URL.revokeObjectURL(prev), 120);
   } catch (err) {
@@ -448,12 +487,15 @@ async function runCountdown(secs) {
   void cd.offsetWidth;
   cd.classList.add('run');
 
+  // Only the closing seconds beep. A beep on every one of ten would be
+  // nagging, and it is the last three that people actually act on.
+  const beepFrom = Number.isFinite(S.cfg.beepLastSeconds) ? S.cfg.beepLastSeconds : 3;
   for (let n = secs; n > 0; n--) {
     num.textContent = String(n);
     num.classList.remove('tick');
     void num.offsetWidth;
     num.classList.add('tick');
-    beep(n === 1 ? 1180 : 820, n === 1 ? 220 : 130);
+    if (n <= beepFrom) beep(n === 1 ? 1180 : 820, n === 1 ? 220 : 130);
     await sleep(1000);
   }
   cd.classList.remove('run');
@@ -461,28 +503,35 @@ async function runCountdown(secs) {
 }
 
 async function startSession(frameId) {
+  if (S.locked) return;
   S.photos = [];
   S.selected = [];
   S.filterId = 'none';
+  S.styleId = ((S.cfg.styles || [])[0] || {}).id || null;
+  S.extras = [];
   S.copies = 1;
   S.frameId = frameId || pickDefaultFrame();
   syncChips();
 
-  show('pose');
+  show('ready');
   buildFilmstrip();
   setCropMask(true);
-  $('shootBtn').disabled = false;
-  $('poseHint').textContent = 'Stand inside the bright box, then tap when you are ready.';
+  setReadyMask();
+  $('poseHint').textContent = 'Look at the camera.';
   $('shotPill').textContent = `Photo 1 of ${shotsNeeded()}`;
 
   if (!S.camMode) await chooseCameraSource();
   const webcam = S.camMode === 'webcam';
   $('liveVid').hidden = !webcam;
   $('liveImg').hidden = webcam;
+  $('readyVid').hidden = !webcam;
+  $('readyImg').hidden = webcam;
   if (webcam) await startWebcam();
-  const off = $('liveOff');
-  off.style.display = S.camMode === 'none' ? '' : 'none';
-  off.textContent = S.camError || 'Camera preview is off';
+  [$('liveOff'), $('readyOff')].forEach((off) => {
+    if (!off) return;
+    off.style.display = S.camMode === 'none' ? '' : 'none';
+    off.textContent = S.camError || 'Camera preview is off';
+  });
 
   try {
     await window.booth.startSession();
@@ -496,12 +545,53 @@ async function startSession(frameId) {
       log('error', 'liveView on: ' + err.message);
     }
   }
+
+  runReady();
+}
+
+/** Size the get-ready window to the exact crop the print will use. */
+function setReadyMask() {
+  const win = $('readyWindow');
+  if (win) win.style.setProperty('--ar', String(slotRatio()));
+}
+
+/**
+ * The settling-in window. Twenty seconds sounds long until you watch eight
+ * people try to fit in one frame; anyone quicker just taps through.
+ */
+function runReady() {
+  clearInterval(S.readyTimer);
+  let left = Number.isFinite(S.cfg.readySeconds) ? S.cfg.readySeconds : 20;
+  const num = $('readyNum');
+  const paint = () => {
+    if (num) num.textContent = String(Math.max(0, left));
+  };
+  paint();
+  if (left <= 0) return beginShooting();
+
+  S.readyTimer = setInterval(() => {
+    left--;
+    paint();
+    if (left <= 0) {
+      clearInterval(S.readyTimer);
+      S.readyTimer = null;
+      beginShooting();
+    }
+  }, 1000);
+}
+
+/** Leave the get-ready screen and start the sequence, however we got here. */
+function beginShooting() {
+  clearInterval(S.readyTimer);
+  S.readyTimer = null;
+  if (S.screen !== 'ready') return;
+  show('pose');
+  runCaptureSequence();
 }
 
 async function runCaptureSequence() {
   if (S.shooting) return;
   S.shooting = true;
-  $('shootBtn').disabled = true;
   $('poseHint').textContent = 'Look at the camera.';
 
   let failures = 0;
@@ -510,13 +600,10 @@ async function runCaptureSequence() {
   for (let i = 1; i <= shots; i++) {
     $('shotPill').textContent = `Photo ${i} of ${shots}`;
 
-    // A longer lead-in before the first shot only: that is the settle moment.
-    if (i === 1) {
-      $('poseHint').textContent = 'Get ready...';
-      await runCountdown(Math.max(S.cfg.countdownSeconds, 5));
-    } else {
-      await runCountdown(S.cfg.countdownSeconds);
-    }
+    // Every gap is the same generous length. The get-ready screen already
+    // covered the settling-in, and between shots a group of people needs real
+    // time to rearrange itself, not a three-second scramble.
+    await runCountdown(S.cfg.countdownSeconds);
 
     // The screen flash is the booth's only fill light, so it must stay lit for
     // the camera's actual capture time, not a fixed guess -- a real DSLR's
@@ -592,10 +679,44 @@ function abandonSession() {
   S.printing = false;
   S.photos = [];
   S.selected = [];
+  clearInterval(S.readyTimer);
+  S.readyTimer = null;
   try {
     window.booth.setLiveView(false);
   } catch {}
   show('welcome');
+}
+
+/**
+ * End of a cycle. The booth goes behind a lock and stays there until staff let
+ * the next group in, so whoever is standing here when the previous customer
+ * walks away cannot pick up their half-finished session.
+ */
+async function endCycle() {
+  clearTimeout(S.doneTimer);
+  S.shooting = false;
+  S.printing = false;
+  S.photos = [];
+  S.selected = [];
+  try {
+    window.booth.setLiveView(false);
+  } catch {}
+
+  if (!S.cfg.lockAfterSession) return show('welcome');
+  try {
+    await window.booth.lockBooth();
+  } catch (err) {
+    log('error', 'lock failed: ' + err.message);
+  }
+  S.locked = true;
+  show('locked');
+}
+
+/** Staff opened the booth, from their phone or from the staff panel. */
+function unlockBooth() {
+  S.locked = false;
+  clearTimeout(S.doneTimer);
+  if (S.screen === 'locked') show('welcome');
 }
 
 // ---------------------------------------------------------------- edit UI
@@ -666,6 +787,61 @@ function buildFrameChips() {
   });
 }
 
+/** Frame colourways. Free, so they carry no price tag. */
+function buildStyleChips() {
+  const wrap = $('styleChips');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  ((S.cfg && S.cfg.styles) || []).forEach((s) => {
+    const b = document.createElement('button');
+    b.className = 'chip chip-swatch';
+    b.dataset.style = s.id;
+    b.innerHTML =
+      `<i class="swatch" style="background:${s.background};border-color:${s.ink}"></i>` +
+      `<span>${escapeHtml(s.name)}</span>`;
+    b.addEventListener('click', () => {
+      S.styleId = s.id;
+      syncChips();
+      drawPreview();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+/** Paid add-ons. These do change the total, so they show their price. */
+function buildAddonChips() {
+  const wrap = $('addonChips');
+  if (!wrap) return;
+  const pricing = (S.cfg && S.cfg.pricing) || {};
+  const cur = pricing.currency || '$';
+  const addons = pricing.addons || [];
+  wrap.innerHTML = '';
+  addons.forEach((a) => {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.dataset.addon = a.id;
+    b.textContent = `${a.name} · ${cur}${a.price}`;
+    b.addEventListener('click', () => {
+      const at = S.extras.indexOf(a.id);
+      if (at === -1) S.extras.push(a.id);
+      else S.extras.splice(at, 1);
+      syncChips();
+      updateTotals();
+    });
+    wrap.appendChild(b);
+  });
+  const hint = $('addonHint');
+  if (hint) hint.textContent = addons.length ? 'pay at the table' : '';
+}
+
+/** Keep the price in front of people while they are still changing things. */
+function updateTotals() {
+  const el = $('runningTotal');
+  if (!el) return;
+  const order = computeOrder();
+  el.textContent = `${order.cur}${order.total}`;
+}
+
 function buildFilterChips() {
   const wrap = $('filterChips');
   wrap.innerHTML = '';
@@ -693,10 +869,18 @@ function syncChips() {
   document.querySelectorAll('#filterChips .chip').forEach((c) =>
     c.classList.toggle('active', c.dataset.filter === S.filterId)
   );
+  document.querySelectorAll('#styleChips .chip').forEach((c) =>
+    c.classList.toggle('active', c.dataset.style === S.styleId)
+  );
+  document.querySelectorAll('#addonChips .chip').forEach((c) =>
+    c.classList.toggle('active', S.extras.includes(c.dataset.addon))
+  );
+  updateTotals();
 }
 
 function updateCopies() {
   $('copiesVal').textContent = String(S.copies);
+  updateTotals();
 }
 
 // ---------------------------------------------------------------- compositing
@@ -713,9 +897,16 @@ function composite(canvas) {
   canvas.height = frame.height;
   const ctx = canvas.getContext('2d');
 
+  // The colourway recolours the paper and every line drawn on it. The layout
+  // geometry never changes, which is why this can be free: it costs no extra
+  // paper and no extra thought at the print table.
+  const style = currentStyle();
+  const paper = (style && style.background) || frame.background || '#FFFFFF';
+  const ink = (style && style.ink) || null;
+
   ctx.save();
   ctx.filter = 'none';
-  ctx.fillStyle = frame.background || '#FFFFFF';
+  ctx.fillStyle = paper;
   ctx.fillRect(0, 0, frame.width, frame.height);
   ctx.restore();
 
@@ -751,7 +942,7 @@ function composite(canvas) {
     const inset = Number.isFinite(b.inset) ? b.inset : 40;
     ctx.save();
     ctx.filter = 'none';
-    ctx.strokeStyle = b.color || '#26357E';
+    ctx.strokeStyle = ink || b.color || '#26357E';
     ctx.lineWidth = Number.isFinite(b.width) ? b.width : 3;
     if (Array.isArray(b.dash) && b.dash.length) ctx.setLineDash(b.dash);
     // Strips draw one dashed rule per column, so the cut line is where you cut.
@@ -766,7 +957,7 @@ function composite(canvas) {
   if (frame.caption) {
     ctx.save();
     ctx.filter = 'none';
-    ctx.fillStyle = frame.captionColor || '#26357E';
+    ctx.fillStyle = ink || frame.captionColor || '#26357E';
     // Frames may name their own face and size; the default is the Xinhmo
     // script wordmark, which is a macOS system font so it is always there.
     const size = Math.round(frame.width * (frame.captionScale || 0.055));
@@ -865,6 +1056,8 @@ async function doPrint() {
       frameName: order.frame ? order.frame.name : 'Photos',
       items: order.items,
       total: order.total,
+      extras: S.extras.slice(),
+      styleId: S.styleId,
     });
 
     if (res && res.ok) {
@@ -872,7 +1065,7 @@ async function doPrint() {
       renderTicket(res.code, order);
       show('done');
       clearTimeout(S.doneTimer);
-      S.doneTimer = setTimeout(abandonSession, (S.cfg.thankYouSeconds || 30) * 1000);
+      S.doneTimer = setTimeout(endCycle, (S.cfg.thankYouSeconds || 30) * 1000);
     } else {
       const msg = (res && res.error) || 'Could not save your order.';
       log('error', 'order failed: ' + msg);
@@ -1031,16 +1224,14 @@ function escapeHtml(s) {
 
 function wireEvents() {
   // There is no single start button any more: the welcome screen's layout
-  // cards start the session, and buildMenu() wires them.
-  $('shootBtn').addEventListener('click', () => runCaptureSequence());
+  // cards start the session, and buildMenu() wires them. Shooting starts from
+  // the get-ready screen, either when its timer runs out or when people say so.
+  $('readyNowBtn').addEventListener('click', () => beginShooting());
 
   $('retakeBtn').addEventListener('click', () => abandonSession());
   $('printBtn').addEventListener('click', () => doPrint());
   $('printBackBtn').addEventListener('click', () => show('edit'));
-  $('doneBtn').addEventListener('click', () => {
-    clearTimeout(S.doneTimer);
-    abandonSession();
-  });
+  $('doneBtn').addEventListener('click', () => endCycle());
 
   $('copiesUp').addEventListener('click', () => {
     S.copies = Math.min(S.cfg.maxCopies, S.copies + 1);
@@ -1064,6 +1255,15 @@ function wireEvents() {
   corner.addEventListener('pointercancel', cancelHold);
 
   $('staffClose').addEventListener('click', closeStaff);
+  $('staffStart').addEventListener('click', async () => {
+    try {
+      await window.booth.staff.unlockBooth();
+    } catch (err) {
+      log('error', 'unlock failed: ' + err.message);
+    }
+    unlockBooth();
+    closeStaff();
+  });
   $('staffRecheck').addEventListener('click', () => {
     S.camMode = null;
     S.camError = null;

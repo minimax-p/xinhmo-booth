@@ -40,7 +40,29 @@
         </div>
       </section>
 
-      <!-- 2. Get ready -->
+      <!-- 2. Get ready. Live view cropped to exactly what will be printed, so a
+           group can arrange itself before the first countdown starts. -->
+      <section class="screen screen-ready" data-screen="ready">
+        <div class="ready-stage">
+          <video id="readyVid" class="live" autoplay playsinline muted hidden></video>
+          <img id="readyImg" class="live" alt="" />
+          <div class="live-off" id="readyOff">Camera preview is off</div>
+          <div class="crop-mask"><div class="crop-window" id="readyWindow"></div></div>
+          <div class="ready-timer"><span id="readyNum">20</span></div>
+        </div>
+
+        <div class="ready-bar">
+          <div class="ready-copy">
+            <h1 class="ready-title">Get ready</h1>
+            <p class="ready-hint" id="readyHint">
+              Everything inside the bright box is what gets printed. Squeeze in.
+            </p>
+          </div>
+          <button class="primary-btn" id="readyNowBtn">We're ready</button>
+        </div>
+      </section>
+
+      <!-- 3. Pose and shoot -->
       <section class="screen screen-pose" data-screen="pose">
         <div class="pose-wrap">
           <div class="stage-frame">
@@ -61,7 +83,7 @@
             </div>
 
             <div class="flash" id="flash"></div>
-            <div class="shot-pill" id="shotPill">Photo 1 of 4</div>
+            <div class="shot-pill" id="shotPill">Photo 1 of 10</div>
           </div>
 
           <aside class="filmstrip" id="filmstrip" aria-label="Shots taken"></aside>
@@ -69,12 +91,11 @@
 
         <div class="pose-bar">
           <span class="wordmark-mini" aria-hidden="true">Xinhmo</span>
-          <p class="pose-hint" id="poseHint">Stand in frame and tap when you are ready.</p>
-          <button class="primary-btn" id="shootBtn">I'm ready</button>
+          <p class="pose-hint" id="poseHint">Look at the camera.</p>
         </div>
       </section>
 
-      <!-- 3. Edit -->
+      <!-- 4. Edit -->
       <section class="screen screen-edit" data-screen="edit">
         <div class="paper-shadow">
           <div class="paper">
@@ -89,12 +110,20 @@
                     <div class="thumbs" id="photoThumbs"></div>
                   </div>
                   <div class="picker">
-                    <h2 class="section-title">Frame</h2>
+                    <h2 class="section-title">Layout <span class="section-hint">changes the price</span></h2>
                     <div class="chips" id="frameChips"></div>
                   </div>
                   <div class="picker">
-                    <h2 class="section-title">Look</h2>
+                    <h2 class="section-title">Frame <span class="section-hint">free</span></h2>
+                    <div class="chips" id="styleChips"></div>
+                  </div>
+                  <div class="picker">
+                    <h2 class="section-title">Look <span class="section-hint">free</span></h2>
                     <div class="chips" id="filterChips"></div>
+                  </div>
+                  <div class="picker">
+                    <h2 class="section-title">Add a keychain <span class="section-hint" id="addonHint"></span></h2>
+                    <div class="chips" id="addonChips"></div>
                   </div>
                 </div>
               </div>
@@ -106,14 +135,15 @@
                   <span class="copies-val" id="copiesVal">1</span>
                   <button class="step" id="copiesUp" aria-label="More copies">+</button>
                 </div>
-                <button class="primary-btn" id="printBtn">Print</button>
+                <span class="running-total" id="runningTotal"></span>
+                <button class="primary-btn" id="printBtn">Done</button>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- 4. Printing -->
+      <!-- 5. Saving -->
       <section class="screen screen-printing" data-screen="printing">
         <div class="paper-shadow">
           <div class="paper">
@@ -140,7 +170,7 @@
         </div>
       </section>
 
-      <!-- 5. Thank you -->
+      <!-- 6. Pickup code -->
       <section class="screen screen-done" data-screen="done">
         <div class="paper-shadow">
           <div class="paper">
@@ -173,6 +203,37 @@
           </div>
         </div>
       </section>
+
+      <!-- 7. Locked. Where the booth waits between groups: the last customer
+           cannot start a session for the next one, and staff let the next
+           group in from their phone once they are actually standing here. -->
+      <section class="screen screen-locked" data-screen="locked">
+        <div class="paper-shadow">
+          <div class="paper">
+            <div class="cut cut-poster">
+              <header class="poster-head">
+                <div class="wordmark">
+                  <span class="wordmark-script">Xinhmo</span>
+                  <span class="wordmark-rule"><i></i>photo booth<i></i></span>
+                </div>
+              </header>
+
+              <div class="ticket-hero">
+                <p class="lock-mark" aria-hidden="true">&#9788;</p>
+                <h1 class="lock-title">Ready for the next group</h1>
+                <p class="poster-cta">
+                  Ask a member of staff to start your session.
+                </p>
+              </div>
+
+              <footer class="poster-foot">
+                <p class="menu-fine">The booth opens as soon as staff taps start.</p>
+              </footer>
+            </div>
+            <span class="seal" aria-hidden="true">X</span>
+          </div>
+        </div>
+      </section>
     </div>
 
     <!-- Staff panel -->
@@ -190,6 +251,9 @@
           <div id="staffPanel" class="hidden">
             <div class="status-list" id="staffStatus"></div>
             <div class="staff-actions">
+              <!-- Standing at the booth with a dead phone is a real scenario, so
+                   the lock can always be lifted from here too. -->
+              <button class="ghost-btn" id="staffStart">Start next session</button>
               <button class="ghost-btn" id="staffRecheck">Check again</button>
               <button class="ghost-btn" id="staffCamera">Restart camera</button>
               <button class="ghost-btn" id="staffTestPrint">Test print</button>

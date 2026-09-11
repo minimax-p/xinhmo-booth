@@ -1,6 +1,6 @@
 {
-  "captureCount": 4,
-  "countdownSeconds": 3,
+  "captureCount": 10,
+  "countdownSeconds": 10,
   "printerName": "Canon_SELPHY_CP1500",
   "printerMedia": "Postcard(4x6in)",
   "printDryRun": false,
@@ -44,5 +44,8 @@
     "paymentNote": "$3 for each extra copy. Zelle/Cash only."
   },
   "staffPort": 8080,
-  "webcamFallback": true
+  "webcamFallback": true,
+  "beepLastSeconds": 3,
+  "readySeconds": 20,
+  "lockAfterSession": true
 }

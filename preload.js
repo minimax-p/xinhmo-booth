@@ -31,6 +31,15 @@ contextBridge.exposeInMainWorld('booth', {
   saveShot: (index, dataUrl) => ipcRenderer.invoke('camera:saveShot', { index, dataUrl }),
   submitOrder: (order) => ipcRenderer.invoke('order:submit', order),
 
+  // booth lock, between sessions
+  lockBooth: () => ipcRenderer.invoke('booth:lock'),
+  boothState: () => ipcRenderer.invoke('booth:state'),
+  onUnlock: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('booth:unlock', handler);
+    return () => ipcRenderer.removeListener('booth:unlock', handler);
+  },
+
   // staff
   staff: {
     unlock: (pin) => ipcRenderer.invoke('staff:unlock', pin),
@@ -40,5 +49,6 @@ contextBridge.exposeInMainWorld('booth', {
     openLogs: () => ipcRenderer.invoke('staff:openLogs'),
     quit: () => ipcRenderer.invoke('staff:quit'),
     queueUrl: () => ipcRenderer.invoke('staff:queueUrl'),
+    unlockBooth: () => ipcRenderer.invoke('booth:unlock'),
   },
 });

@@ -12,9 +12,19 @@ const path = require('path');
 
 const DEFAULTS = {
   // --- capture ---
-  captureCount: 4, // shots per session
-  countdownSeconds: 3, // countdown before each shot
+  // Ten shots for every layout, whatever it holds. A group needs time to
+  // rearrange between poses, and picking four keepers out of ten is a much
+  // better experience than being handed exactly the four you got.
+  captureCount: 10,
+  countdownSeconds: 10, // countdown before each shot
+  beepLastSeconds: 3, // only the last few seconds beep; ten would be nagging
+  readySeconds: 20, // the get-ready screen, before any shooting starts
   reviewSeconds: 1.2, // how long each shot is shown right after it is taken
+
+  // After a session the booth locks itself and waits for staff to start the
+  // next one from their phone, so the next group cannot walk up and inherit a
+  // half-finished session from whoever was just here.
+  lockAfterSession: true,
 
   // --- printing ---
   printerName: 'Canon_SELPHY_CP1500', // CUPS queue name (lpstat -p)
@@ -28,6 +38,17 @@ const DEFAULTS = {
   liveView: true, // show the live camera feed while posing
   liveViewFps: 12,
   cameraTimeoutMs: 25000,
+
+  // --- frame styles ---
+  // Colourways for the printed frame. Purely cosmetic and deliberately free:
+  // the layout is what costs money, so a customer can fiddle with this as long
+  // as they like without anyone having to reprice the order.
+  styles: [
+    { id: 'cream', name: 'Cream', background: '#FFF8EE', ink: '#26357E' },
+    { id: 'navy', name: 'Navy', background: '#26357E', ink: '#FFF8EE' },
+    { id: 'blush', name: 'Blush', background: '#F6DFE2', ink: '#8B0003' },
+    { id: 'noir', name: 'Noir', background: '#1C1B22', ink: '#F3EDE2' },
+  ],
 
   // --- pricing --- (the poster is the source of truth; keep them in sync)
   pricing: {
@@ -87,8 +108,10 @@ function load() {
   if (process.env.PB_PRINTER_NAME) merged.printerName = process.env.PB_PRINTER_NAME;
   if (process.env.PB_KIOSK !== undefined) merged.kiosk = truthy(process.env.PB_KIOSK);
 
-  merged.captureCount = clamp(int(merged.captureCount, 4), 1, 8);
-  merged.countdownSeconds = clamp(int(merged.countdownSeconds, 3), 1, 10);
+  merged.captureCount = clamp(int(merged.captureCount, 10), 1, 20);
+  merged.countdownSeconds = clamp(int(merged.countdownSeconds, 10), 1, 30);
+  merged.beepLastSeconds = clamp(int(merged.beepLastSeconds, 3), 0, 10);
+  merged.readySeconds = clamp(int(merged.readySeconds, 20), 0, 120);
   merged.maxCopies = clamp(int(merged.maxCopies, 3), 1, 9);
   merged.liveViewFps = clamp(int(merged.liveViewFps, 12), 1, 30);
 

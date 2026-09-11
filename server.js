@@ -77,7 +77,7 @@ function retotal(order, pricing) {
  * @param {object} opts.cfg
  * @param {(order) => Promise<{ok:boolean,error?:string}>} opts.onRelease
  */
-function start({ queue, cfg, onRelease }) {
+function start({ queue, cfg, onRelease, isLocked, onStartSession }) {
   const pin = String(cfg.staffPin || '');
   const port = cfg.staffPort || 8080;
 
@@ -106,7 +106,15 @@ function start({ queue, cfg, onRelease }) {
         pending: queue.pending(),
         recent: queue.recent(),
         pricing: cfg.pricing || {},
+        locked: isLocked ? !!isLocked() : false,
       });
+    }
+
+    // Let the next group in. The booth sits locked between sessions so the
+    // people walking up cannot land in the middle of someone else's.
+    if (p === '/api/start' && req.method === 'POST') {
+      if (!onStartSession) return json(res, 501, { error: 'not supported' });
+      return json(res, 200, onStartSession() || { ok: true });
     }
 
     if (p === '/api/thumb') {
@@ -223,6 +231,11 @@ const PAGE = `<!doctype html>
   h2{font:600 12px/1 system-ui;letter-spacing:.14em;text-transform:uppercase;opacity:.6;margin:26px 4px 8px}
   .void{background:transparent;color:var(--soft);border:1px solid var(--line);padding:10px;
     font-size:13px;font-weight:500;width:100%;margin-top:8px}
+  .booth{background:var(--paper);color:var(--ink);border-radius:16px;padding:14px;margin-bottom:12px}
+  .booth p{margin:0 0 10px;font-size:14px;color:var(--soft)}
+  .booth .start{width:100%;padding:17px;background:var(--ink);color:var(--paper);font-size:17px}
+  .booth.open{background:transparent;color:var(--paper);padding:4px 4px 10px;text-align:center;
+    font-size:13px;opacity:.6}
 </style></head><body>
 <div id="gate" class="gate">
   <h1>Xinhmo</h1>
@@ -233,7 +246,7 @@ const PAGE = `<!doctype html>
 </div>
 <div id="app" hidden>
   <header><h1>Queue</h1><span class="count" id="count"></span></header>
-  <main><div id="list"></div>
+  <main><div id="booth"></div><div id="list"></div>
     <h2 id="pastHead" hidden>Done</h2><div id="past"></div>
   </main>
 </div>
@@ -269,6 +282,7 @@ const PAGE = `<!doctype html>
 
   function render(d){
     pricing=d.pricing||{};
+    booth(d.locked);
     var list=$('list'); var pend=d.pending||[];
     $('count').textContent=pend.length?pend.length+' waiting':'all clear';
     if(!pend.length){list.innerHTML='<div class="empty">Nothing waiting.<br>Orders show up here the moment someone finishes.</div>'}
@@ -281,6 +295,21 @@ const PAGE = `<!doctype html>
     $('past').innerHTML=past.map(function(o){
       return '<div class="past"><span>'+o.code+' &middot; '+(o.status==='void'?'voided':'printed')+'</span><span>'+money(o.total)+'</span></div>';
     }).join('');
+  }
+
+  // The booth locks itself between sessions. Once the last group has walked
+  // away and the next one is standing in front of it, this is what lets them in.
+  function booth(locked){
+    var el=$('booth');
+    if(!locked){el.className='booth open';el.textContent='Booth is open.';return}
+    el.className='booth';
+    el.innerHTML='<p>Booth is locked after the last session. Start it when the next group is ready.</p>'+
+      '<button class="start">Start next session</button>';
+    el.querySelector('.start').addEventListener('click',function(){
+      var b=this; b.disabled=true; b.textContent='Starting...';
+      api('/api/start',{method:'POST'}).then(function(){refresh()})
+        .catch(function(){b.disabled=false;b.textContent='Start next session'});
+    });
   }
 
   function card(o){

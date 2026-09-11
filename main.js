@@ -38,6 +38,10 @@ let allowQuit = false; // flipped by the staff panel
 let sessionDir = null;
 let queue = null;
 let server = null;
+// The booth locks itself after each session and only staff can open it again,
+// from their phone or the staff panel. Kept here rather than in the renderer
+// so a renderer crash and reload cannot unlock the booth by accident.
+let boothLocked = false;
 
 const SESSIONS_ROOT = path.join(__dirname, 'sessions');
 
@@ -193,7 +197,18 @@ app.whenReady().then(async () => {
 
   queue = new Queue(path.join(SESSIONS_ROOT, 'queue.json'));
   try {
-    server = staffServer.start({ queue, cfg, onRelease: printOrder });
+    server = staffServer.start({
+      queue,
+      cfg,
+      onRelease: printOrder,
+      isLocked: () => boothLocked,
+      onStartSession: () => {
+        boothLocked = false;
+        log.info('[main] booth unlocked from the staff phone');
+        send('booth:unlock', {});
+        return { ok: true };
+      },
+    });
   } catch (err) {
     // No staff phone view is survivable; a dead booth is not.
     log.error('[main] staff server did not start:', err.message);
@@ -328,7 +343,11 @@ function pruneOldSessions() {
 ipcMain.handle('app:config', () => ({
   captureCount: cfg.captureCount,
   countdownSeconds: cfg.countdownSeconds,
+  beepLastSeconds: cfg.beepLastSeconds,
+  readySeconds: cfg.readySeconds,
+  lockAfterSession: cfg.lockAfterSession,
   reviewSeconds: cfg.reviewSeconds,
+  styles: cfg.styles,
   maxCopies: cfg.maxCopies,
   idleResetSeconds: cfg.idleResetSeconds,
   thankYouSeconds: cfg.thankYouSeconds,
@@ -414,7 +433,10 @@ ipcMain.handle('order:submit', async (_e, order) => {
       frameName: order.frameName,
       items: order.items || [],
       total: order.total || 0,
-      extras: [],
+      // Whatever the customer already ticked. Staff can still change it on the
+      // phone before taking the money.
+      extras: Array.isArray(order.extras) ? order.extras : [],
+      styleId: order.styleId || null,
     });
     return { ok: true, code: entry.code, total: entry.total, items: entry.items };
   } catch (err) {
@@ -422,6 +444,25 @@ ipcMain.handle('order:submit', async (_e, order) => {
     return { ok: false, error: 'Could not save the photo. Please ask a staff member.' };
   }
 });
+
+/**
+ * The renderer tells us when a session has ended so the booth can lock. Staff
+ * open it again from their phone (or the staff panel), which is what stops the
+ * next group inheriting the previous one's screen.
+ */
+ipcMain.handle('booth:lock', () => {
+  boothLocked = !!cfg.lockAfterSession;
+  if (boothLocked) log.info('[main] booth locked, waiting for staff to start the next session');
+  return { locked: boothLocked };
+});
+
+ipcMain.handle('booth:unlock', () => {
+  boothLocked = false;
+  log.info('[main] booth unlocked from the staff panel');
+  return { locked: false };
+});
+
+ipcMain.handle('booth:state', () => ({ locked: boothLocked }));
 
 /** Where staff should point their phone. Shown in the staff panel. */
 ipcMain.handle('staff:queueUrl', () => ({
