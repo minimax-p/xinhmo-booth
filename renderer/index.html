@@ -48,17 +48,22 @@
           <img id="readyImg" class="live" alt="" />
           <div class="live-off" id="readyOff">Camera preview is off</div>
           <div class="crop-mask"><div class="crop-window" id="readyWindow"></div></div>
+          <div class="ready-stage-label" id="readyStageLabel"></div>
           <div class="ready-timer"><span id="readyNum">20</span></div>
         </div>
 
         <div class="ready-bar">
           <div class="ready-copy">
-            <h1 class="ready-title">Get ready</h1>
+            <h1 class="ready-title">Does everyone fit?</h1>
             <p class="ready-hint" id="readyHint">
-              Everything inside the bright box is what gets printed. Squeeze in.
+              Only what is inside the bright box gets printed.
             </p>
+            <!-- Switching here is instant and free, which is the point: try
+                 them, then commit. After this screen the shape is fixed. -->
+            <div class="ready-swap" id="readySwap"></div>
+            <p class="ready-warn">Last chance to change the shape — once you start, it is locked in.</p>
           </div>
-          <button class="primary-btn" id="readyNowBtn">We're ready</button>
+          <button class="primary-btn" id="readyNowBtn">Start the photos</button>
         </div>
       </section>
 

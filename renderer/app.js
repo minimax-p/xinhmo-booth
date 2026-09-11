@@ -517,6 +517,7 @@ async function startSession(frameId) {
   buildFilmstrip();
   setCropMask(true);
   setReadyMask();
+  buildReadySwap();
   $('poseHint').textContent = 'Look at the camera.';
   $('shotPill').textContent = `Photo 1 of ${shotsNeeded()}`;
 
@@ -553,6 +554,60 @@ async function startSession(frameId) {
 function setReadyMask() {
   const win = $('readyWindow');
   if (win) win.style.setProperty('--ar', String(slotRatio()));
+  const stage = $('readyStageLabel');
+  const f = currentFrame();
+  if (stage && f) stage.textContent = f.name;
+}
+
+/**
+ * The layout switcher on the get-ready screen. This is the answer to people
+ * standing there wondering whether they picked the right shape: instead of a
+ * back button and a second trip through the menu, the live view re-crops the
+ * instant they tap, so comparing costs a second and deciding costs nothing.
+ * The tradeoff is deliberate -- cheap to change now, impossible to change
+ * later, and the screen says so.
+ */
+function buildReadySwap() {
+  const wrap = $('readySwap');
+  if (!wrap) return;
+  const pricing = (S.cfg && S.cfg.pricing) || {};
+  const cur = pricing.currency || '$';
+  const byId = pricing.frames || {};
+  wrap.innerHTML = '';
+
+  S.frames
+    .filter((f) => byId[f.id])
+    .sort((x, y) => byId[x.id].price - byId[y.id].price)
+    .forEach((f) => {
+      const b = document.createElement('button');
+      b.className = 'ready-chip';
+      b.dataset.frame = f.id;
+      b.innerHTML =
+        `<span class="ready-chip-shape" style="--ar:${slotRatioOf(f)}"></span>` +
+        `<span class="ready-chip-name">${escapeHtml(f.name)}</span>` +
+        `<span class="ready-chip-price">${cur}${byId[f.id].price}</span>`;
+      b.addEventListener('click', () => {
+        if (S.frameId === f.id) return;
+        S.frameId = f.id;
+        syncReadySwap();
+        setReadyMask();
+        buildFilmstrip();
+        syncChips();
+      });
+      wrap.appendChild(b);
+    });
+  syncReadySwap();
+}
+
+function syncReadySwap() {
+  document.querySelectorAll('#readySwap .ready-chip').forEach((c) =>
+    c.classList.toggle('active', c.dataset.frame === S.frameId)
+  );
+}
+
+function slotRatioOf(f) {
+  const sl = f && f.slots && f.slots[0];
+  return sl && sl.h ? sl.w / sl.h : 1.5;
 }
 
 /**

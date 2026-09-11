@@ -1538,3 +1538,67 @@ img.live:not([src]) {
   color: var(--ink);
   white-space: nowrap;
 }
+
+/* -------------------------------------------------- get-ready layout swap
+   Changing the shape here has to feel cheaper than thinking about it, or
+   people stand and deliberate while a queue builds behind them. Tapping
+   re-crops the live view immediately, so the comparison is the decision. */
+.ready-swap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(6px, 1.2vmin, 14px);
+  margin-top: clamp(4px, 1vmin, 12px);
+}
+
+.ready-chip {
+  display: flex;
+  align-items: center;
+  gap: clamp(5px, 1vmin, 10px);
+  padding: clamp(5px, 1vmin, 11px) clamp(9px, 1.8vmin, 18px);
+  border-radius: 999px;
+  border: 1px solid var(--ink-line);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.ready-chip.active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+/* A little box in the real slot proportions, so the choice reads as a shape
+   rather than as a word people have to decode. */
+.ready-chip-shape {
+  width: clamp(16px, 2.6vmin, 26px);
+  aspect-ratio: var(--ar, 1.5);
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.ready-chip-price { opacity: 0.7; }
+
+.ready-warn {
+  margin: clamp(4px, 1vmin, 10px) 0 0;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+  color: var(--seal);
+}
+
+.ready-stage-label {
+  position: absolute;
+  top: clamp(8px, 1.6vmin, 22px);
+  left: clamp(8px, 1.6vmin, 22px);
+  padding: clamp(4px, 0.8vmin, 10px) clamp(10px, 2vmin, 22px);
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px dashed var(--ink-line);
+  font-family: var(--serif);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  z-index: 2;
+}
