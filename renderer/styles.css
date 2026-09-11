@@ -431,6 +431,7 @@ img {
 }
 
 .stage-frame {
+  container-type: size;
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
@@ -987,12 +988,20 @@ img.live:not([src]) {
   pointer-events: none;
 }
 
+/*
+  --ar is set from the chosen frame's slot geometry, and the window has to be
+  exactly that shape or the whole screen lies about what will be printed.
+
+  Sized in container units rather than percentages because `aspect-ratio` loses
+  to a clamp: with width:100% and max-height:92%, a tall layout on a wide stage
+  had its height cut and its width left alone, so Grand -- a 0.69 portrait crop
+  -- drew as a landscape box. Taking the smaller of "92% of the stage width"
+  and "92% of the stage height, times the ratio" is the contain calculation
+  done honestly, so neither dimension is ever the one that gets clamped.
+*/
 .crop-window {
-  /* --ar is set from the chosen frame's slot geometry. */
+  width: min(92cqw, calc(92cqh * var(--ar, 1.5)));
   aspect-ratio: var(--ar, 1.5);
-  max-width: 92%;
-  max-height: 92%;
-  width: 100%;
   outline: 2px solid rgba(255, 248, 238, 0.85);
   outline-offset: -1px;
   border-radius: 2px;
@@ -1417,6 +1426,7 @@ img.live:not([src]) {
 }
 
 .ready-stage {
+  container-type: size;
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
@@ -1660,4 +1670,15 @@ img.live:not([src]) {
   border: none;
   box-shadow: none;
   filter: drop-shadow(0 clamp(4px, 1.2vmin, 18px) clamp(10px, 2.6vmin, 34px) rgba(22, 33, 90, 0.45));
+}
+
+/* On the get-ready screen the area outside the crop goes fully black, not
+   merely dimmed. This is the screen where a group decides whether they fit,
+   and a dimmed-but-visible arm reads as "partly in" -- black is unambiguous:
+   if you cannot see yourself, you are not in the photo. The pose screen keeps
+   the softer dim, because by then the decision is made and people still want
+   to see what they are doing. */
+.screen-ready .crop-window {
+  box-shadow: 0 0 0 9999px #000;
+  outline-color: rgba(255, 248, 238, 0.95);
 }
