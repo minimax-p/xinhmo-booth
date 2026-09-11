@@ -39,6 +39,29 @@ const DEFAULTS = {
   liveViewFps: 12,
   cameraTimeoutMs: 25000,
 
+  // --- review steps --- one decision per screen, each on its own clock
+  pickSeconds: 30, // choosing which photos go on the paper
+  frameSeconds: 30, // choosing the decorative frame
+  filterSeconds: 30, // choosing the filter
+
+  // --- print geometry ---
+  // What calibration actually means here: a printer does not put ink on every
+  // pixel you send it. safeArea is how much it loses at each edge, measured in
+  // millimetres off a printed calibration sheet, and the composite is drawn
+  // inside whatever is left so nothing that matters lands in the trim.
+  print: {
+    dpi: 300,
+    safeArea: { top: 0, right: 0, bottom: 1, left: 0 },
+    // A hairline down the middle of a two-column strip. You cut along it, so
+    // it should be just visible enough to line a blade up against and gone
+    // once the cut is made.
+    cutLine: { enabled: true, width: 1, alpha: 0.45 },
+  },
+
+  // Small copies of one strip, tiled onto a 4x6 sheet to be cut out and
+  // dropped into a keychain. Built every session whether or not anyone buys one.
+  keychain: { heightMm: 55, gapMm: 4 },
+
   // --- frame styles ---
   // Colourways for the printed frame. Purely cosmetic and deliberately free:
   // the layout is what costs money, so a customer can fiddle with this as long
@@ -112,6 +135,15 @@ function load() {
   merged.countdownSeconds = clamp(int(merged.countdownSeconds, 10), 1, 30);
   merged.beepLastSeconds = clamp(int(merged.beepLastSeconds, 3), 0, 10);
   merged.readySeconds = clamp(int(merged.readySeconds, 20), 0, 120);
+  merged.pickSeconds = clamp(int(merged.pickSeconds, 30), 5, 300);
+  merged.frameSeconds = clamp(int(merged.frameSeconds, 30), 5, 300);
+  merged.filterSeconds = clamp(int(merged.filterSeconds, 30), 5, 300);
+  // Nested objects would otherwise be replaced wholesale by a partial
+  // settings.json, silently dropping defaults the file did not mention.
+  merged.print = Object.assign({}, DEFAULTS.print, merged.print);
+  merged.print.safeArea = Object.assign({}, DEFAULTS.print.safeArea, merged.print.safeArea);
+  merged.print.cutLine = Object.assign({}, DEFAULTS.print.cutLine, merged.print.cutLine);
+  merged.keychain = Object.assign({}, DEFAULTS.keychain, merged.keychain);
   merged.maxCopies = clamp(int(merged.maxCopies, 3), 1, 9);
   merged.liveViewFps = clamp(int(merged.liveViewFps, 12), 1, 30);
 
@@ -122,8 +154,11 @@ function load() {
 function save(patch) {
   const next = Object.assign({}, load(), patch || {});
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(stripRuntime(next), null, 2));
-  cached = next;
-  return cached;
+  // Re-read rather than trusting the patch: staff edit these from a phone, and
+  // the clamps are the only thing standing between a typo and a booth that
+  // waits three hours between shots.
+  cached = null;
+  return load();
 }
 
 function stripRuntime(obj) {

@@ -897,19 +897,64 @@ function composite(canvas) {
   canvas.height = frame.height;
   const ctx = canvas.getContext('2d');
 
-  // The colourway recolours the paper and every line drawn on it. The layout
-  // geometry never changes, which is why this can be free: it costs no extra
-  // paper and no extra thought at the print table.
   const style = currentStyle();
-  const paper = (style && style.background) || frame.background || '#FFFFFF';
-  const ink = (style && style.ink) || null;
+  const paper = paperColour(frame, style);
 
+  // Paper first, edge to edge. The design is then drawn inside the safe area,
+  // so whatever the printer trims off is the same colour as the border and the
+  // loss is invisible rather than a white sliver.
   ctx.save();
   ctx.filter = 'none';
   ctx.fillStyle = paper;
   ctx.fillRect(0, 0, frame.width, frame.height);
   ctx.restore();
 
+  const t = safeTransform(frame);
+  ctx.save();
+  ctx.translate(t.dx, t.dy);
+  ctx.scale(t.scale, t.scale);
+  drawFrameDesign(ctx, frame, style);
+  ctx.restore();
+  return true;
+}
+
+function paperColour(frame, style) {
+  return (style && style.background) || frame.background || '#FFFFFF';
+}
+
+/** Millimetres to print pixels, at whatever dpi the frames are authored for. */
+function mmToPx(mm) {
+  const dpi = (((S.cfg || {}).print || {}).dpi) || 300;
+  return ((mm || 0) / 25.4) * dpi;
+}
+
+/**
+ * Where it is actually safe to put ink. Calibration measures how much each
+ * edge loses; this turns that into the rectangle the design is drawn into.
+ */
+function safeTransform(frame) {
+  const sa = (((S.cfg || {}).print || {}).safeArea) || {};
+  const top = mmToPx(sa.top);
+  const right = mmToPx(sa.right);
+  const bottom = mmToPx(sa.bottom);
+  const left = mmToPx(sa.left);
+  const availW = frame.width - left - right;
+  const availH = frame.height - top - bottom;
+  if (availW <= 0 || availH <= 0) return { scale: 1, dx: 0, dy: 0 };
+  // Uniform, so nothing is stretched. At a millimetre of trim this is a
+  // two-thirds-of-one-percent shrink: unmeasurable by eye, and it is the
+  // difference between a clean edge and a clipped caption.
+  const scale = Math.min(availW / frame.width, availH / frame.height);
+  return {
+    scale,
+    dx: left + (availW - frame.width * scale) / 2,
+    dy: top + (availH - frame.height * scale) / 2,
+  };
+}
+
+/** Everything the print is made of, in the frame's own coordinates. */
+function drawFrameDesign(ctx, frame, style) {
+  const ink = (style && style.ink) || null;
   const filter = FILTERS.find((f) => f.id === S.filterId) || FILTERS[0];
 
   frame.slots.forEach((slot, i) => {
@@ -978,6 +1023,198 @@ function composite(canvas) {
     ctx.restore();
   }
 
+  drawCutLine(ctx, frame, ink);
+}
+
+/**
+ * Two-column strips get a hairline down the gap. You cut along it with the
+ * ruler board, so it wants to be just dark enough to line a blade up against
+ * and gone once the blade has been through it.
+ */
+function drawCutLine(ctx, frame, ink) {
+  const cl = (((S.cfg || {}).print || {}).cutLine) || {};
+  if (cl.enabled === false) return;
+  const rects = frame.border && frame.border.rects;
+  if (!Array.isArray(rects) || rects.length !== 2) return;
+
+  const left = rects[0].x + rects[0].w;
+  const right = rects[1].x;
+  if (right <= left) return;
+  const x = (left + right) / 2;
+
+  ctx.save();
+  ctx.filter = 'none';
+  ctx.setLineDash([]);
+  ctx.lineWidth = Number.isFinite(cl.width) ? cl.width : 1;
+  ctx.globalAlpha = Number.isFinite(cl.alpha) ? cl.alpha : 0.45;
+  ctx.strokeStyle = ink || (frame.border && frame.border.color) || '#26357E';
+  ctx.beginPath();
+  // Half-pixel so a one pixel line lands on one pixel instead of blurring
+  // across two, which is the difference between a crisp guide and a smudge.
+  ctx.moveTo(Math.round(x) + 0.5, 0);
+  ctx.lineTo(Math.round(x) + 0.5, frame.height);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** One strip's worth of the design: a column for strips, the sheet otherwise. */
+function stripRegion(frame) {
+  const rects = frame.border && frame.border.rects;
+  if (Array.isArray(rects) && rects.length >= 1) return rects[0];
+  return { x: 0, y: 0, w: frame.width, h: frame.height };
+}
+
+/**
+ * The keychain sheet: one strip shrunk to keychain size and tiled across a
+ * 4x6, because the SELPHY only prints 4x6 and the inserts get cut out by hand.
+ * Built for every session whether anyone buys one, so that staff can sell a
+ * keychain after the photos have already printed without a reshoot.
+ */
+function compositeKeychain(canvas) {
+  const frame = currentFrame();
+  if (!frame) return false;
+  const style = currentStyle();
+
+  // Render the design once at full size, then sample a strip out of it.
+  const src = document.createElement('canvas');
+  src.width = frame.width;
+  src.height = frame.height;
+  const sctx = src.getContext('2d');
+  sctx.fillStyle = paperColour(frame, style);
+  sctx.fillRect(0, 0, frame.width, frame.height);
+  drawFrameDesign(sctx, frame, style);
+
+  const strip = stripRegion(frame);
+  const kc = (S.cfg && S.cfg.keychain) || {};
+  const cellH = Math.round(mmToPx(kc.heightMm || 55));
+  const cellW = Math.round(strip.w * (cellH / strip.h));
+  const gap = Math.round(mmToPx(kc.gapMm || 4));
+  if (cellW <= 0 || cellH <= 0) return false;
+
+  canvas.width = frame.width;
+  canvas.height = frame.height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const t = safeTransform(frame);
+  ctx.save();
+  ctx.translate(t.dx, t.dy);
+  ctx.scale(t.scale, t.scale);
+
+  const cols = Math.max(1, Math.floor((frame.width + gap) / (cellW + gap)));
+  const rows = Math.max(1, Math.floor((frame.height + gap) / (cellH + gap)));
+  const ox = Math.round((frame.width - (cols * cellW + (cols - 1) * gap)) / 2);
+  const oy = Math.round((frame.height - (rows * cellH + (rows - 1) * gap)) / 2);
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = ox + c * (cellW + gap);
+      const y = oy + r * (cellH + gap);
+      ctx.drawImage(src, strip.x, strip.y, strip.w, strip.h, x, y, cellW, cellH);
+      // A faint box to cut around, same reasoning as the strip cut line.
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = '#26357E';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, cellW - 1, cellH - 1);
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+  return true;
+}
+
+/**
+ * The calibration sheet. Print it, look at what survived, and put the trim you
+ * measured into print.safeArea. The dashed SAFE box is the important line: if
+ * any edge of it is missing, that edge is losing more than we think.
+ */
+function drawCalibrationSheet(canvas) {
+  const W = 1200;
+  const H = 1800;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const px = (mm) => mmToPx(mm);
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#000000';
+  ctx.fillStyle = '#000000';
+
+  // Edge rule, right on the boundary: whatever is missing was trimmed.
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, W - 2, H - 2);
+
+  // Millimetre ticks in from every edge, long every 5mm, labelled every 10mm.
+  ctx.lineWidth = 1;
+  ctx.font = '600 22px -apple-system, Helvetica, Arial, sans-serif';
+  ctx.textBaseline = 'middle';
+  const tick = (x1, y1, x2, y2) => {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  };
+  for (let mm = 1; mm <= 15; mm++) {
+    const d = px(mm);
+    const len = mm % 5 === 0 ? 46 : 22;
+    tick(d, 0, d, len);            // top
+    tick(d, H, d, H - len);        // bottom
+    tick(0, d, len, d);            // left
+    tick(W, d, W - len, d);        // right
+    if (mm % 5 === 0) {
+      ctx.textAlign = 'center';
+      ctx.fillText(String(mm), d, len + 20);
+      ctx.fillText(String(mm), d, H - len - 20);
+      ctx.textAlign = 'left';
+      ctx.fillText(String(mm), len + 8, d);
+    }
+  }
+
+  // The safe box currently in force.
+  const sa = (((S.cfg || {}).print || {}).safeArea) || {};
+  const box = {
+    x: px(sa.left),
+    y: px(sa.top),
+    w: W - px(sa.left) - px(sa.right),
+    h: H - px(sa.top) - px(sa.bottom),
+  };
+  ctx.save();
+  ctx.lineWidth = 3;
+  ctx.setLineDash([18, 12]);
+  ctx.strokeRect(box.x + 1.5, box.y + 1.5, box.w - 3, box.h - 3);
+  ctx.restore();
+
+  ctx.textAlign = 'center';
+  ctx.font = '700 62px -apple-system, Helvetica, Arial, sans-serif';
+  ctx.fillText('TOP', W / 2, 150);
+  ctx.fillText('BOTTOM', W / 2, H - 150);
+
+  ctx.font = '600 30px -apple-system, Helvetica, Arial, sans-serif';
+  const lines = [
+    'Solid rule sits on the paper edge.',
+    'Dashed rule is the safe area. It must print whole.',
+    '',
+    `safe area  top ${sa.top || 0}  right ${sa.right || 0}  ` +
+      `bottom ${sa.bottom || 0}  left ${sa.left || 0}  (mm)`,
+    '',
+    'If a dashed edge is cut, raise that number by what is missing.',
+    'If a dashed edge has white beyond it, lower it.',
+  ];
+  lines.forEach((t, i) => ctx.fillText(t, W / 2, 640 + i * 46));
+
+  // Centre crosshair, to check the sheet is not shifted as a whole.
+  ctx.lineWidth = 2;
+  tick(W / 2 - 90, H / 2, W / 2 + 90, H / 2);
+  tick(W / 2, H / 2 - 90, W / 2, H / 2 + 90);
+  ctx.beginPath();
+  ctx.arc(W / 2, H / 2, 60, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.font = '500 26px -apple-system, Helvetica, Arial, sans-serif';
+  ctx.fillText(new Date().toLocaleString(), W / 2, H - 250);
   return true;
 }
 
@@ -1283,6 +1520,20 @@ function wireEvents() {
       toast(res && res.ok ? 'Test print sent.' : (res && res.error) || 'Test print failed.', !(res && res.ok));
     } catch (err) {
       toast('Test print failed: ' + err.message, true);
+    }
+  });
+  $('staffCalibrate').addEventListener('click', async () => {
+    toast('Printing a calibration sheet…');
+    try {
+      const c = document.createElement('canvas');
+      drawCalibrationSheet(c);
+      const res = await window.booth.staff.calibration(c.toDataURL('image/jpeg', 0.95));
+      toast(
+        res && res.ok ? 'Calibration sheet sent.' : (res && res.error) || 'Calibration failed.',
+        !(res && res.ok)
+      );
+    } catch (err) {
+      toast('Calibration failed: ' + err.message, true);
     }
   });
   $('staffLogs').addEventListener('click', () => window.booth.staff.openLogs());

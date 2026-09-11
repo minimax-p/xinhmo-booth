@@ -50,5 +50,6 @@ contextBridge.exposeInMainWorld('booth', {
     quit: () => ipcRenderer.invoke('staff:quit'),
     queueUrl: () => ipcRenderer.invoke('staff:queueUrl'),
     unlockBooth: () => ipcRenderer.invoke('booth:unlock'),
+    calibration: (dataUrl) => ipcRenderer.invoke('staff:calibration', dataUrl),
   },
 });

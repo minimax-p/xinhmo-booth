@@ -516,6 +516,24 @@ ipcMain.handle('staff:testPrint', async () => {
   }
 });
 
+/**
+ * Write and print the calibration sheet. Saved next to the app as well as
+ * printed, so what is on paper and what is on disk are the same sheet.
+ */
+ipcMain.handle('staff:calibration', async (_e, dataUrl) => {
+  try {
+    const out = path.join(__dirname, 'calibration.jpg');
+    const b64 = String(dataUrl).replace(/^data:image\/\w+;base64,/, '');
+    fs.writeFileSync(out, Buffer.from(b64, 'base64'));
+    log.info('[main] calibration sheet written to ' + out);
+    const res = await printer.print(out, 1);
+    return Object.assign({ file: out }, res);
+  } catch (err) {
+    log.error('[main] calibration failed:', err.message);
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('staff:openLogs', () => {
   try {
     shell.openPath(log.logDir);
