@@ -1672,13 +1672,56 @@ img.live:not([src]) {
   filter: drop-shadow(0 clamp(4px, 1.2vmin, 18px) clamp(10px, 2.6vmin, 34px) rgba(22, 33, 90, 0.45));
 }
 
-/* On the get-ready screen the area outside the crop goes fully black, not
-   merely dimmed. This is the screen where a group decides whether they fit,
-   and a dimmed-but-visible arm reads as "partly in" -- black is unambiguous:
-   if you cannot see yourself, you are not in the photo. The pose screen keeps
-   the softer dim, because by then the decision is made and people still want
-   to see what they are doing. */
-.screen-ready .crop-window {
+/* Outside the crop is solid black on both the get-ready screen and while the
+   photos are being taken. A dimmed-but-visible arm reads as "partly in"; black
+   says the only true thing, which is that what you cannot see is not in the
+   photograph. It matters just as much mid-shoot as before it, because between
+   shots is exactly when people rearrange themselves. */
+.screen-ready .crop-window,
+.screen-pose .crop-window {
   box-shadow: 0 0 0 9999px #000;
   outline-color: rgba(255, 248, 238, 0.95);
+}
+
+/* ------------------------------------------------------- decoration chips
+   A decoration is a picture, so the chip shows the picture. The name alone
+   ("Corners", "Dots") tells a customer nothing they can choose between. */
+.chips-decor {
+  gap: clamp(6px, 1.4vmin, 14px);
+}
+
+.chip-decor {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(6px, 1.2vmin, 12px);
+  padding-left: clamp(6px, 1.2vmin, 12px);
+}
+
+.decor-thumb {
+  width: clamp(20px, 3vmin, 34px);
+  aspect-ratio: 564 / 1764;
+  border: 1px solid var(--ink-line);
+  border-radius: 2px;
+  background: var(--paper-2);
+  overflow: hidden;
+  flex: 0 0 auto;
+  display: block;
+}
+
+.decor-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* "None" is a real choice, so it gets a chip like the others rather than
+   being the absence of one. */
+.decor-thumb.is-none {
+  background:
+    linear-gradient(45deg, transparent 46%, var(--ink-line) 46%, var(--ink-line) 54%, transparent 54%),
+    var(--paper-2);
+}
+
+.chip.active .decor-thumb {
+  border-color: var(--paper);
 }
