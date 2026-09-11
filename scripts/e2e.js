@@ -41,8 +41,10 @@ const staff = (p, opts) =>
 
 /** Short timings for the test run, with the operator's file put back after. */
 function useTestSettings() {
+  // Keep the operator's file byte for byte, not a re-serialised copy: they
+  // edit this by hand, and a test should not quietly reformat it.
+  fs.copyFileSync(SETTINGS, BACKUP);
   const real = JSON.parse(fs.readFileSync(SETTINGS, 'utf8'));
-  fs.writeFileSync(BACKUP, JSON.stringify(real, null, 2));
   fs.writeFileSync(
     SETTINGS,
     JSON.stringify(
