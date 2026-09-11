@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+          content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
     <title>Xinhmo Booth</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -16,28 +16,24 @@
       <section class="screen screen-welcome is-active" data-screen="welcome">
         <div class="paper-shadow">
           <div class="paper">
-            <div class="cut cut-stack">
-              <div class="cut-head">
+            <div class="cut cut-poster">
+              <header class="poster-head">
                 <div class="wordmark">
                   <span class="wordmark-script">Xinhmo</span>
                   <span class="wordmark-rule"><i></i>photo booth<i></i></span>
                 </div>
-              </div>
-              <div class="cut-body">
-                <div class="copy-block">
-                  <h1 class="display">Tap to start</h1>
-                  <p class="lede">Pick a frame, strike a pose, printed in about a minute.</p>
-                </div>
-                <div class="menu" id="menu">
-                  <ul class="menu-list" id="menuList"></ul>
-                  <p class="menu-addons" id="menuAddons"></p>
-                  <p class="menu-fine" id="menuFine"></p>
-                </div>
-                <button class="start-btn" id="startBtn">Start</button>
-              </div>
-              <div class="cut-foot">
+                <p class="poster-lead">Tap a layout to begin</p>
+              </header>
+
+              <!-- Built by buildMenu(). Each card is the whole action: it picks
+                   the layout, agrees the price, and starts the session. -->
+              <div class="menu-cards" id="menuList"></div>
+
+              <footer class="poster-foot">
+                <p class="menu-addons" id="menuAddons"></p>
+                <p class="menu-fine" id="menuFine"></p>
                 <p class="note" id="welcomeNote"></p>
-              </div>
+              </footer>
             </div>
             <span class="seal" aria-hidden="true">X</span>
           </div>
@@ -46,14 +42,31 @@
 
       <!-- 2. Get ready -->
       <section class="screen screen-pose" data-screen="pose">
-        <div class="stage-frame">
-          <img id="liveImg" class="live" alt="" />
-          <div class="live-off" id="liveOff">Camera preview is off</div>
-          <div class="countdown" id="countdown" hidden></div>
-          <div class="flash" id="flash"></div>
-          <div class="shot-pill" id="shotPill">Photo 1 of 4</div>
-          <div class="just-shot" id="justShot" hidden><img id="justShotImg" alt="" /></div>
+        <div class="pose-wrap">
+          <div class="stage-frame">
+            <video id="liveVid" class="live" autoplay playsinline muted hidden></video>
+            <img id="liveImg" class="live" alt="" />
+            <div class="live-off" id="liveOff">Camera preview is off</div>
+
+            <!-- Dims everything outside the chosen frame's crop, so people can
+                 see what will actually be printed before the shutter fires. -->
+            <div class="crop-mask" id="cropMask" hidden><div class="crop-window" id="cropWindow"></div></div>
+
+            <div class="countdown" id="countdown" hidden>
+              <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="ring-track" cx="60" cy="60" r="54" />
+                <circle class="ring-fill" id="ringFill" cx="60" cy="60" r="54" />
+              </svg>
+              <span class="countdown-num" id="countdownNum">3</span>
+            </div>
+
+            <div class="flash" id="flash"></div>
+            <div class="shot-pill" id="shotPill">Photo 1 of 4</div>
+          </div>
+
+          <aside class="filmstrip" id="filmstrip" aria-label="Shots taken"></aside>
         </div>
+
         <div class="pose-bar">
           <span class="wordmark-mini" aria-hidden="true">Xinhmo</span>
           <p class="pose-hint" id="poseHint">Stand in frame and tap when you are ready.</p>
@@ -113,8 +126,8 @@
               </div>
               <div class="cut-body">
                 <div class="copy-block">
-                  <h1 class="display-sm" id="printTitle">Printing your photos</h1>
-                  <p class="lede" id="printSub">This takes about a minute. Please wait by the printer.</p>
+                  <h1 class="display-sm" id="printTitle">Saving your photos</h1>
+                  <p class="lede" id="printSub">One moment — your pickup code is on its way.</p>
                 </div>
                 <div class="spinner" id="printSpinner"><i></i><i></i><i></i></div>
               </div>
@@ -131,30 +144,30 @@
       <section class="screen screen-done" data-screen="done">
         <div class="paper-shadow">
           <div class="paper">
-            <div class="cut cut-stack">
-              <div class="cut-head">
+            <div class="cut cut-poster">
+              <header class="poster-head">
                 <div class="wordmark">
                   <span class="wordmark-script">Xinhmo</span>
                   <span class="wordmark-rule"><i></i>photo booth<i></i></span>
                 </div>
-              </div>
-              <div class="cut-body">
-                <div class="copy-block">
-                  <h1 class="display">All done</h1>
-                  <p class="lede">Take your photos from the printer. Thanks for coming.</p>
+              </header>
+
+              <div class="ticket-hero">
+                <p class="panel-label">Your pickup code</p>
+                <p class="ticket-code" id="ticketCode">--</p>
+
+                <div class="ticket">
+                  <div class="ticket-lines" id="ticketLines"></div>
+                  <div class="ticket-total"><span>Due</span><span id="ticketTotal"></span></div>
                 </div>
-                <div class="receipt" id="receipt">
-                  <div class="receipt-head"><span>&#10022;</span><span>Xinhmo Photo Booth</span><span>&#10022;</span></div>
-                  <div class="receipt-rule"></div>
-                  <div class="receipt-lines" id="receiptLines"></div>
-                  <div class="receipt-rule"></div>
-                  <div class="receipt-total" id="receiptTotal"></div>
-                  <p class="receipt-note" id="receiptNote"></p>
-                  <p class="receipt-snip">&#9986; - - - - - - - - - - - - - - - - - - - -</p>
-                </div>
-                <button class="done-btn" id="doneBtn">Start another</button>
+
+                <p class="poster-cta">Show this code at the print table.<br />Your photos print as soon as you pay.</p>
               </div>
-              <div class="cut-foot"></div>
+
+              <footer class="poster-foot">
+                <p class="menu-fine" id="ticketNote"></p>
+                <button class="ghost-btn" id="doneBtn">Done</button>
+              </footer>
             </div>
             <span class="seal" aria-hidden="true">X</span>
           </div>

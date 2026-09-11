@@ -8,11 +8,13 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "mock": "PB_MOCK_CAMERA=1 PB_PRINT_DRYRUN=1 electron .",
+    "mock": "PB_MOCK_CAMERA=1 PB_PRINT_DRYRUN=1 PB_KIOSK=0 electron .",
     "windowed": "PB_KIOSK=0 electron .",
     "check": "node scripts/selftest.js",
     "dist": "electron-builder --mac --dir",
-    "pack": "electron-builder --mac"
+    "pack": "electron-builder --mac",
+    "mock-kiosk": "PB_MOCK_CAMERA=1 PB_PRINT_DRYRUN=1 electron .",
+    "dev": "PB_PRINT_DRYRUN=1 PB_KIOSK=0 electron ."
   },
   "devDependencies": {
     "electron": "^32.2.0",
@@ -21,11 +23,27 @@
   "build": {
     "appId": "com.xinhmo.kiosk",
     "productName": "Xinhmo Booth",
-    "files": ["**/*", "!sessions/**", "!logs/**", "!dist/**"],
-    "extraResources": [{ "from": "frames", "to": "frames" }],
+    "files": [
+      "**/*",
+      "!sessions/**",
+      "!logs/**",
+      "!dist/**"
+    ],
+    "extraResources": [
+      {
+        "from": "frames",
+        "to": "frames"
+      }
+    ],
     "mac": {
       "category": "public.app-category.photography",
-      "target": ["dir"]
+      "target": [
+        "dir"
+      ],
+      "extendInfo": {
+        "NSCameraUsageDescription": "The booth uses the built-in camera when no DSLR is connected.",
+        "NSMicrophoneUsageDescription": "Not used."
+      }
     }
   }
 }

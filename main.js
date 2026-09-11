@@ -13,7 +13,10 @@
  */
 'use strict';
 
-const { app, BrowserWindow, ipcMain, powerSaveBlocker, globalShortcut, shell, screen } = require('electron');
+const {
+  app, BrowserWindow, ipcMain, powerSaveBlocker, globalShortcut, shell, screen, systemPreferences,
+  session,
+} = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -22,6 +25,8 @@ const log = require('./logger');
 const { Camera } = require('./camera');
 const { Printer } = require('./printer');
 const frames = require('./frames');
+const { Queue } = require('./queue');
+const staffServer = require('./server');
 
 const cfg = config.load();
 
@@ -31,6 +36,8 @@ let printer = null;
 let powerBlockerId = null;
 let allowQuit = false; // flipped by the staff panel
 let sessionDir = null;
+let queue = null;
+let server = null;
 
 const SESSIONS_ROOT = path.join(__dirname, 'sessions');
 
@@ -52,7 +59,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (win) {
+    if (win && !win.isDestroyed()) {
       if (win.isMinimized()) win.restore();
       win.focus();
     }
@@ -116,9 +123,10 @@ function createWindow() {
     }
   });
 
-  // Refuse to close unless staff unlocked it.
+  // Refuse to close unless staff unlocked it. Only in kiosk mode: a windowed
+  // run is for testing on a laptop and must stay closable like any other app.
   win.on('close', (e) => {
-    if (!allowQuit) {
+    if (!allowQuit && cfg.kiosk) {
       e.preventDefault();
       log.warn('[main] close blocked (booth is locked)');
     }
@@ -148,7 +156,49 @@ function createWindow() {
 // Lifecycle
 // --------------------------------------------------------------------------
 
+/** Print one queued order. This is the only place a job reaches the printer. */
+async function printOrder(order) {
+  const n = Math.max(1, Math.min(cfg.maxCopies, parseInt(order.copies, 10) || 1));
+  if (!order.imagePath || !fs.existsSync(order.imagePath)) {
+    return { ok: false, error: 'The photo file for this order is missing.' };
+  }
+  log.info('[main] releasing', order.code, order.imagePath, 'copies=' + n);
+  return printer.print(order.imagePath, n);
+}
+
 app.whenReady().then(async () => {
+  // Electron's default session REFUSES getUserMedia unless something answers
+  // the permission request. Without this the webcam fallback fails silently.
+  try {
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, done) => {
+      done(permission === 'media' || permission === 'camera');
+    });
+    session.defaultSession.setPermissionCheckHandler(
+      (_wc, permission) => permission === 'media' || permission === 'camera'
+    );
+  } catch (err) {
+    log.error('[main] permission handler failed:', err.message);
+  }
+
+  // The built-in camera is the fallback when no DSLR is plugged in. Ask now,
+  // while someone is still standing at the Mac, not mid-session at the event.
+  if (process.platform === 'darwin' && cfg.webcamFallback) {
+    try {
+      const granted = await systemPreferences.askForMediaAccess('camera');
+      log.info('[main] webcam access: ' + (granted ? 'granted' : 'denied'));
+    } catch (err) {
+      log.warn('[main] webcam access request failed: ' + err.message);
+    }
+  }
+
+  queue = new Queue(path.join(SESSIONS_ROOT, 'queue.json'));
+  try {
+    server = staffServer.start({ queue, cfg, onRelease: printOrder });
+  } catch (err) {
+    // No staff phone view is survivable; a dead booth is not.
+    log.error('[main] staff server did not start:', err.message);
+  }
+
   log.info('[main] starting Xinhmo booth', app.getVersion(), 'kiosk=' + !!cfg.kiosk);
 
   camera = new Camera(cfg);
@@ -190,7 +240,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', (e) => {
-  if (!allowQuit) {
+  if (!allowQuit && cfg.kiosk) {
     e.preventDefault();
     return;
   }
@@ -284,6 +334,7 @@ ipcMain.handle('app:config', () => ({
   thankYouSeconds: cfg.thankYouSeconds,
   liveView: cfg.liveView,
   mockCamera: cfg.mockCamera,
+  webcamFallback: cfg.webcamFallback,
   printDryRun: cfg.printDryRun,
   pricing: cfg.pricing,
   frames: frames.all(),
@@ -326,22 +377,58 @@ ipcMain.handle('camera:capture', async (_e, index) => {
   }
 });
 
-/** Renderer sends the finished 1200x1800 composite as a data URL. */
-ipcMain.handle('print:submit', async (_e, { dataUrl, copies }) => {
+/**
+ * Webcam mode: the renderer grabs the frame itself (getUserMedia gives it a
+ * live <video>, which is far simpler than shelling out), and hands us the JPEG
+ * to file next to the DSLR shots so everything downstream is identical.
+ */
+ipcMain.handle('camera:saveShot', (_e, { index, dataUrl }) => {
   try {
-    const n = Math.max(1, Math.min(cfg.maxCopies, parseInt(copies, 10) || 1));
-    const dir = sessionDir || newSessionDir();
-    const out = path.join(dir, `print_${Date.now()}.jpg`);
+    if (!sessionDir) sessionDir = newSessionDir();
+    const dest = path.join(sessionDir, `shot_${String(index).padStart(2, '0')}.jpg`);
     const b64 = String(dataUrl).replace(/^data:image\/\w+;base64,/, '');
-    fs.writeFileSync(out, Buffer.from(b64, 'base64'));
-    log.info('[main] printing', out, 'copies=' + n);
-    const res = await printer.print(out, n);
-    return Object.assign({ file: out }, res);
+    fs.writeFileSync(dest, Buffer.from(b64, 'base64'));
+    return { ok: true, path: dest };
   } catch (err) {
-    log.error('[main] print submit failed:', err.message);
-    return { ok: false, error: 'Could not prepare the photo for printing.' };
+    log.error('[main] saveShot failed:', err.message);
+    return { ok: false, error: 'Could not save that photo.' };
   }
 });
+
+/**
+ * Renderer sends the finished 1200x1800 composite as a data URL. We do NOT
+ * print: the order goes into the queue and the booth is free immediately.
+ * Staff releases it from their phone once they have been paid.
+ */
+ipcMain.handle('order:submit', async (_e, order) => {
+  try {
+    const dir = sessionDir || newSessionDir();
+    const out = path.join(dir, `print_${Date.now()}.jpg`);
+    const b64 = String(order.dataUrl).replace(/^data:image\/\w+;base64,/, '');
+    fs.writeFileSync(out, Buffer.from(b64, 'base64'));
+    const entry = queue.add({
+      dir,
+      imagePath: out,
+      copies: Math.max(1, Math.min(cfg.maxCopies, parseInt(order.copies, 10) || 1)),
+      frameId: order.frameId,
+      frameName: order.frameName,
+      items: order.items || [],
+      total: order.total || 0,
+      extras: [],
+    });
+    return { ok: true, code: entry.code, total: entry.total, items: entry.items };
+  } catch (err) {
+    log.error('[main] order submit failed:', err.message);
+    return { ok: false, error: 'Could not save the photo. Please ask a staff member.' };
+  }
+});
+
+/** Where staff should point their phone. Shown in the staff panel. */
+ipcMain.handle('staff:queueUrl', () => ({
+  urls: server ? server.urls() : [],
+  port: server ? server.port : cfg.staffPort,
+  pending: queue ? queue.pending().length : 0,
+}));
 
 ipcMain.handle('staff:unlock', (_e, pin) => {
   const ok = String(pin) === String(cfg.staffPin);

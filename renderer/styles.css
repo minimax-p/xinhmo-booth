@@ -360,28 +360,6 @@ img {
   border-color: rgba(139, 0, 3, 0.4);
 }
 
-.start-btn {
-  --size: min(clamp(150px, 32vmin, 340px), 42vh);
-  width: var(--size);
-  height: var(--size);
-  border-radius: 50%;
-  background: var(--ink);
-  color: var(--paper);
-  font-family: var(--serif);
-  font-size: calc(var(--size) * 0.2);
-  letter-spacing: 0.06em;
-  box-shadow:
-    0 0 0 clamp(3px, 0.6vmin, 8px) var(--paper),
-    0 0 0 clamp(4px, 0.75vmin, 10px) var(--ink-line),
-    0 clamp(6px, 1.6vmin, 22px) clamp(14px, 3.4vmin, 44px) -10px rgba(22, 33, 90, 0.7);
-  animation: breathe 3.2s ease-in-out infinite;
-  flex: 0 0 auto;
-}
-
-.start-btn:active {
-  transform: scale(0.97);
-}
-
 /* ---------------------------------------------------------------- welcome */
 
 .cut-stack {
@@ -474,7 +452,7 @@ img {
   transform: scaleX(-1); /* mirrored, so posing feels natural */
 }
 
-.live:not([src]) {
+img.live:not([src]) {
   display: none;
 }
 
@@ -530,22 +508,6 @@ img {
   font-size: var(--fs-sm);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-}
-
-.just-shot {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(13, 17, 48, 0.92);
-  padding: clamp(10px, 2.4vmin, 34px);
-}
-
-.just-shot img {
-  max-width: 82%;
-  max-height: 82%;
-  border: clamp(4px, 1vmin, 14px) solid var(--paper);
-  box-shadow: 0 2vmin 5vmin -1vmin rgba(0, 0, 0, 0.7);
 }
 
 .pose-bar {
@@ -809,26 +771,6 @@ img {
   animation-delay: 0.3s;
 }
 
-.done-btn {
-  --size: min(clamp(140px, 28vmin, 300px), 38vh);
-  width: var(--size);
-  height: var(--size);
-  border-radius: clamp(10px, 2vmin, 28px);
-  background: var(--ink);
-  color: var(--paper);
-  font-family: var(--serif);
-  font-size: calc(var(--size) * 0.13);
-  letter-spacing: 0.06em;
-  line-height: 1.2;
-  padding: 0 0.6em;
-  flex: 0 0 auto;
-  box-shadow: 0 clamp(6px, 1.6vmin, 22px) clamp(14px, 3.4vmin, 44px) -12px rgba(22, 33, 90, 0.7);
-}
-
-.done-btn:active {
-  transform: scale(0.98);
-}
-
 /* ---------------------------------------------------------------- staff */
 
 .staff-corner {
@@ -1012,16 +954,6 @@ img {
 
 /* ---------------------------------------------------------------- motion */
 
-@keyframes breathe {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.028);
-  }
-}
-
 @keyframes bounce {
   0%,
   80%,
@@ -1036,185 +968,447 @@ img {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .start-btn,
   .spinner i {
     animation: none;
   }
 }
 
-/* ---------------------------------------------------------------- menu
-   Welcome-screen price list, built to read like the paper poster: glyph,
-   price, then what you get. Glyphs are generated from the frame geometry. */
-.menu {
+/* ================================================================ pose
+   Live view never disappears. The shot you just took slides into the
+   filmstrip beside it, so people always know how many are left and can
+   reposition for the next one without a full-screen review blocking them. */
+.pose-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
-  max-width: clamp(280px, 84%, 620px);
+  max-width: clamp(320px, 96vw, 1320px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: clamp(8px, 1.6vmin, 20px);
+  align-items: stretch;
+}
+
+.screen-pose .stage-frame { max-width: none; height: 100%; }
+
+/* ---------------------------------------------------------- crop preview */
+.crop-mask {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.crop-window {
+  /* --ar is set from the chosen frame's slot geometry. */
+  aspect-ratio: var(--ar, 1.5);
+  max-width: 92%;
+  max-height: 92%;
+  width: 100%;
+  outline: 2px solid rgba(255, 248, 238, 0.85);
+  outline-offset: -1px;
+  border-radius: 2px;
+  /* Everything outside the window goes dark in one cheap paint. */
+  box-shadow: 0 0 0 9999px rgba(9, 13, 40, 0.62);
+}
+
+/* ------------------------------------------------------------- countdown */
+.countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.countdown .ring {
+  width: min(34vmin, 46vh);
+  height: min(34vmin, 46vh);
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+
+.ring-track,
+.ring-fill {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+.ring-track { stroke: rgba(255, 248, 238, 0.22); }
+.ring-fill {
+  stroke: var(--paper);
+  /* r=54 so the circumference is 2*pi*54 = 339.3 */
+  stroke-dasharray: 339.3;
+  stroke-dashoffset: 0;
+  filter: drop-shadow(0 0 1.2vmin rgba(0, 0, 0, 0.5));
+}
+
+/* One CSS animation for the whole countdown: no per-frame JS to stutter. */
+.countdown.run .ring-fill {
+  animation: ring-drain var(--cd, 3s) linear forwards;
+}
+
+@keyframes ring-drain {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 339.3; }
+}
+
+.countdown-num {
+  position: absolute;
+  font-family: var(--serif);
+  font-size: min(17vmin, 23vh);
+  line-height: 1;
+  color: var(--paper);
+  text-shadow: 0 0 5vmin rgba(0, 0, 0, 0.8);
+}
+
+.countdown-num.tick { animation: num-pop 0.9s ease-out; }
+
+@keyframes num-pop {
+  0%   { transform: scale(1.28); opacity: 0.35; }
+  18%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ------------------------------------------------------------- filmstrip */
+.filmstrip {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(6px, 1.2vmin, 14px);
+  padding: clamp(6px, 1.2vmin, 14px);
+  background: rgba(255, 248, 238, 0.09);
+  border-radius: clamp(6px, 1vmin, 14px);
+}
+
+.film-cell {
+  position: relative;
+  width: clamp(52px, 9vmin, 128px);
+  aspect-ratio: var(--ar, 1.5);
+  border-radius: 4px;
+  background: rgba(9, 13, 40, 0.5);
+  border: 1px dashed rgba(255, 248, 238, 0.3);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  transition: border-color 0.25s ease, transform 0.25s ease;
+}
+
+.film-cell .n {
+  font-family: var(--serif);
+  font-size: clamp(13px, 2vmin, 22px);
+  color: rgba(255, 248, 238, 0.45);
+}
+
+.film-cell img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.film-cell.is-next {
+  border-style: solid;
+  border-color: var(--paper);
+  transform: scale(1.04);
+}
+
+.film-cell.is-done {
+  border-style: solid;
+  border-color: rgba(255, 248, 238, 0.55);
+}
+
+/* The just-taken shot lands in its cell instead of covering the screen. */
+.film-cell.just-in img { animation: land 0.45s cubic-bezier(0.2, 0.9, 0.3, 1); }
+
+@keyframes land {
+  from { transform: scaleX(-1) scale(1.7); opacity: 0; }
+  to   { transform: scaleX(-1) scale(1); opacity: 1; }
+}
+
+/* The shot counter has to be readable against a bright live view. */
+.shot-pill {
+  background: rgba(9, 13, 40, 0.72);
+  color: var(--paper);
+  border: 1px solid rgba(255, 248, 238, 0.35);
+}
+
+/* Portrait or small: filmstrip goes underneath, laid out in a row. */
+@media (max-aspect-ratio: 1/1), (max-width: 720px) {
+  .pose-wrap {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .filmstrip { flex-direction: row; justify-content: center; }
+  .film-cell { width: clamp(44px, 13vw, 96px); }
+}
+
+/* ================================================================ poster
+   Welcome and Done. Both are one centred column: wordmark on top, the
+   thing that matters in the middle, quiet detail at the bottom.
+
+   The middle band is the only flexible row, and inside it the only
+   element allowed to take the slack is an SVG sized to its track. That is
+   deliberate. The previous version gave the middle a `1fr` grid track and
+   let real content sit in it, so on a short window the content outgrew the
+   track and drew straight over the header and the footer -- grid items
+   overflow their track instead of pushing their neighbours along. Here
+   every piece of text keeps its natural height and the drawing absorbs
+   whatever is left, so the composition cannot collide with itself. */
+.cut-poster {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(6px, 1.4vmin, 16px);
+  gap: clamp(8px, 1.8vmin, 26px);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  text-align: center;
+}
+
+.poster-head,
+.poster-foot {
+  flex: 0 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(4px, 1vmin, 12px);
+}
+
+.cut-poster .wordmark-script {
+  font-size: clamp(30px, min(5.4vw, 9vh), 88px);
+  line-height: 1;
+}
+
+/* The one line that tells a stranger what to do next. */
+.poster-lead {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(15px, min(2vw, 3.2vh), 34px);
   color: var(--ink);
 }
 
-.menu-list {
+.poster-cta {
+  margin: 0;
+  font-size: clamp(13px, min(1.5vw, 2.4vh), 24px);
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+/* ------------------------------------------------------------ menu cards
+   The price list IS the picker: one tap chooses the layout, agrees the
+   price and starts the session. Choosing here instead of after the shoot
+   is what lets the pose screen mask the live view to this frame's real
+   crop, so people can see what will actually be printed while they pose. */
+.menu-cards {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   list-style: none;
   margin: 0;
   padding: 0;
-  width: 100%;
   display: flex;
-  flex-direction: column;
-  gap: clamp(6px, 1.6vmin, 18px);
+  align-items: stretch;
+  justify-content: center;
+  gap: clamp(8px, 2.2vw, 40px);
 }
 
-.menu-row {
-  display: flex;
+.menu-card {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  max-width: clamp(190px, 25vw, 400px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  grid-template-areas: 'glyph' 'name' 'price' 'note';
+  justify-items: center;
   align-items: center;
-  gap: clamp(8px, 2vmin, 22px);
+  gap: clamp(2px, 0.7vmin, 10px);
+  padding: clamp(8px, 1.6vmin, 22px) clamp(6px, 1.2vw, 20px);
+  border: 1px dashed var(--ink-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  text-align: center;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.menu-card:active {
+  background: var(--ink-wash);
+  transform: scale(0.985);
 }
 
 .menu-glyph {
-  flex: 0 0 auto;
-  width: clamp(34px, 7vmin, 62px);
-  display: block;
+  grid-area: glyph;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   color: var(--ink);
-  opacity: 0.9;
 }
 
 .menu-glyph svg {
   display: block;
   width: 100%;
-  height: auto;
-  max-height: clamp(44px, 9vmin, 84px);
+  height: 100%;
+}
+
+.menu-name {
+  grid-area: name;
+  font-family: var(--serif);
+  font-size: clamp(12px, min(1.4vw, 2.3vh), 24px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
 
 .menu-price {
-  font-family: Didot, Georgia, "Times New Roman", serif;
-  font-size: clamp(17px, 3.4vmin, 34px);
+  grid-area: price;
+  font-family: var(--serif);
+  font-size: clamp(24px, min(3.2vw, 5.4vh), 58px);
   font-weight: 600;
   line-height: 1;
+  color: var(--ink);
 }
 
 .menu-note {
-  font-size: clamp(12px, 2.1vmin, 20px);
-  opacity: 0.78;
+  grid-area: note;
+  font-size: clamp(11px, min(1.2vw, 2vh), 20px);
+  color: var(--ink-soft);
 }
 
 .menu-addons {
-  margin: clamp(2px, 0.8vmin, 8px) 0 0;
+  margin: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: center;
-  gap: clamp(8px, 2vmin, 24px);
-  font-size: clamp(12px, 2.1vmin, 20px);
+  gap: clamp(8px, 2vw, 24px);
+  font-size: clamp(12px, min(1.4vw, 2.2vh), 22px);
+  color: var(--ink);
 }
 
 .menu-addons-label {
-  font-family: Didot, Georgia, "Times New Roman", serif;
-  font-size: clamp(14px, 2.5vmin, 24px);
-  opacity: 0.85;
+  font-family: var(--serif);
+  font-size: 0.82em;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
 
 .menu-addon b {
-  font-family: Didot, Georgia, "Times New Roman", serif;
+  font-family: var(--serif);
   font-weight: 600;
 }
 
 .menu-fine {
   margin: 0;
-  font-size: clamp(10px, 1.7vmin, 15px);
-  opacity: 0.66;
+  font-size: clamp(10px, min(1.1vw, 1.8vh), 18px);
+  color: var(--ink-soft);
   text-align: center;
 }
 
-/* Short screens: the menu is the first thing to give up room. */
-@media (max-height: 620px) {
-  .menu-glyph { width: clamp(28px, 5.5vmin, 44px); }
-  .menu-list { gap: clamp(4px, 1vmin, 10px); }
+/* Genuinely narrow: the cards turn into rows so the glyph still reads. */
+@media (max-width: 560px) {
+  .menu-cards {
+    flex-direction: column;
+    gap: clamp(6px, 1.4vmin, 14px);
+  }
+
+  .menu-card {
+    flex: 1 1 auto;
+    max-width: none;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      'glyph name  price'
+      'glyph note  price';
+    justify-items: start;
+    column-gap: clamp(10px, 3vw, 22px);
+    text-align: left;
+  }
+
+  .menu-glyph {
+    width: clamp(46px, 16vw, 92px);
+    height: auto;
+    aspect-ratio: 2 / 3;
+  }
+
+  .menu-price { justify-self: end; }
 }
 
-/* ---------------------------------------------------------------- receipt
-   Thank-you screen receipt: a little printed slip recapping the order, set
-   in a monospace face with dotted leader lines so the price column lines up
-   like a real register tape. */
-.receipt {
+/* ---------------------------------------------------------------- ticket
+   The last screen is a pickup stub, not a thank-you card: at this point
+   nothing has been paid and nothing has printed. The code is the whole
+   point, so it is the only thing set large, and the button is deliberately
+   quiet -- the next thing this customer should do is walk to the print
+   table, not start another session. */
+.ticket-hero {
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
-  max-width: clamp(260px, 78%, 420px);
   display: flex;
   flex-direction: column;
-  gap: clamp(6px, 1.2vmin, 12px);
-  padding: clamp(12px, 2.2vmin, 26px) clamp(14px, 2.6vmin, 28px);
-  background: var(--paper-2);
-  border: 1px dashed var(--ink-line);
-  border-radius: var(--radius);
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 1.4vmin, 18px);
+}
+
+.panel-label {
+  margin: 0;
+  font-size: clamp(10px, min(1.1vw, 1.9vh), 18px);
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.ticket-code {
+  margin: 0;
   font-family: var(--mono);
+  font-size: clamp(56px, min(11vw, 19vh), 210px);
+  font-weight: 700;
+  line-height: 0.92;
+  letter-spacing: 0.1em;
   color: var(--ink);
 }
 
-.receipt-head {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(6px, 1.4vmin, 14px);
-  font-size: var(--fs-xs);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
+.ticket {
+  width: min(100%, clamp(230px, 32vw, 460px));
+  padding: clamp(6px, 1.4vmin, 18px) clamp(10px, 2.2vmin, 26px);
+  border: 1px dashed var(--ink-line);
+  border-radius: 4px;
+  text-align: left;
 }
 
-.receipt-rule {
-  border-top: 1px dashed var(--ink-line);
-}
-
-.receipt-lines {
+.ticket-lines {
   display: flex;
   flex-direction: column;
-  gap: clamp(4px, 1vmin, 10px);
-}
-
-.receipt-row {
-  display: flex;
-  align-items: baseline;
-  gap: clamp(4px, 1vmin, 10px);
-  font-size: var(--fs-sm);
-}
-
-.receipt-name {
-  white-space: nowrap;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.receipt-fill {
-  flex: 1 1 auto;
-  min-width: clamp(10px, 2vmin, 20px);
-  border-bottom: 1px dotted var(--ink-soft);
-  margin-bottom: 0.28em;
-}
-
-.receipt-price {
-  white-space: nowrap;
-  font-weight: 600;
-}
-
-.receipt-total {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  font-size: var(--fs-md);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.receipt-note {
-  font-size: var(--fs-xs);
+  gap: 0.3em;
+  font-size: clamp(12px, min(1.3vw, 2.1vh), 21px);
   color: var(--ink-soft);
-  text-align: center;
-  line-height: 1.5;
 }
 
-.receipt-snip {
-  text-align: center;
-  color: var(--ink-line);
-  font-size: var(--fs-sm);
-  letter-spacing: 0.05em;
+.ticket-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+}
+
+.ticket-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  margin-top: 0.45em;
+  padding-top: 0.4em;
+  border-top: 1px solid var(--ink-line);
+  font-family: var(--serif);
+  font-size: clamp(20px, min(2.6vw, 4.2vh), 44px);
+  color: var(--ink);
 }

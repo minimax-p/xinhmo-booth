@@ -42,5 +42,7 @@
     ],
     "extraCopy": 3,
     "paymentNote": "$3 for each extra copy. Zelle/Cash only."
-  }
+  },
+  "staffPort": 8080,
+  "webcamFallback": true
 }

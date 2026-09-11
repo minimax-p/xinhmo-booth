@@ -24,6 +24,7 @@ const DEFAULTS = {
 
   // --- camera ---
   mockCamera: false, // true = generated test images, no camera needed
+  webcamFallback: true, // no DSLR detected? use the Mac's built-in camera
   liveView: true, // show the live camera feed while posing
   liveViewFps: 12,
   cameraTimeoutMs: 25000,
@@ -46,10 +47,14 @@ const DEFAULTS = {
 
   // --- session ---
   idleResetSeconds: 90, // return to the welcome screen after this much inactivity
-  thankYouSeconds: 12,
+  // The last screen holds a pickup code the customer has to read, remember or
+  // photograph before it goes away, so it stays up considerably longer than a
+  // plain thank-you would need to.
+  thankYouSeconds: 30,
 
   // --- staff ---
-  staffPin: '1234', // opens the staff panel
+  staffPin: '1234', // opens the staff panel, and the phone queue view
+  staffPort: 8080, // LAN port for the staff queue page
   kiosk: true, // false = normal window, for setup and testing
 
   // --- housekeeping ---

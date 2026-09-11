@@ -28,7 +28,8 @@ contextBridge.exposeInMainWorld('booth', {
   // session
   startSession: () => ipcRenderer.invoke('session:start'),
   capture: (index) => ipcRenderer.invoke('camera:capture', index),
-  print: (dataUrl, copies) => ipcRenderer.invoke('print:submit', { dataUrl, copies }),
+  saveShot: (index, dataUrl) => ipcRenderer.invoke('camera:saveShot', { index, dataUrl }),
+  submitOrder: (order) => ipcRenderer.invoke('order:submit', order),
 
   // staff
   staff: {
@@ -38,5 +39,6 @@ contextBridge.exposeInMainWorld('booth', {
     restartCamera: () => ipcRenderer.invoke('staff:restartCamera'),
     openLogs: () => ipcRenderer.invoke('staff:openLogs'),
     quit: () => ipcRenderer.invoke('staff:quit'),
+    queueUrl: () => ipcRenderer.invoke('staff:queueUrl'),
   },
 });

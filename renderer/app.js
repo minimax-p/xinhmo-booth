@@ -128,9 +128,15 @@ async function init() {
 }
 
 /**
- * Welcome-screen menu. Prices live in settings.json so staff can change them
- * without touching code; the little layout glyphs are generated from the real
- * frame geometry, so the menu can never disagree with what actually prints.
+ * Welcome-screen menu, which is also the layout picker: tapping a card is how
+ * a session starts. Choosing the frame here rather than after the shoot is
+ * what lets the pose screen mask the live view to this frame's real crop --
+ * the three layouts have very different slot shapes (tall for Grand, wide for
+ * the strips), so a shot framed for one is badly cropped by another.
+ *
+ * Prices live in settings.json so staff can change them without touching code,
+ * and the layout glyphs are generated from the real frame geometry, so a card
+ * can never disagree with what actually prints.
  */
 function buildMenu() {
   const pricing = (S.cfg && S.cfg.pricing) || {};
@@ -147,13 +153,17 @@ function buildMenu() {
 
   priced.forEach((f) => {
     const entry = byId[f.id];
-    const li = document.createElement('li');
-    li.className = 'menu-row';
-    li.innerHTML =
+    const shots = `${f.slotCount} photo${f.slotCount > 1 ? 's' : ''}`;
+    const b = document.createElement('button');
+    b.className = 'menu-card';
+    b.dataset.frame = f.id;
+    b.innerHTML =
       `<span class="menu-glyph">${frameGlyph(f)}</span>` +
+      `<span class="menu-name">${escapeHtml(f.name)}</span>` +
       `<span class="menu-price">${cur}${entry.price}</span>` +
-      `<span class="menu-note">/ ${entry.note || ''}</span>`;
-    list.appendChild(li);
+      `<span class="menu-note">${shots}${entry.note ? ' · ' + escapeHtml(entry.note) : ''}</span>`;
+    b.addEventListener('click', () => startSession(f.id));
+    list.appendChild(b);
   });
 
   const addons = pricing.addons || [];
@@ -170,44 +180,48 @@ function buildMenu() {
   if (fine) fine.textContent = pricing.paymentNote || '';
 }
 
-/**
- * Thank-you screen receipt: recaps the frame and copies just printed, priced
- * from the same settings.json the welcome menu reads, so the two can never
- * disagree.
- */
-function buildReceipt() {
-  const lines = $('receiptLines');
-  const total = $('receiptTotal');
-  const note = $('receiptNote');
-  if (!lines || !total) return;
-
+/** What this session costs, from the chosen frame plus extra copies. */
+function computeOrder() {
   const pricing = (S.cfg && S.cfg.pricing) || {};
   const cur = pricing.currency || '$';
   const frame = currentFrame();
   const entry = frame && (pricing.frames || {})[frame.id];
-  const basePrice = entry ? entry.price : 0;
-  const extraCopies = Math.max(0, S.copies - 1);
-  const extraFee = pricing.extraCopy || 0;
-  const extraTotal = extraCopies * extraFee;
-  const grandTotal = basePrice + extraTotal;
+  const items = [{ label: frame ? frame.name : 'Photos', amount: entry ? entry.price : 0 }];
 
-  const rows = [];
-  rows.push(receiptRow(frame ? frame.name : 'Photos', `${cur}${basePrice}`));
+  const extraCopies = Math.max(0, S.copies - 1);
   if (extraCopies > 0) {
-    rows.push(
-      receiptRow(`Extra cop${extraCopies > 1 ? 'ies' : 'y'} x${extraCopies}`, `${cur}${extraTotal}`)
-    );
+    items.push({
+      label: `extra cop${extraCopies > 1 ? 'ies' : 'y'} x${extraCopies}`,
+      amount: extraCopies * (pricing.extraCopy || 0),
+    });
   }
-  lines.innerHTML = rows.join('');
-  total.innerHTML = `<span>Total</span><span>${cur}${grandTotal}</span>`;
-  if (note) note.textContent = pricing.paymentNote || '';
+  return { cur, items, total: items.reduce((n, i) => n + i.amount, 0), frame };
 }
 
-function receiptRow(name, price) {
-  return (
-    `<div class="receipt-row"><span class="receipt-name">${escapeHtml(name)}</span>` +
-    `<span class="receipt-fill"></span><span class="receipt-price">${escapeHtml(price)}</span></div>`
-  );
+/**
+ * The last screen the customer sees. The pickup code is the point: staff match
+ * it on their phone, take the money, and release the print. Add-ons are not
+ * offered here because staff hands those over in person and adds them there.
+ */
+function renderTicket(code, order) {
+  const set = (id, v) => {
+    const el = $(id);
+    if (el) el.textContent = v;
+  };
+  set('ticketCode', code || '--');
+  set('ticketTotal', `${order.cur}${order.total}`);
+
+  const lines = $('ticketLines');
+  if (lines) {
+    lines.innerHTML = order.items
+      .map(
+        (i) =>
+          `<div class="ticket-line"><span>${i.label}</span><span>${order.cur}${i.amount}</span></div>`
+      )
+      .join('');
+  }
+  const note = $('ticketNote');
+  if (note) note.textContent = ((S.cfg && S.cfg.pricing) || {}).paymentNote || '';
 }
 
 /** A tiny SVG of the frame, drawn straight from its slot rectangles. */
@@ -240,10 +254,21 @@ function currentFrame() {
   return S.frames.find((f) => f.id === S.frameId) || S.frames[0] || null;
 }
 
+/**
+ * How many shots this session takes. The chosen layout decides, not a fixed
+ * setting: Trio wants three and the others want four, and taking a photo that
+ * no slot can hold only makes the picking step confusing. captureCount is the
+ * fallback for the case where no frame is configured at all.
+ */
+function shotsNeeded() {
+  const f = currentFrame();
+  return (f && f.slotCount) || (S.cfg && S.cfg.captureCount) || 4;
+}
+
 // ---------------------------------------------------------------- live view
 
 function onLiveFrame(buf) {
-  if (S.screen !== 'pose') return;
+  if (S.screen !== 'pose' || S.camMode === 'webcam') return;
   try {
     const blob = new Blob([buf], { type: 'image/jpeg' });
     const url = URL.createObjectURL(blob);
@@ -261,27 +286,210 @@ function onLiveFrame(buf) {
 
 // ---------------------------------------------------------------- flow
 
-async function startSession() {
+
+// ------------------------------------------------------- camera source
+
+/**
+ * Pick where photos come from, best first:
+ *   dslr   - gphoto2 sees a real camera
+ *   webcam - no DSLR, but the Mac has a built-in camera (getUserMedia)
+ *   mock   - test mode, generated images
+ * The webcam path lives in the renderer because getUserMedia hands us a live
+ * <video> for free; shelling out for stills would give us no preview at all.
+ */
+async function chooseCameraSource() {
+  if (S.cfg.mockCamera) {
+    S.camMode = 'mock';
+    return S.camMode;
+  }
+  let detected = false;
+  try {
+    const res = await window.booth.detectCamera();
+    detected = !!(res && (res.ok || res.detected));
+    if (!detected) log('info', 'no DSLR: ' + ((res && res.error) || 'not detected'));
+  } catch (err) {
+    log('error', 'detect failed: ' + err.message);
+  }
+  if (detected) {
+    S.camMode = 'dslr';
+    return S.camMode;
+  }
+  if (S.cfg.webcamFallback && (await startWebcam())) {
+    S.camMode = 'webcam';
+    log('info', 'falling back to the built-in camera');
+    return S.camMode;
+  }
+  S.camMode = 'none';
+  S.camError = S.cfg.webcamFallback
+    ? 'No camera found. Check the DSLR cable, or allow camera access in System Settings > Privacy.'
+    : 'No camera found. Check the cable and that the camera is switched on.';
+  return S.camMode;
+}
+
+async function startWebcam() {
+  if (S.webcamStream) return true;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+  try {
+    S.webcamStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: 'user' },
+      audio: false,
+    });
+    const v = $('liveVid');
+    v.srcObject = S.webcamStream;
+    await v.play().catch(() => {});
+    return true;
+  } catch (err) {
+    log('error', 'webcam unavailable: ' + err.message);
+    S.webcamStream = null;
+    return false;
+  }
+}
+
+/** Grab the current webcam frame at full sensor size, un-mirrored for print. */
+async function captureFromWebcam(index) {
+  const v = $('liveVid');
+  if (!v || !v.videoWidth) return { ok: false, error: 'The camera is not ready.' };
+  const c = document.createElement('canvas');
+  c.width = v.videoWidth;
+  c.height = v.videoHeight;
+  const ctx = c.getContext('2d');
+  // The preview is mirrored so posing feels natural; the saved photo is not.
+  ctx.drawImage(v, 0, 0, c.width, c.height);
+  const dataUrl = c.toDataURL('image/jpeg', 0.92);
+  try {
+    await window.booth.saveShot(index, dataUrl);
+  } catch (err) {
+    log('error', 'saveShot: ' + err.message);
+  }
+  return { ok: true, dataUrl };
+}
+
+function captureOnce(index) {
+  return S.camMode === 'webcam' ? captureFromWebcam(index) : window.booth.capture(index);
+}
+
+// ------------------------------------------------------- pose furniture
+
+/** The aspect ratio of one photo in the chosen frame, for mask and filmstrip. */
+function slotRatio() {
+  const f = currentFrame();
+  const sl = f && f.slots && f.slots[0];
+  return sl && sl.h ? sl.w / sl.h : 1.5;
+}
+
+function buildFilmstrip() {
+  const strip = $('filmstrip');
+  if (!strip) return;
+  const n = shotsNeeded();
+  strip.style.setProperty('--ar', String(slotRatio()));
+  strip.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'film-cell' + (i === 0 ? ' is-next' : '');
+    cell.id = 'film' + i;
+    cell.innerHTML = `<span class="n">${i + 1}</span>`;
+    strip.appendChild(cell);
+  }
+}
+
+/** Drop the shot just taken into its cell and move the marker along. */
+function fillFilmCell(i, dataUrl) {
+  const cell = $('film' + i);
+  if (!cell) return;
+  cell.classList.remove('is-next');
+  cell.classList.add('is-done', 'just-in');
+  const img = document.createElement('img');
+  img.src = dataUrl;
+  img.alt = '';
+  cell.appendChild(img);
+  setTimeout(() => cell.classList.remove('just-in'), 500);
+  const next = $('film' + (i + 1));
+  if (next) next.classList.add('is-next');
+}
+
+function setCropMask(on) {
+  const mask = $('cropMask');
+  if (!mask) return;
+  mask.hidden = !on;
+  const win = $('cropWindow');
+  if (win) win.style.setProperty('--ar', String(slotRatio()));
+}
+
+// -------------------------------------------------------------- sound
+// Generated, so there are no audio files to go missing on the day.
+let audioCtx = null;
+
+function beep(freq, ms) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    // A short ramp instead of a hard stop, which would click.
+    gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.3, audioCtx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + ms / 1000);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + ms / 1000 + 0.02);
+  } catch {}
+}
+
+/** Run the ring and the numbers together for `secs`, beeping each second. */
+async function runCountdown(secs) {
+  const cd = $('countdown');
+  const num = $('countdownNum');
+  cd.hidden = false;
+  cd.style.setProperty('--cd', secs + 's');
+  // Restart the CSS animation from zero on every shot.
+  cd.classList.remove('run');
+  void cd.offsetWidth;
+  cd.classList.add('run');
+
+  for (let n = secs; n > 0; n--) {
+    num.textContent = String(n);
+    num.classList.remove('tick');
+    void num.offsetWidth;
+    num.classList.add('tick');
+    beep(n === 1 ? 1180 : 820, n === 1 ? 220 : 130);
+    await sleep(1000);
+  }
+  cd.classList.remove('run');
+  cd.hidden = true;
+}
+
+async function startSession(frameId) {
   S.photos = [];
   S.selected = [];
   S.filterId = 'none';
   S.copies = 1;
-  S.frameId = pickDefaultFrame();
+  S.frameId = frameId || pickDefaultFrame();
   syncChips();
 
   show('pose');
-  $('liveOff').style.display = S.cfg.liveView ? 'none' : '';
-  $('justShot').hidden = true;
+  buildFilmstrip();
+  setCropMask(true);
   $('shootBtn').disabled = false;
-  $('poseHint').textContent = 'Stand in frame and tap when you are ready.';
-  $('shotPill').textContent = `Photo 1 of ${S.cfg.captureCount}`;
+  $('poseHint').textContent = 'Stand inside the bright box, then tap when you are ready.';
+  $('shotPill').textContent = `Photo 1 of ${shotsNeeded()}`;
+
+  if (!S.camMode) await chooseCameraSource();
+  const webcam = S.camMode === 'webcam';
+  $('liveVid').hidden = !webcam;
+  $('liveImg').hidden = webcam;
+  if (webcam) await startWebcam();
+  const off = $('liveOff');
+  off.style.display = S.camMode === 'none' ? '' : 'none';
+  off.textContent = S.camError || 'Camera preview is off';
 
   try {
     await window.booth.startSession();
   } catch (err) {
     log('error', 'startSession: ' + err.message);
   }
-  if (S.cfg.liveView) {
+  if (S.cfg.liveView && S.camMode !== 'webcam') {
     try {
       await window.booth.setLiveView(true);
     } catch (err) {
@@ -297,19 +505,18 @@ async function runCaptureSequence() {
   $('poseHint').textContent = 'Look at the camera.';
 
   let failures = 0;
+  const shots = shotsNeeded();
 
-  for (let i = 1; i <= S.cfg.captureCount; i++) {
-    $('shotPill').textContent = `Photo ${i} of ${S.cfg.captureCount}`;
+  for (let i = 1; i <= shots; i++) {
+    $('shotPill').textContent = `Photo ${i} of ${shots}`;
 
-    // countdown
-    const cd = $('countdown');
-    cd.hidden = false;
-    for (let n = S.cfg.countdownSeconds; n > 0; n--) {
-      cd.textContent = String(n);
-      await sleep(1000);
+    // A longer lead-in before the first shot only: that is the settle moment.
+    if (i === 1) {
+      $('poseHint').textContent = 'Get ready...';
+      await runCountdown(Math.max(S.cfg.countdownSeconds, 5));
+    } else {
+      await runCountdown(S.cfg.countdownSeconds);
     }
-    cd.textContent = '';
-    cd.hidden = true;
 
     // The screen flash is the booth's only fill light, so it must stay lit for
     // the camera's actual capture time, not a fixed guess -- a real DSLR's
@@ -317,11 +524,12 @@ async function runCaptureSequence() {
     // left the subject lit for the on-screen flash but not for the real shutter.
     const flashEl = $('flash');
     flashEl.classList.add('on');
+    beep(1500, 70);
     const flashStarted = Date.now();
 
     let res;
     try {
-      res = await window.booth.capture(i);
+      res = await captureOnce(i);
     } catch (err) {
       res = { ok: false, error: err.message };
     }
@@ -335,11 +543,12 @@ async function runCaptureSequence() {
       const img = new Image();
       img.src = res.dataUrl;
       S.photos.push({ dataUrl: res.dataUrl, img });
-      // brief review of the shot just taken
-      $('justShotImg').src = res.dataUrl;
-      $('justShot').hidden = false;
+      // The shot lands in the filmstrip. Live view never goes away, so people
+      // can start repositioning while the camera is still downloading.
+      fillFilmCell(i - 1, res.dataUrl);
+      $('poseHint').textContent =
+        i < shots ? 'Nice. Get set for the next one.' : 'That is the last one.';
       await sleep(Math.round((S.cfg.reviewSeconds || 1.2) * 1000));
-      $('justShot').hidden = true;
     } else {
       failures++;
       const msg = (res && res.error) || 'That photo did not work.';
@@ -366,6 +575,7 @@ async function runCaptureSequence() {
   }
 
   // Preselect in order, up to what the frame holds.
+  setCropMask(false);
   const frame = currentFrame();
   const max = frame ? frame.slotCount : S.photos.length;
   S.selected = S.photos.map((_, idx) => idx).slice(0, max);
@@ -434,6 +644,13 @@ function buildFrameChips() {
     b.dataset.frame = f.id;
     b.textContent = `${f.name} · ${f.slotCount}`;
     b.addEventListener('click', () => {
+      // The shoot was framed for one layout, so switching is an escape hatch,
+      // not the main path -- and a layout that needs more photos than were
+      // taken would leave a hole in the print, so refuse that one.
+      if (f.slotCount > S.photos.length) {
+        toast(`${f.name} needs ${f.slotCount} photos and you have ${S.photos.length}.`);
+        return;
+      }
       S.frameId = f.id;
       const max = f.slotCount;
       if (S.selected.length > max) S.selected = S.selected.slice(0, max);
@@ -467,6 +684,9 @@ function buildFilterChips() {
 }
 
 function syncChips() {
+  // The crop guide follows whatever frame is currently selected.
+  if (S.screen === 'pose') setCropMask(true);
+
   document.querySelectorAll('#frameChips .chip').forEach((c) =>
     c.classList.toggle('active', c.dataset.frame === S.frameId)
   );
@@ -625,8 +845,8 @@ async function doPrint() {
   $('printBtn').disabled = true;
 
   show('printing');
-  $('printTitle').textContent = 'Printing your photos';
-  $('printSub').textContent = 'This takes about a minute. Please wait by the printer.';
+  $('printTitle').textContent = 'Saving your photos';
+  $('printSub').textContent = 'One moment — your pickup code is on its way.';
   $('printSpinner').classList.remove('hidden');
   $('printBackBtn').classList.add('hidden');
 
@@ -637,26 +857,34 @@ async function doPrint() {
     if (!composite(out)) throw new Error('no frame selected');
     const dataUrl = out.toDataURL('image/jpeg', 0.92);
 
-    const res = await window.booth.print(dataUrl, S.copies);
+    const order = computeOrder();
+    const res = await window.booth.submitOrder({
+      dataUrl,
+      copies: S.copies,
+      frameId: order.frame ? order.frame.id : null,
+      frameName: order.frame ? order.frame.name : 'Photos',
+      items: order.items,
+      total: order.total,
+    });
 
     if (res && res.ok) {
-      log('info', 'print ok' + (res.dryRun ? ' (dry run)' : ''));
-      buildReceipt();
+      log('info', 'order queued as ' + res.code);
+      renderTicket(res.code, order);
       show('done');
       clearTimeout(S.doneTimer);
-      S.doneTimer = setTimeout(abandonSession, (S.cfg.thankYouSeconds || 12) * 1000);
+      S.doneTimer = setTimeout(abandonSession, (S.cfg.thankYouSeconds || 30) * 1000);
     } else {
-      const msg = (res && res.error) || 'The printer did not accept the job.';
-      log('error', 'print failed: ' + msg);
-      $('printTitle').textContent = 'Printing did not work';
+      const msg = (res && res.error) || 'Could not save your order.';
+      log('error', 'order failed: ' + msg);
+      $('printTitle').textContent = 'Something went wrong';
       $('printSub').textContent = msg + ' Please ask a staff member.';
       $('printSpinner').classList.add('hidden');
       $('printBackBtn').classList.remove('hidden');
     }
   } catch (err) {
-    log('error', 'print threw: ' + err.message);
-    $('printTitle').textContent = 'Printing did not work';
-    $('printSub').textContent = 'Something went wrong preparing the photo. Please ask a staff member.';
+    log('error', 'order threw: ' + err.message);
+    $('printTitle').textContent = 'Something went wrong';
+    $('printSub').textContent = 'We could not prepare your photo. Please ask a staff member.';
     $('printSpinner').classList.add('hidden');
     $('printBackBtn').classList.remove('hidden');
   } finally {
@@ -726,6 +954,23 @@ async function refreshStaffStatus() {
     const s = await window.booth.staff.status();
     const rows = [];
 
+    // Where staff points their phone. First thing they need, so it goes first.
+    try {
+      const q = await window.booth.staff.queueUrl();
+      const urls = (q && q.urls) || [];
+      rows.push(
+        row(
+          urls.length ? 'ok' : 'bad',
+          'Staff phone queue',
+          urls.length
+            ? `Open ${urls[0]} on a phone on the same network, then enter the staff code. ${q.pending} order(s) waiting.`
+            : 'No network address yet. Join the Mac to the hotspot or router, then check again.'
+        )
+      );
+    } catch (err) {
+      rows.push(row('bad', 'Staff phone queue', 'Not running: ' + err.message));
+    }
+
     const cam = s.camera || {};
     rows.push(
       row(
@@ -785,7 +1030,8 @@ function escapeHtml(s) {
 // ---------------------------------------------------------------- events
 
 function wireEvents() {
-  $('startBtn').addEventListener('click', () => startSession());
+  // There is no single start button any more: the welcome screen's layout
+  // cards start the session, and buildMenu() wires them.
   $('shootBtn').addEventListener('click', () => runCaptureSequence());
 
   $('retakeBtn').addEventListener('click', () => abandonSession());
@@ -818,7 +1064,11 @@ function wireEvents() {
   corner.addEventListener('pointercancel', cancelHold);
 
   $('staffClose').addEventListener('click', closeStaff);
-  $('staffRecheck').addEventListener('click', refreshStaffStatus);
+  $('staffRecheck').addEventListener('click', () => {
+    S.camMode = null;
+    S.camError = null;
+    refreshStaffStatus();
+  });
   $('staffCamera').addEventListener('click', async () => {
     toast('Restarting the camera…');
     try {
