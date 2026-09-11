@@ -304,10 +304,20 @@ const PAGE = `<!doctype html>
   .qrow .stepper{margin-left:auto}
   .qrow .stepper span{min-width:34px}
   .batchcard{background:var(--paper);color:var(--ink);border-radius:16px;padding:12px 14px;
-    margin-bottom:12px;border-left:5px solid var(--ok)}
-  .bhead{display:flex;align-items:baseline;gap:8px;font-size:14px;margin-bottom:10px}
-  .bhead .ago{margin-left:auto;text-align:right}
-  .bprint{background:var(--ok);color:#fff;margin:0}
+    margin-bottom:12px;border-left:5px solid var(--soft)}
+  .batchcard.full{border-left-color:var(--bad);box-shadow:0 0 0 2px var(--bad)}
+  .bhead{display:flex;align-items:baseline;gap:8px;font-size:15px;margin-bottom:8px;
+    text-transform:capitalize}
+  .bcount{margin-left:auto;font:700 15px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .bbar{height:8px;border-radius:999px;background:rgba(38,53,126,.12);overflow:hidden}
+  .bbar i{display:block;height:100%;background:var(--soft)}
+  .batchcard.full .bbar i{background:var(--bad)}
+  .bwho{margin:8px 0 0;font-size:12px;color:var(--soft)}
+  .bfull{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--bad)}
+  .bpart{margin:6px 0 0;font-size:13px;color:var(--soft)}
+  .bover{margin:4px 0 0;font-size:12px;color:var(--ink);opacity:.8}
+  .bprint{background:var(--soft);color:#fff;margin-top:10px}
+  .batchcard.full .bprint{background:var(--bad)}
   .past{align-items:center}
   .tabs{display:flex;gap:8px;margin-left:auto}
   .tab{background:transparent;color:var(--paper);border:1px solid rgba(255,248,238,.3);
@@ -507,14 +517,32 @@ const PAGE = `<!doctype html>
     var live=(list||[]).filter(function(b){return b.waiting>0});
     if(!live.length){el.innerHTML='';return}
     el.innerHTML=live.map(function(b){
-      return '<div class="batchcard"><div class="bhead"><b>'+b.waiting+' '+b.name+
-        (b.waiting>1?'s':'')+'</b> waiting<span class="ago">'+
-        b.orders.map(function(o){return o.code+(o.n>1?' x'+o.n:'')}).join(', ')+'</span></div>'+
-        '<button class="go bprint" data-type="'+b.id+'">Print a sheet of '+b.name+'s</button></div>';
+      var pct=Math.min(100,Math.round(b.onSheet/b.perSheet*100));
+      var who=b.orders.slice(0,6).map(function(o){return o.code+(o.n>1?' x'+o.n:'')}).join(', ')+
+              (b.orders.length>6?' +'+(b.orders.length-6)+' more':'');
+      return '<div class="batchcard'+(b.full?' full':'')+'" data-type="'+b.id+'">'+
+        '<div class="bhead"><b>'+b.name+'s</b>'+
+          '<span class="bcount">'+b.onSheet+' / '+b.perSheet+'</span></div>'+
+        '<div class="bbar"><i style="width:'+pct+'%"></i></div>'+
+        '<p class="bwho">'+who+'</p>'+
+        (b.full
+          ? '<p class="bfull">Sheet is full &mdash; print it to free the queue.</p>'
+          : '<p class="bpart">Room for '+(b.perSheet-b.onSheet)+' more on this sheet.</p>')+
+        (b.overflow
+          ? '<p class="bover">'+b.overflow+' more waiting &mdash; they start the next sheet.</p>'
+          : '')+
+        '<button class="go bprint" data-type="'+b.id+'">'+
+          (b.full?'Print this sheet':'Print '+b.onSheet+' now (part sheet)')+'</button>'+
+      '</div>';
     }).join('');
     el.querySelectorAll('.bprint').forEach(function(btn){
       btn.addEventListener('click',function(){
         var type=btn.getAttribute('data-type');
+        var card=btn.closest('.batchcard');
+        // A part sheet costs the same paper as a full one, so make that the
+        // deliberate choice it is rather than a stray tap.
+        if(!card.classList.contains('full')&&
+           !confirm('This sheet is not full. Print it anyway and start a new queue?'))return;
         btn.disabled=true; var was=btn.textContent; btn.textContent='Printing sheet...';
         api('/api/batch?type='+type,{method:'POST'})
           .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})

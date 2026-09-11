@@ -203,10 +203,19 @@ function restoreSettings() {
     t('black and white reaches the photos', px.photo <= 6, `spread ${px.photo}`);
     t('and leaves the frame alone', px.cap > 6, `caption spread ${px.cap}`);
 
-    await evalJs('document.querySelector(\'#addonChips .chip[data-addon="keychain"]\').click()');
+    // Quantities, not a toggle: a group of three wants three.
+    await evalJs(`(() => { const b = document.querySelector('[data-addon="keychain"][data-delta="1"]');
+      b.click(); b.click(); b.click(); })()`);
+    await sleep(250);
+    t('customers can order several of an add-on',
+      (await evalJs('document.querySelector(\'[data-count="keychain"]\').textContent')) === '3');
+    t('and each one is priced',
+      (await evalJs('document.getElementById("runningTotal").textContent')) === '$32',
+      'trio $8 + 3 keychains');
+    await evalJs('document.querySelector(\'[data-addon="keychain"][data-delta="-1"]\').click()');
     await sleep(200);
-    t('a keychain adds to the total',
-      (await evalJs('document.getElementById("runningTotal").textContent')) === '$16');
+    t('and can be taken back off',
+      (await evalJs('document.getElementById("runningTotal").textContent')) === '$24');
 
     // ---------------------------------------------------- pickup code
     console.log('\nPickup code');
@@ -215,8 +224,8 @@ function restoreSettings() {
     const code = await evalJs('document.getElementById("ticketCode").textContent');
     t('the code is readable aloud',
       code.length === 3 && [...code].every((c) => CODE_ALPHABET.includes(c)), code);
-    t('the total carries the keychain',
-      (await evalJs('document.getElementById("ticketTotal").textContent')) === '$16');
+    t('the total carries the keychains',
+      (await evalJs('document.getElementById("ticketTotal").textContent')) === '$24');
     t('it asks them to tell staff the code',
       /Tell a staff member/i.test(await evalJs('document.querySelector(".screen-done .poster-cta").textContent')));
 
@@ -243,7 +252,7 @@ function restoreSettings() {
 
     const order = (await staff('/api/queue')).body.pending.find((o) => o.code === code);
     t('order queued under that code', !!order);
-    t('queued total matches the ticket', order && order.total === 16, '$' + (order && order.total));
+    t('queued total matches the ticket', order && order.total === 24, '$' + (order && order.total));
 
     // ------------------------------------------------------ staff phone
     console.log('\nStaff phone');
@@ -257,21 +266,31 @@ function restoreSettings() {
     const more = await staff('/api/order?code=' + code, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keychain: 3 }),
+      body: JSON.stringify({ keychain: 11 }),
     });
-    t('staff can add to a released order', more.ok && more.body.qty.keychain === 3,
+    t('staff can add to a released order', more.ok && more.body.qty.keychain === 11,
       JSON.stringify(more.body.qty));
-    t('and it re-prices', more.body.total === 8 + 3 * 8, '$' + more.body.total);  // Trio + 3 keychains
+    t('and it re-prices', more.body.total === 8 + 11 * 8, '$' + more.body.total);
 
-    const waiting = (await staff('/api/queue')).body.batches.find((b) => b.id === 'keychain');
-    t('they queue up for a shared sheet', waiting && waiting.waiting === 3,
-      waiting && waiting.waiting + ' waiting');
+    // Eleven keychains is more than one sheet holds, which is the case the
+    // queue exists for.
+    const q = (await staff('/api/queue')).body.batches.find((b) => b.id === 'keychain');
+    t('the queue knows its own size', q && q.perSheet === 8, 'perSheet ' + (q && q.perSheet));
+    t('and reports itself full', q && q.full === true);
+    t('with the rest held for the next sheet', q && q.onSheet === 8 && q.overflow === 3,
+      q && `${q.onSheet} on sheet, ${q.overflow} over`);
 
     const sheet = await staff('/api/batch?type=keychain', { method: 'POST' });
-    t('one sheet carries them all', sheet.ok && sheet.body.used === 3,
+    t('a full sheet prints exactly one sheet worth', sheet.ok && sheet.body.used === 8,
       'used ' + (sheet.body && sheet.body.used));
+
     const after = (await staff('/api/queue')).body.batches.find((b) => b.id === 'keychain');
-    t('and nothing is left owing', !after || after.waiting === 0);
+    t('the overflow becomes the next queue', after && after.waiting === 3,
+      after && after.waiting + ' waiting');
+    t('which is not full yet', after && after.full === false);
+
+    t('charms queue separately, at their own size',
+      (await staff('/api/queue')).body.batches.some((b) => b.id === 'charm' && b.perSheet === 18));
 
     const timing = await staff('/api/settings');
     t('timings are exposed for the phone to edit',
