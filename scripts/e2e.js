@@ -53,9 +53,9 @@ function useTestSettings() {
         countdownSeconds: 1,
         readySeconds: 2,
         reviewSeconds: 0.2,
-        pickSeconds: 30,
-        frameSeconds: 30,
-        filterSeconds: 30,
+        pickSeconds: 5,
+        frameSeconds: 40,
+        filterSeconds: 40,
         staffPort: STAFF_PORT,
       }),
       null,
@@ -242,14 +242,19 @@ function restoreSettings() {
     t('a two-column strip previews as two separate strips',
       showcase === `${564 + 564 + 72}x1764`, showcase);
 
+    // The clock is the only way forward, so prove it rather than assuming it.
+    t('a review step offers no way to skip or go back',
+      (await evalJs(`document.querySelectorAll('.screen-review button:not([data-decor]):not([data-addon]):not(.chip):not(.thumb):not(.step)').length`)) === 0);
+
     const before = await evalJs('document.getElementById("pickTimer").textContent');
     await sleep(1200);
     t('each step runs its own clock',
       Number(await evalJs('document.getElementById("pickTimer").textContent')) < Number(before));
+    t('and shows it draining',
+      parseFloat(await evalJs('document.getElementById("pickBar").style.width')) < 100);
 
-    await evalJs('document.getElementById("pickNextBtn").click()');
-    await sleep(300);
-    t('next goes to the frame step', (await screen()) === 'frame');
+    // Five seconds on this step in the test settings; nothing is pressed.
+    t('the step advances on its own', (await waitForScreen('frame', 30)) === true);
     const decorCount = await evalJs('document.querySelectorAll("#decorChips [data-decor]").length');
     t('decorations are offered, plus None', decorCount >= 2, decorCount + ' options');
     t('the picker keeps a full grid',
@@ -282,14 +287,11 @@ function restoreSettings() {
     const ink = JSON.parse(inked);
     t('the decoration reaches the print', ink[2] > ink[0] + 40, 'corner pixel ' + inked);
 
-    await evalJs('document.getElementById("frameBackBtn").click()');
-    await sleep(250);
-    t('back returns to the previous step', (await screen()) === 'pick');
-    await evalJs('document.getElementById("pickNextBtn").click()');
-    await sleep(200);
-    await evalJs('document.getElementById("frameNextBtn").click()');
+    // Long steps from here so the layout work above fits inside them; stepping
+    // on internally keeps the suite short without pretending a button exists.
+    await evalJs('advanceStep("frame")');
     await sleep(300);
-    t('next goes to the filter step', (await screen()) === 'filter');
+    t('the frame step gives way to the filter step', (await screen()) === 'filter');
 
     await evalJs('document.querySelector(\'#filterChips .chip[data-filter="bw"]\').click()');
     await sleep(250);
@@ -325,8 +327,8 @@ function restoreSettings() {
 
     // ---------------------------------------------------- pickup code
     console.log('\nPickup code');
-    await evalJs('document.getElementById("filterDoneBtn").click()');
-    t('order submitted and the code comes up', (await waitForScreen('done', 60)) === true);
+    await evalJs('advanceStep("filter")');
+    t('the last step submits the order by itself', (await waitForScreen('done', 60)) === true);
     const code = await evalJs('document.getElementById("ticketCode").textContent');
     t('the code is readable aloud',
       code.length === 3 && [...code].every((c) => CODE_ALPHABET.includes(c)), code);

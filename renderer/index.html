@@ -111,6 +111,7 @@
                 <h1 class="review-title">Pick your photos</h1>
                 <span class="review-timer" id="pickTimer">30</span>
               </header>
+              <div class="review-bar"><i id="pickBar"></i></div>
               <p class="review-sub">These are the ones that get printed.</p>
 
               <div class="edit-main">
@@ -129,9 +130,6 @@
                    taken, and starting over would mean shooting again while a
                    queue waits. Nothing announces this; there is simply no
                    button, and Back still steps between the three choices. -->
-              <div class="edit-bar">
-                <button class="primary-btn" id="pickNextBtn">Next</button>
-              </div>
             </div>
           </div>
         </div>
@@ -146,6 +144,7 @@
                 <h1 class="review-title">Pick a frame</h1>
                 <span class="review-timer" id="frameTimer">30</span>
               </header>
+              <div class="review-bar"><i id="frameBar"></i></div>
               <p class="review-sub">Laid over your photos. Free — try as many as you like.</p>
 
               <div class="edit-main">
@@ -164,10 +163,6 @@
                 </div>
               </div>
 
-              <div class="edit-bar">
-                <button class="ghost-btn" id="frameBackBtn">Back</button>
-                <button class="primary-btn" id="frameNextBtn">Next</button>
-              </div>
             </div>
           </div>
         </div>
@@ -182,7 +177,9 @@
                 <h1 class="review-title">Pick a look</h1>
                 <span class="review-timer" id="filterTimer">30</span>
               </header>
-              <p class="review-sub">The filter only touches the photos, not the frame.</p>
+              <div class="review-bar"><i id="filterBar"></i></div>
+              <p class="review-sub">The filter only touches the photos, not the frame.
+                <span class="running-total" id="runningTotal"></span></p>
 
               <div class="edit-main">
                 <div class="edit-preview">
@@ -210,11 +207,6 @@
                 </div>
               </div>
 
-              <div class="edit-bar">
-                <button class="ghost-btn" id="filterBackBtn">Back</button>
-                <span class="running-total" id="runningTotal"></span>
-                <button class="primary-btn" id="filterDoneBtn">Done</button>
-              </div>
             </div>
           </div>
         </div>
@@ -239,7 +231,7 @@
                 <div class="spinner" id="printSpinner"><i></i><i></i><i></i></div>
               </div>
               <div class="cut-foot">
-                <button class="ghost-btn hidden" id="printBackBtn">Back</button>
+                <button class="ghost-btn hidden" id="printRetryBtn">Try again</button>
               </div>
             </div>
             <span class="seal" aria-hidden="true">X</span>

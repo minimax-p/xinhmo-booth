@@ -82,7 +82,11 @@ function sleep(ms) {
 /** Any customer inactivity eventually returns the booth to the welcome screen. */
 function resetIdle() {
   clearTimeout(S.idleTimer);
-  const idleScreens = ['ready', 'pose', 'pick', 'frame', 'filter'];
+  // The review steps are not here on purpose: they run their own clocks and
+  // always finish, and the idle timeout used to be able to fire mid-review and
+  // throw the whole session away -- the three steps total exactly the idle
+  // window, so it was a coin flip.
+  const idleScreens = ['ready', 'pose'];
   if (!idleScreens.includes(S.screen)) return;
   const secs = (S.cfg && S.cfg.idleResetSeconds) || 90;
   S.idleTimer = setTimeout(() => {
@@ -1487,11 +1491,16 @@ function drawShowcase(canvas) {
 // -------------------------------------------------------------- review steps
 
 /**
- * Three screens, one decision each. The old single screen put photos, layout,
- * frame, filter, copies and add-ons in one scrolling column, which is a lot to
- * hand someone who is still holding their coat. Each step runs its own clock
- * and moves on by itself, because a kiosk cannot afford to wait for someone
- * who has already walked away.
+ * Three screens, one decision each, and the clock is the only thing that moves
+ * between them -- no Back, no Next, no Done.
+ *
+ * That is deliberate. Every button here was a way to spend someone else's time:
+ * Back invited people to revisit a decision they had already made, Next let an
+ * indecisive group sit on a step until someone else pressed it, and the queue
+ * behind them paid for both. A fixed clock per step makes a session take the
+ * same time for everyone, which is the only way an operator can predict the
+ * line. Each step shows its remaining seconds and a bar draining, so nobody has
+ * to wonder what is happening or go looking for a control that is not there.
  */
 const REVIEW_STEPS = [
   { id: 'pick', secs: 'pickSeconds' },
@@ -1517,15 +1526,17 @@ function gotoStep(id) {
 
 function runStepTimer(step) {
   clearInterval(S.stepTimer);
-  let left = (S.cfg && S.cfg[step.secs]) || 30;
+  const total = (S.cfg && S.cfg[step.secs]) || 30;
+  let left = total;
   const el = $(step.id + 'Timer');
+  const bar = $(step.id + 'Bar');
   const paint = () => {
     if (el) el.textContent = String(Math.max(0, left));
+    if (bar) bar.style.width = Math.max(0, (left / total) * 100) + '%';
+    if (el) el.classList.toggle('is-low', left <= 5);
   };
   paint();
   S.stepTimer = setInterval(() => {
-    // Someone touching the screen is someone still deciding, so the clock is
-    // only there for the people who are not.
     left--;
     paint();
     if (left <= 0) {
@@ -1575,7 +1586,7 @@ async function doPrint() {
   $('printTitle').textContent = 'Saving your photos';
   $('printSub').textContent = 'One moment — your pickup code is on its way.';
   $('printSpinner').classList.remove('hidden');
-  $('printBackBtn').classList.add('hidden');
+  $('printRetryBtn').classList.add('hidden');
 
   try {
     await waitForImages();
@@ -1623,14 +1634,14 @@ async function doPrint() {
       $('printTitle').textContent = 'Something went wrong';
       $('printSub').textContent = msg + ' Please ask a staff member.';
       $('printSpinner').classList.add('hidden');
-      $('printBackBtn').classList.remove('hidden');
+      $('printRetryBtn').classList.remove('hidden');
     }
   } catch (err) {
     log('error', 'order threw: ' + err.message);
     $('printTitle').textContent = 'Something went wrong';
     $('printSub').textContent = 'We could not prepare your photo. Please ask a staff member.';
     $('printSpinner').classList.add('hidden');
-    $('printBackBtn').classList.remove('hidden');
+    $('printRetryBtn').classList.remove('hidden');
   } finally {
     S.printing = false;
   }
@@ -1778,15 +1789,10 @@ function wireEvents() {
   // the get-ready screen, either when its timer runs out or when people say so.
   $('readyNowBtn').addEventListener('click', () => beginShooting());
 
-  $('pickNextBtn').addEventListener('click', () => advanceStep('pick'));
-  $('frameBackBtn').addEventListener('click', () => gotoStep('pick'));
-  $('frameNextBtn').addEventListener('click', () => advanceStep('frame'));
-  $('filterBackBtn').addEventListener('click', () => gotoStep('frame'));
-  $('filterDoneBtn').addEventListener('click', () => {
-    stopStepTimer();
-    doPrint();
-  });
-  $('printBackBtn').addEventListener('click', () => gotoStep('filter'));
+  // The review steps have no navigation on purpose -- see REVIEW_STEPS. The
+  // only button in that whole stretch is the retry on a failed order, and that
+  // re-sends what was already decided rather than reopening it.
+  $('printRetryBtn').addEventListener('click', () => doPrint());
 
   $('copiesUp').addEventListener('click', () => {
     S.copies = Math.min(S.cfg.maxCopies, S.copies + 1);
