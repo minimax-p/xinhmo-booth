@@ -57,7 +57,6 @@ wording you see on screen:
 | `Photo 3 of 10` | `runCaptureSequence()` |
 | `Nice. Get set for the next one.` | `runCaptureSequence()` |
 | `2 of 4 chosen` | `buildThumbs()` |
-| `Quad needs 4 photos and you have 3.` | `buildFrameChips()` |
 | The pickup code and its bill | `renderTicket()` |
 
 Prices, layout names and notes are **not** code — they are in `settings.json`
