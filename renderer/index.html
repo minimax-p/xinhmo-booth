@@ -263,12 +263,17 @@
                   <div class="ticket-total"><span>Due</span><span id="ticketTotal"></span></div>
                 </div>
 
-                <p class="poster-cta">Show this code at the print table.<br />Your photos print as soon as you pay.</p>
+                <p class="poster-cta">
+                  <b>Tell a staff member this code</b>, or take a photo of this screen.<br />
+                  Your photos print as soon as you pay.
+                </p>
               </div>
 
+              <!-- No button and no timer. This screen is the booth's resting
+                   state: it stays up until staff start the next session, so a
+                   code cannot vanish while someone is fishing out their phone. -->
               <footer class="poster-foot">
                 <p class="menu-fine" id="ticketNote"></p>
-                <button class="ghost-btn" id="doneBtn">Done</button>
               </footer>
             </div>
             <span class="seal" aria-hidden="true">X</span>

@@ -132,6 +132,20 @@ async function init() {
     if (s && s.error) log('info', 'camera status: ' + s.error);
   });
   window.booth.onUnlock(unlockBooth);
+  // Staff retime the booth from their phone between groups. Taking the new
+  // numbers live is the whole point -- an operator who has to restart the app
+  // to change a countdown will just leave it wrong.
+  window.booth.onSettings((next) => {
+    if (!next) return;
+    S.cfg = Object.assign({}, S.cfg, next);
+    S.frames = S.cfg.frames || S.frames;
+    buildMenu();
+    buildFrameChips();
+    buildStyleChips();
+    buildAddonChips();
+    syncChips();
+    log('info', 'settings reloaded from staff');
+  });
 
   // A renderer reload must not hand the booth to whoever is standing there:
   // main keeps the lock, so ask it what state we are really in.
@@ -640,7 +654,7 @@ function runReady() {
 function beginShooting() {
   clearInterval(S.readyTimer);
   S.readyTimer = null;
-  if (S.screen !== 'ready') return;
+  if (S.screen !== 'ready' || S.locked) return;
   show('pose');
   runCaptureSequence();
 }
@@ -748,7 +762,12 @@ function abandonSession() {
  * the next group in, so whoever is standing here when the previous customer
  * walks away cannot pick up their half-finished session.
  */
-async function endCycle() {
+/**
+ * Close the booth behind the session that just finished. The screen showing
+ * when this runs stays put -- normally the pickup code -- and only staff
+ * starting the next session moves it on.
+ */
+async function lockBooth() {
   clearTimeout(S.doneTimer);
   stopStepTimer();
   S.shooting = false;
@@ -759,21 +778,31 @@ async function endCycle() {
     window.booth.setLiveView(false);
   } catch {}
 
-  if (!S.cfg.lockAfterSession) return show('welcome');
+  if (!S.cfg.lockAfterSession) return;
   try {
     await window.booth.lockBooth();
   } catch (err) {
     log('error', 'lock failed: ' + err.message);
   }
   S.locked = true;
-  show('locked');
 }
 
-/** Staff opened the booth, from their phone or from the staff panel. */
+/** A session that ended without an order still has to close the booth. */
+async function endCycle() {
+  await lockBooth();
+  if (S.locked) show('locked');
+  else show('welcome');
+}
+
+/**
+ * Staff opened the booth. Whatever was on screen -- a pickup code, the locked
+ * card -- gives way to the layout picker, which is where every session starts.
+ */
 function unlockBooth() {
   S.locked = false;
   clearTimeout(S.doneTimer);
-  if (S.screen === 'locked') show('welcome');
+  stopStepTimer();
+  show('welcome');
 }
 
 // ---------------------------------------------------------------- edit UI
@@ -1199,49 +1228,51 @@ function drawCalibrationSheet(canvas) {
   ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = '#000000';
   ctx.fillStyle = '#000000';
-
-  // Edge rule, right on the boundary: whatever is missing was trimmed.
-  ctx.lineWidth = 2;
-  ctx.strokeRect(1, 1, W - 2, H - 2);
-
-  // Millimetre ticks in from every edge, long every 5mm, labelled every 10mm.
-  ctx.lineWidth = 1;
-  ctx.font = '600 22px -apple-system, Helvetica, Arial, sans-serif';
   ctx.textBaseline = 'middle';
-  const tick = (x1, y1, x2, y2) => {
+
+  const line = (x1, y1, x2, y2) => {
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
     ctx.stroke();
   };
+
+  // Edge rule, right on the boundary: whatever is missing was trimmed off.
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, W - 2, H - 2);
+
+  // Millimetre ticks in from every edge. Labels go on the top and left rulers
+  // only, and skip the first 8mm, because at the corner the two rulers would
+  // otherwise print their numbers on top of each other.
+  ctx.lineWidth = 1;
+  ctx.font = '600 22px -apple-system, Helvetica, Arial, sans-serif';
   for (let mm = 1; mm <= 15; mm++) {
     const d = px(mm);
     const len = mm % 5 === 0 ? 46 : 22;
-    tick(d, 0, d, len);            // top
-    tick(d, H, d, H - len);        // bottom
-    tick(0, d, len, d);            // left
-    tick(W, d, W - len, d);        // right
-    if (mm % 5 === 0) {
+    line(d, 0, d, len);
+    line(d, H, d, H - len);
+    line(0, d, len, d);
+    line(W, d, W - len, d);
+    if (mm % 5 === 0 && mm >= 10) {
       ctx.textAlign = 'center';
-      ctx.fillText(String(mm), d, len + 20);
-      ctx.fillText(String(mm), d, H - len - 20);
+      ctx.fillText(String(mm), d, len + 22);
+      ctx.fillText(String(mm), d, H - len - 22);
       ctx.textAlign = 'left';
-      ctx.fillText(String(mm), len + 8, d);
+      ctx.fillText(String(mm), len + 10, d);
     }
   }
 
-  // The safe box currently in force.
+  // The safe box currently in force. This is the line that matters.
   const sa = (((S.cfg || {}).print || {}).safeArea) || {};
-  const box = {
-    x: px(sa.left),
-    y: px(sa.top),
-    w: W - px(sa.left) - px(sa.right),
-    h: H - px(sa.top) - px(sa.bottom),
-  };
   ctx.save();
   ctx.lineWidth = 3;
   ctx.setLineDash([18, 12]);
-  ctx.strokeRect(box.x + 1.5, box.y + 1.5, box.w - 3, box.h - 3);
+  ctx.strokeRect(
+    px(sa.left) + 1.5,
+    px(sa.top) + 1.5,
+    W - px(sa.left) - px(sa.right) - 3,
+    H - px(sa.top) - px(sa.bottom) - 3
+  );
   ctx.restore();
 
   ctx.textAlign = 'center';
@@ -1249,29 +1280,29 @@ function drawCalibrationSheet(canvas) {
   ctx.fillText('TOP', W / 2, 150);
   ctx.fillText('BOTTOM', W / 2, H - 150);
 
+  // Text sits above the crosshair rather than through it.
   ctx.font = '600 30px -apple-system, Helvetica, Arial, sans-serif';
-  const lines = [
+  [
     'Solid rule sits on the paper edge.',
     'Dashed rule is the safe area. It must print whole.',
     '',
-    `safe area  top ${sa.top || 0}  right ${sa.right || 0}  ` +
-      `bottom ${sa.bottom || 0}  left ${sa.left || 0}  (mm)`,
+    `safe area   top ${sa.top || 0}   right ${sa.right || 0}   ` +
+      `bottom ${sa.bottom || 0}   left ${sa.left || 0}   (mm)`,
     '',
     'If a dashed edge is cut, raise that number by what is missing.',
-    'If a dashed edge has white beyond it, lower it.',
-  ];
-  lines.forEach((t, i) => ctx.fillText(t, W / 2, 640 + i * 46));
+    'If there is white beyond a dashed edge, lower it.',
+  ].forEach((t, i) => ctx.fillText(t, W / 2, 430 + i * 46));
 
-  // Centre crosshair, to check the sheet is not shifted as a whole.
+  // Centre crosshair, to catch the whole sheet being shifted.
   ctx.lineWidth = 2;
-  tick(W / 2 - 90, H / 2, W / 2 + 90, H / 2);
-  tick(W / 2, H / 2 - 90, W / 2, H / 2 + 90);
+  line(W / 2 - 90, H / 2, W / 2 + 90, H / 2);
+  line(W / 2, H / 2 - 90, W / 2, H / 2 + 90);
   ctx.beginPath();
   ctx.arc(W / 2, H / 2, 60, 0, Math.PI * 2);
   ctx.stroke();
 
   ctx.font = '500 26px -apple-system, Helvetica, Arial, sans-serif';
-  ctx.fillText(new Date().toLocaleString(), W / 2, H - 250);
+  ctx.fillText(new Date().toLocaleString(), W / 2, H - 300);
   return true;
 }
 
@@ -1370,6 +1401,10 @@ function stepIndex(id) {
 function gotoStep(id) {
   const step = REVIEW_STEPS[stepIndex(id)];
   if (!step) return;
+  // A locked booth stays where it is. Nothing here is reachable by touch while
+  // the pickup code is up, but a focused button and a stray key press is, and
+  // the whole point of the lock is that only staff move the booth on.
+  if (S.locked) return;
   show(id);
   drawPreview();
   runStepTimer(step);
@@ -1424,7 +1459,7 @@ async function waitForImages(timeoutMs = 8000) {
 // ---------------------------------------------------------------- printing
 
 async function doPrint() {
-  if (S.printing) return;
+  if (S.printing || S.locked) return;
   if (S.selected.length === 0) {
     toast('Choose at least one photo first.');
     return;
@@ -1472,8 +1507,11 @@ async function doPrint() {
       log('info', 'order queued as ' + res.code);
       renderTicket(res.code, order);
       show('done');
-      clearTimeout(S.doneTimer);
-      S.doneTimer = setTimeout(endCycle, (S.cfg.thankYouSeconds || 30) * 1000);
+      // The pickup screen IS the lock. It holds the code until staff start the
+      // next session, so nobody loses their code to a timer while they are
+      // getting their phone out, and the next group cannot walk into the
+      // previous group's session.
+      await lockBooth();
     } else {
       const msg = (res && res.error) || 'Could not save your order.';
       log('error', 'order failed: ' + msg);
@@ -1648,7 +1686,6 @@ function wireEvents() {
     doPrint();
   });
   $('printBackBtn').addEventListener('click', () => gotoStep('filter'));
-  $('doneBtn').addEventListener('click', () => endCycle());
 
   $('copiesUp').addEventListener('click', () => {
     S.copies = Math.min(S.cfg.maxCopies, S.copies + 1);

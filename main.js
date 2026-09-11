@@ -216,6 +216,17 @@ app.whenReady().then(async () => {
       onRelease: printOrder,
       onKeychain: printKeychain,
       isLocked: () => boothLocked,
+      // Staff change timings from the phone. Saved through config so the
+      // clamps apply, then pushed straight at the renderer: a booth that had
+      // to be restarted to change a number would never get the number changed.
+      onSettings: (patch) => {
+        const next = config.save(patch);
+        Object.assign(cfg, next);
+        send('app:settings', rendererConfig());
+        log.info('[main] settings updated from the staff phone');
+        return { ok: true, settings: timingSettings() };
+      },
+      timings: () => timingSettings(),
       onStartSession: () => {
         boothLocked = false;
         log.info('[main] booth unlocked from the staff phone');
@@ -354,11 +365,32 @@ function pruneOldSessions() {
 // IPC
 // --------------------------------------------------------------------------
 
-ipcMain.handle('app:config', () => ({
+/**
+ * The timing values staff are allowed to change, described well enough for the
+ * phone to build a form out of them without hard-coding the list in two places.
+ */
+function timingSettings() {
+  return [
+    { key: 'readySeconds', label: 'Get ready', hint: 'Before the first photo', value: cfg.readySeconds, min: 0, max: 120 },
+    { key: 'captureCount', label: 'Photos', hint: 'How many shots', value: cfg.captureCount, min: 1, max: 20, unit: '' },
+    { key: 'countdownSeconds', label: 'Between photos', hint: 'Countdown per shot', value: cfg.countdownSeconds, min: 1, max: 30 },
+    { key: 'beepLastSeconds', label: 'Beeps for', hint: 'Last seconds of each countdown', value: cfg.beepLastSeconds, min: 0, max: 10 },
+    { key: 'pickSeconds', label: 'Pick photos', hint: 'Review step 1', value: cfg.pickSeconds, min: 5, max: 300 },
+    { key: 'frameSeconds', label: 'Pick a frame', hint: 'Review step 2', value: cfg.frameSeconds, min: 5, max: 300 },
+    { key: 'filterSeconds', label: 'Pick a look', hint: 'Review step 3', value: cfg.filterSeconds, min: 5, max: 300 },
+    { key: 'idleResetSeconds', label: 'Give up after', hint: 'Idle before resetting', value: cfg.idleResetSeconds, min: 15, max: 600 },
+  ];
+}
+
+function rendererConfig() {
+  return {
   captureCount: cfg.captureCount,
   countdownSeconds: cfg.countdownSeconds,
   beepLastSeconds: cfg.beepLastSeconds,
   readySeconds: cfg.readySeconds,
+  pickSeconds: cfg.pickSeconds,
+  frameSeconds: cfg.frameSeconds,
+  filterSeconds: cfg.filterSeconds,
   lockAfterSession: cfg.lockAfterSession,
   reviewSeconds: cfg.reviewSeconds,
   styles: cfg.styles,
@@ -370,8 +402,13 @@ ipcMain.handle('app:config', () => ({
   webcamFallback: cfg.webcamFallback,
   printDryRun: cfg.printDryRun,
   pricing: cfg.pricing,
+  print: cfg.print,
+  keychain: cfg.keychain,
   frames: frames.all(),
-}));
+  };
+}
+
+ipcMain.handle('app:config', () => rendererConfig());
 
 ipcMain.handle('camera:detect', async () => {
   const res = await camera.detect();
