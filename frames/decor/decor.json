@@ -18,5 +18,17 @@
   {
     "file": "keyline.png",
     "name": "Keyline"
+  },
+  {
+    "file": "ticket.png",
+    "name": "Ticket"
+  },
+  {
+    "file": "scallop.png",
+    "name": "Scallop"
+  },
+  {
+    "file": "stars.png",
+    "name": "Stars"
   }
 ]

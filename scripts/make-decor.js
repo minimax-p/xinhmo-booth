@@ -69,6 +69,9 @@ const DESIGNS = {
    * caption in frames.json or the two will print on top of each other.
    */
   banner: (x, y) => {
+    // A matching rule at the head, so the strip reads as a pair and the
+    // thumbnail -- which shows the top corner -- has something to show.
+    if (y >= 26 && y <= 29) return [...INK, 255];
     const top = H - 150;
     if (y < top) return [0, 0, 0, 0];
     if (y < top + 4) return [...INK, 255];
@@ -79,6 +82,47 @@ const DESIGNS = {
   keyline: (x, y) => {
     const d = edge(x, y);
     return d >= 12 && d <= 15 ? [...CREAM, 240] : [0, 0, 0, 0];
+  },
+
+  /** Perforation notches down both edges, like a cloakroom ticket. */
+  ticket: (x, y) => {
+    const pitch = 46;
+    const r = 13;
+    const cy = Math.round((y - pitch / 2) / pitch) * pitch + pitch / 2;
+    for (const cx of [0, W]) {
+      if (Math.hypot(x - cx, y - cy) <= r) return [...INK, 255];
+    }
+    const d = edge(x, y);
+    return d >= 30 && d <= 31 ? [...INK, 200] : [0, 0, 0, 0];
+  },
+
+  /** A scalloped band along the top and bottom. */
+  scallop: (x, y) => {
+    const pitch = 42;
+    const r = 21;
+    const cx = Math.round((x - pitch / 2) / pitch) * pitch + pitch / 2;
+    for (const cy of [26, H - 26]) {
+      if (Math.hypot(x - cx, y - cy) <= r) return [...SEAL, 235];
+    }
+    return [0, 0, 0, 0];
+  },
+
+  /** Four-point stars in the corners. */
+  stars: (x, y) => {
+    const pts = [
+      [56, 56], [W - 56, 56], [56, H - 56], [W - 56, H - 56],
+      [56, H / 2], [W - 56, H / 2],
+    ];
+    for (const [cx, cy] of pts) {
+      const dx = Math.abs(x - cx);
+      const dy = Math.abs(y - cy);
+      // A star is two thin spikes crossing, narrowing as they go out.
+      const span = 30;
+      if (dx < span && dy < span && (dx * dx + dy * dy < span * span)) {
+        if (dy < 5 - (dx / span) * 4 || dx < 5 - (dy / span) * 4) return [...INK, 255];
+      }
+    }
+    return [0, 0, 0, 0];
   },
 };
 

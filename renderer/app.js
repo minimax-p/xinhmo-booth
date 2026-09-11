@@ -861,9 +861,19 @@ function togglePhoto(idx) {
 }
 
 /**
- * Frame decorations. Free, so no price; shown as the art itself, because a
- * name tells you nothing about what a decoration looks like.
+ * Frame decorations, as a fixed 3x3 of tiles.
+ *
+ * They were pills with the artwork tucked alongside the label, and the art is
+ * a tall strip -- so it hung out of a short rounded pill and looked broken.
+ * A tile whose shape matches the thing inside it does not have that problem:
+ * the art sits in its own box, letterboxed to its real proportions, with the
+ * name underneath.
+ *
+ * The grid is padded to nine so it keeps its shape. Deleting a PNG should
+ * leave a gap, not re-flow everything into a ragged two-and-a-bit rows.
  */
+const DECOR_CELLS = 9;
+
 function buildDecorChips() {
   const wrap = $('decorChips');
   if (!wrap) return;
@@ -872,13 +882,13 @@ function buildDecorChips() {
   const options = [{ id: null, name: 'None' }].concat((S.cfg && S.cfg.decor) || []);
   options.forEach((d) => {
     const b = document.createElement('button');
-    b.className = 'chip chip-decor';
+    b.className = 'decor-tile';
     b.dataset.decor = d.id || '';
     b.innerHTML =
       (d.dataUrl
-        ? `<i class="decor-thumb"><img src="${d.dataUrl}" alt=""></i>`
-        : '<i class="decor-thumb is-none"></i>') +
-      `<span>${escapeHtml(d.name)}</span>`;
+        ? `<span class="decor-art"><img src="${d.dataUrl}" alt=""></span>`
+        : '<span class="decor-art is-none"></span>') +
+      `<span class="decor-name">${escapeHtml(d.name)}</span>`;
     b.addEventListener('click', () => {
       S.decorId = d.id;
       syncChips();
@@ -886,6 +896,13 @@ function buildDecorChips() {
     });
     wrap.appendChild(b);
   });
+
+  for (let i = options.length; i < DECOR_CELLS; i++) {
+    const empty = document.createElement('span');
+    empty.className = 'decor-tile is-empty';
+    empty.setAttribute('aria-hidden', 'true');
+    wrap.appendChild(empty);
+  }
 }
 
 /**
@@ -963,7 +980,7 @@ function syncChips() {
   document.querySelectorAll('#filterChips .chip').forEach((c) =>
     c.classList.toggle('active', c.dataset.filter === S.filterId)
   );
-  document.querySelectorAll('#decorChips .chip').forEach((c) =>
+  document.querySelectorAll('#decorChips [data-decor]').forEach((c) =>
     c.classList.toggle('active', (c.dataset.decor || null) === S.decorId)
   );
   document.querySelectorAll('[data-count]').forEach((el) => {

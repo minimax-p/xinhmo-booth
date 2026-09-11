@@ -84,7 +84,107 @@ function restoreSettings() {
   let booth;
   try {
     booth = await launchBooth({ port: PORT, root: ROOT });
-    const { evalJs, screen, waitForScreen } = booth;
+    const { cdp, evalJs, screen, waitForScreen } = booth;
+
+    /**
+     * Window shapes to check every screen against. The booth panel is portrait,
+     * a laptop is landscape, and a short window is where clamped layouts fail
+     * first. A layout that has only been looked at in one of these has not been
+     * checked -- a portrait-only fix in this batch broke landscape badly, and
+     * nothing caught it because these checks had been dropped from this file.
+     */
+    const SIZES = [
+      ['kiosk portrait', 1080, 1920],
+      ['laptop landscape', 1440, 900],
+      ['short window', 900, 560],
+    ];
+
+    async function atEachSize(fn) {
+      for (const [what, width, height] of SIZES) {
+        await cdp.send('Emulation.setDeviceMetricsOverride', {
+          width,
+          height,
+          deviceScaleFactor: 1,
+          mobile: false,
+        });
+        await sleep(350);
+        await fn(what);
+      }
+      await cdp.send('Emulation.clearDeviceMetricsOverride');
+      await sleep(350);
+    }
+
+    /** No two blocks of a poster screen may overlap, and none may spill out. */
+    function checkPoster(label, screenSel) {
+      return atEachSize(async (what) => {
+        const m = JSON.parse(
+          await evalJs(`(() => {
+            const scr = document.querySelector('${screenSel}');
+            const parts = [...scr.querySelectorAll('.poster-head, .menu-cards, .ticket-hero, .poster-foot')]
+              .map(p => ({ cls: p.className.split(' ')[0], r: p.getBoundingClientRect().toJSON() }));
+            let worst = 0, pair = '';
+            for (let i = 0; i < parts.length; i++) {
+              for (let j = i + 1; j < parts.length; j++) {
+                const ov = Math.min(parts[i].r.bottom, parts[j].r.bottom) - Math.max(parts[i].r.top, parts[j].r.top);
+                if (ov > worst) { worst = ov; pair = parts[i].cls + ' over ' + parts[j].cls; }
+              }
+            }
+            const cut = scr.querySelector('.cut').getBoundingClientRect();
+            const paper = scr.querySelector('.paper').getBoundingClientRect();
+            return JSON.stringify({ blocks: parts.length, worst: Math.round(worst), pair,
+              spill: Math.round(Math.max(0, cut.bottom - paper.bottom, paper.top - cut.top)) });
+          })()`)
+        );
+        t(`${label}: does not overlap itself (${what})`, m.blocks >= 2 && m.worst <= 1,
+          m.worst > 1 ? `${m.worst}px of ${m.pair}` : '');
+        t(`${label}: stays inside the card (${what})`, m.spill <= 1,
+          m.spill > 1 ? `${m.spill}px over` : '');
+      });
+    }
+
+    /**
+     * A review screen has to hold its controls and still show a usable preview
+     * at any shape. This is the check the landscape break needed.
+     */
+    function checkReview(label, screenSel, itemSel) {
+      return atEachSize(async (what) => {
+        const m = JSON.parse(
+          await evalJs(`(() => {
+            const scr = document.querySelector('${screenSel}');
+            const box = scr.querySelector('.edit-controls').getBoundingClientRect();
+            const items = [...scr.querySelectorAll('${itemSel}')];
+            let clipped = 0;
+            items.forEach((el) => {
+              const r = el.getBoundingClientRect();
+              clipped = Math.max(clipped, Math.round(r.bottom - box.bottom), Math.round(box.top - r.top));
+            });
+            const cv = scr.querySelector('.preview-canvas').getBoundingClientRect();
+            const main = scr.querySelector('.edit-main').getBoundingClientRect();
+            const card = scr.querySelector('.cut').getBoundingClientRect();
+            const panel = scr.querySelector('.edit-controls');
+            return JSON.stringify({ items: items.length, clipped,
+              scrollable: panel.scrollHeight > panel.clientHeight,
+              preview: Math.round(Math.min(cv.width, cv.height)),
+              fill: Math.round(main.height / card.height * 100) });
+          })()`)
+        );
+        // The two shapes the booth actually runs at must show everything
+        // without scrolling. A window smaller than either may scroll, as long
+        // as the content is genuinely reachable rather than simply cut off.
+        if (what === 'short window') {
+          // Fitting is best; scrolling is acceptable. Being cut off with no way
+          // to reach the rest is not.
+          t(`${label}: all of it reachable (${what})`,
+            m.items > 0 && (m.clipped <= 1 || m.scrollable),
+            m.clipped <= 1 ? 'fits' : `${m.clipped}px past, scrolls`);
+        } else {
+          t(`${label}: nothing clipped (${what})`, m.items > 0 && m.clipped <= 1,
+            m.clipped > 1 ? `${m.clipped}px past the panel` : `${m.items} tiles`);
+        }
+        t(`${label}: preview is usable (${what})`, m.preview >= 80, m.preview + 'px');
+        t(`${label}: fills the card (${what})`, m.fill >= 55, m.fill + '%');
+      });
+    }
 
     for (let i = 0; i < 30; i++) {
       if (await evalJs('!!(window.booth && document.querySelector("#menuList .menu-card"))')) break;
@@ -102,6 +202,8 @@ function restoreSettings() {
     );
     t('a layout card per priced frame, cheapest first',
       JSON.parse(cards).join(',') === 'grand_4,strip_3x2,strip_4x2', cards);
+
+    await checkPoster('welcome', '.screen-welcome');
 
     // ------------------------------------------------------- get ready
     console.log('\nGet ready');
@@ -148,15 +250,19 @@ function restoreSettings() {
     await evalJs('document.getElementById("pickNextBtn").click()');
     await sleep(300);
     t('next goes to the frame step', (await screen()) === 'frame');
-    const decorCount = await evalJs('document.querySelectorAll("#decorChips .chip").length');
+    const decorCount = await evalJs('document.querySelectorAll("#decorChips [data-decor]").length');
     t('decorations are offered, plus None', decorCount >= 2, decorCount + ' options');
+    t('the picker keeps a full grid',
+      (await evalJs('document.querySelectorAll("#decorChips .decor-tile").length')) >= 9);
     t('the layout cannot be changed after the shoot',
       (await evalJs('!document.getElementById("frameChips")')) === true);
 
-    await evalJs('document.querySelector(\'#decorChips .chip[data-decor="corners"]\').click()');
+    await checkReview('frame step', '.screen-review[data-screen="frame"]', '#decorChips .decor-tile');
+
+    await evalJs('document.querySelector(\'#decorChips [data-decor="corners"]\').click()');
     await sleep(300);
     t('the decoration applies',
-      (await evalJs('document.querySelector("#decorChips .chip.active").dataset.decor')) === 'corners');
+      (await evalJs('document.querySelector("#decorChips .decor-tile.active").dataset.decor')) === 'corners');
     t('and costs nothing',
       (await evalJs('document.getElementById("runningTotal").textContent')) === '$8');
 
@@ -228,6 +334,8 @@ function restoreSettings() {
       (await evalJs('document.getElementById("ticketTotal").textContent')) === '$24');
     t('it asks them to tell staff the code',
       /Tell a staff member/i.test(await evalJs('document.querySelector(".screen-done .poster-cta").textContent')));
+
+    await checkPoster('pickup screen', '.screen-done');
 
     await sleep(600);
     t('the booth locks itself behind the code', (await staff('/api/queue')).body.locked === true);

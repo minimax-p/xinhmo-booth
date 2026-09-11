@@ -1683,47 +1683,126 @@ img.live:not([src]) {
   outline-color: rgba(255, 248, 238, 0.95);
 }
 
-/* ------------------------------------------------------- decoration chips
-   A decoration is a picture, so the chip shows the picture. The name alone
-   ("Corners", "Dots") tells a customer nothing they can choose between. */
-.chips-decor {
+/* -------------------------------------------------------- decoration grid
+   Three across, always nine cells.
+
+   These were pills with the art tucked in beside the label, which does not
+   work: the art is a tall strip and a pill is a short rounded box, so it hung
+   out of the side and read as broken layout rather than as a picture. A tile
+   shaped like the thing inside it solves that by construction -- the art gets
+   its own box, letterboxed to its true proportions, name underneath. */
+.decor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(6px, 1.4vmin, 14px);
+  width: 100%;
 }
 
-.chip-decor {
-  display: inline-flex;
+.decor-tile {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: clamp(6px, 1.2vmin, 12px);
-  padding-left: clamp(6px, 1.2vmin, 12px);
+  gap: clamp(3px, 0.7vmin, 8px);
+  padding: clamp(5px, 1.1vmin, 12px) clamp(4px, 0.9vmin, 10px);
+  border: 1px solid var(--ink-line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  min-width: 0;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
-.decor-thumb {
-  width: clamp(20px, 3vmin, 34px);
-  aspect-ratio: 564 / 1764;
-  border: 1px solid var(--ink-line);
-  border-radius: 2px;
+.decor-tile.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+.decor-tile:active:not(.is-empty) {
+  background: var(--ink-wash);
+}
+
+/*
+  The art box IS the strip, so the picture cannot be the wrong shape.
+
+  Sizing the image instead (height:100%, width:auto) does not work: a percentage
+  height against an indefinite box leaves width:auto resolving to the image's
+  natural 564px, max-width then clamps it, and the result is a strip squashed
+  into a wide rectangle -- the decoration drawn as something it is not. Giving
+  the box the aspect ratio and letting the image fill it removes the question.
+*/
+.decor-art {
+  width: 100%;
+  /* A fixed-height window onto the art, not a shape of its own. Giving it an
+     aspect ratio tied it to the tile's width, and on a wide panel a third of
+     the card is 320px, so each tile grew to 260px tall and three rows ran
+     clean off the bottom. Height is the scarce axis here, so height is what
+     gets pinned; the box just shows more or less of the corner. */
+  height: clamp(38px, 7.5vmin, 92px);
   background: var(--paper-2);
+  border: 1px solid var(--ink-line);
+  border-radius: 1px;
   overflow: hidden;
   flex: 0 0 auto;
-  display: block;
 }
 
-.decor-thumb img {
-  width: 100%;
-  height: 100%;
+/*
+  The top corner of the art at full resolution, not the whole strip shrunk.
+
+  A strip is 564 x 1764. Scaled down to fit a tile it becomes a 27px-wide
+  sliver where a three-pixel rule is sub-pixel and every decoration looks like
+  the same beige smudge -- which is worse than no picture at all, because it
+  looks like a choice and carries no information. Showing one corner at 1:1
+  keeps the detail legible, and these are edge treatments, so a corner is the
+  part that distinguishes them. The full-size preview above updates on tap and
+  is where the whole strip actually gets judged.
+*/
+.decor-art img {
   display: block;
+  width: auto;
+  height: auto;
 }
 
-/* "None" is a real choice, so it gets a chip like the others rather than
-   being the absence of one. */
-.decor-thumb.is-none {
+/* "None" is a choice, so it gets a tile like the rest rather than being the
+   absence of one. */
+.decor-art.is-none {
+  border-style: dashed;
   background:
     linear-gradient(45deg, transparent 46%, var(--ink-line) 46%, var(--ink-line) 54%, transparent 54%),
     var(--paper-2);
 }
 
-.chip.active .decor-thumb {
-  border-color: var(--paper);
+.decor-name {
+  font-family: var(--serif);
+  font-size: var(--fs-xs);
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Padding cells: they hold the grid's shape when there are fewer than eight
+   decorations, rather than letting the last row go ragged. */
+.decor-tile.is-empty {
+  border-style: dashed;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* The frame step has one control and it is three rows tall, so in portrait it
+   gets an even split with the preview rather than the 1.4:1 the other steps
+   use; without this the last row of tiles sits under the fold.
+
+   Portrait only, and that scoping is the whole point: unscoped, this overrode
+   the landscape rule's single row, so on a wide screen both panes were pushed
+   into a half-height first row with an empty second row beneath -- a tiny
+   preview, a clipped grid, and half the screen blank. */
+@media (orientation: portrait) {
+  .screen-review[data-screen='frame'] .edit-main {
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.05fr);
+  }
 }
 
 /* ----------------------------------------------------------- add-on rows
