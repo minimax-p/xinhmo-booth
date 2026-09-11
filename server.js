@@ -77,7 +77,7 @@ function retotal(order, pricing) {
  * @param {object} opts.cfg
  * @param {(order) => Promise<{ok:boolean,error?:string}>} opts.onRelease
  */
-function start({ queue, cfg, onRelease, onKeychain, isLocked, onStartSession }) {
+function start({ queue, cfg, onRelease, onKeychain, isLocked, onStartSession, onSettings, timings }) {
   const pin = String(cfg.staffPin || '');
   const port = cfg.staffPort || 8080;
 
@@ -115,6 +115,26 @@ function start({ queue, cfg, onRelease, onKeychain, isLocked, onStartSession }) 
     if (p === '/api/start' && req.method === 'POST') {
       if (!onStartSession) return json(res, 501, { error: 'not supported' });
       return json(res, 200, onStartSession() || { ok: true });
+    }
+
+    /**
+     * Timings, as a list the phone renders into the booth's actual flow. Kept
+     * here rather than as a hard-coded form so there is one definition of what
+     * is tunable, and non-technical staff never have to open settings.json.
+     */
+    if (p === '/api/settings') {
+      if (req.method === 'POST') {
+        if (!onSettings) return json(res, 501, { error: 'not supported' });
+        const body = await readBody(req);
+        const patch = {};
+        for (const row of (timings ? timings() : [])) {
+          if (Number.isFinite(body[row.key])) patch[row.key] = body[row.key];
+        }
+        if (!Object.keys(patch).length) return json(res, 400, { error: 'nothing to change' });
+        const r = onSettings(patch);
+        return json(res, 200, r || { ok: true });
+      }
+      return json(res, 200, { settings: timings ? timings() : [] });
     }
 
     if (p === '/api/thumb') {
@@ -272,6 +292,24 @@ const PAGE = `<!doctype html>
   .kc.small{width:auto;margin:0 0 0 10px;padding:6px 10px;font-size:12px;
     color:var(--paper);border-color:rgba(255,248,238,.35)}
   .past{align-items:center}
+  .tabs{display:flex;gap:8px;margin-left:auto}
+  .tab{background:transparent;color:var(--paper);border:1px solid rgba(255,248,238,.3);
+    padding:8px 12px;font-size:13px;border-radius:999px;font-weight:500}
+  .tab[aria-selected="true"]{background:var(--paper);color:var(--ink)}
+  .flow{display:flex;flex-direction:column;gap:10px}
+  .fstep{background:var(--paper);color:var(--ink);border-radius:16px;padding:12px 14px;
+    display:flex;align-items:center;gap:12px}
+  .fstep .n{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--paper);
+    display:grid;place-items:center;font-size:13px;font-weight:700;flex:0 0 auto}
+  .fstep .lab{font-weight:600;font-size:15px}
+  .fstep .hint{display:block;font-weight:400;font-size:12px;color:var(--soft)}
+  .fstep .val{margin-left:auto;display:flex;align-items:center;gap:8px;flex:0 0 auto}
+  .fstep input{width:74px;padding:10px;font-size:19px;text-align:center;border-radius:10px;
+    border:1px solid var(--line);background:#fff;color:var(--ink);font-weight:700}
+  .fstep .unit{font-size:12px;color:var(--soft);width:16px}
+  .arrow{text-align:center;color:rgba(255,248,238,.4);font-size:14px;line-height:1;margin:-4px 0}
+  .saverow{position:sticky;bottom:0;padding:12px 0 0;background:linear-gradient(transparent,var(--ink) 30%)}
+  .saved{text-align:center;font-size:13px;opacity:.75;padding-top:8px}
 </style></head><body>
 <div id="gate" class="gate">
   <h1>Xinhmo</h1>
@@ -281,9 +319,22 @@ const PAGE = `<!doctype html>
   <p id="gateErr" class="err"></p>
 </div>
 <div id="app" hidden>
-  <header><h1>Queue</h1><span class="count" id="count"></span></header>
-  <main><div id="booth"></div><div id="list"></div>
-    <h2 id="pastHead" hidden>Done</h2><div id="past"></div>
+  <header><h1>Queue</h1><span class="count" id="count"></span>
+    <span class="tabs">
+      <button class="tab" id="tabQueue" aria-selected="true">Queue</button>
+      <button class="tab" id="tabSet" aria-selected="false">Timing</button>
+    </span>
+  </header>
+  <main>
+    <div id="queueView"><div id="booth"></div><div id="list"></div>
+      <h2 id="pastHead" hidden>Done</h2><div id="past"></div>
+    </div>
+    <div id="setView" hidden>
+      <h2 style="margin-top:8px">How long each step lasts</h2>
+      <div class="flow" id="flow"></div>
+      <div class="saverow"><button class="go" id="saveSet">Save timings</button></div>
+      <p class="saved" id="setMsg">Changes reach the booth straight away. It does not need restarting.</p>
+    </div>
   </main>
 </div>
 <script>
@@ -311,8 +362,57 @@ const PAGE = `<!doctype html>
     }).catch(function(e){$('gateErr').textContent=e.message});
   }
 
+  // Timing view. Drawn as the booth's own flow with a number in each step, so
+  // an operator who has never seen the code can still see what they are changing.
+  var settings=[];
+  function loadSettings(){
+    api('/api/settings').then(function(r){return r.json()}).then(function(d){
+      settings=d.settings||[]; renderFlow();
+    }).catch(function(){});
+  }
+  function renderFlow(){
+    var f=$('flow'); f.innerHTML='';
+    settings.forEach(function(row,i){
+      if(i)f.insertAdjacentHTML('beforeend','<div class="arrow">&#9660;</div>');
+      var el=document.createElement('div'); el.className='fstep';
+      el.innerHTML='<span class="n">'+(i+1)+'</span>'+
+        '<span class="lab">'+row.label+'<span class="hint">'+row.hint+'</span></span>'+
+        '<span class="val"><input type="number" inputmode="numeric" data-k="'+row.key+'" '+
+          'min="'+row.min+'" max="'+row.max+'" value="'+row.value+'" />'+
+          '<span class="unit">'+(row.unit===''?'':'s')+'</span></span>';
+      f.appendChild(el);
+    });
+  }
+  $('saveSet').addEventListener('click',function(){
+    var b=this, body={};
+    $('flow').querySelectorAll('input[data-k]').forEach(function(i){
+      var v=parseInt(i.value,10); if(!isNaN(v))body[i.getAttribute('data-k')]=v;
+    });
+    b.disabled=true; b.textContent='Saving...';
+    api('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)})
+      .then(function(r){return r.json()})
+      .then(function(d){
+        settings=d.settings||settings; renderFlow();
+        b.disabled=false; b.textContent='Save timings';
+        $('setMsg').textContent='Saved. The booth is using these now.';
+      })
+      .catch(function(){b.disabled=false;b.textContent='Save timings';
+        $('setMsg').textContent='Could not save. Try again.'});
+  });
+  function tab(which){
+    var q=which==='queue';
+    $('queueView').hidden=!q; $('setView').hidden=q;
+    $('tabQueue').setAttribute('aria-selected',String(q));
+    $('tabSet').setAttribute('aria-selected',String(!q));
+    if(!q)loadSettings();
+  }
+  $('tabQueue').addEventListener('click',function(){tab('queue')});
+  $('tabSet').addEventListener('click',function(){tab('set')});
+
   function refresh(){
     if(Object.keys(busy).length)return;
+    if($('queueView').hidden)return;   // staff are on the timing tab
     api('/api/queue').then(function(r){return r.json()}).then(render).catch(function(){});
   }
 

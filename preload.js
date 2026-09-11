@@ -34,6 +34,11 @@ contextBridge.exposeInMainWorld('booth', {
   // booth lock, between sessions
   lockBooth: () => ipcRenderer.invoke('booth:lock'),
   boothState: () => ipcRenderer.invoke('booth:state'),
+  onSettings: (cb) => {
+    const handler = (_e, cfg) => cb(cfg);
+    ipcRenderer.on('app:settings', handler);
+    return () => ipcRenderer.removeListener('app:settings', handler);
+  },
   onUnlock: (cb) => {
     const handler = () => cb();
     ipcRenderer.on('booth:unlock', handler);
