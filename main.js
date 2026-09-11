@@ -170,6 +170,19 @@ async function printOrder(order) {
   return printer.print(order.imagePath, n);
 }
 
+/**
+ * Print only the keychain sheet. Separate from printOrder because the common
+ * case is someone who has already collected their photos and then asks for a
+ * keychain: reprinting the strips too would cost a sheet and confuse them.
+ */
+async function printKeychain(order) {
+  if (!order.keychainPath || !fs.existsSync(order.keychainPath)) {
+    return { ok: false, error: 'No keychain sheet was saved for this order.' };
+  }
+  log.info('[main] keychain for', order.code, order.keychainPath);
+  return printer.print(order.keychainPath, 1);
+}
+
 app.whenReady().then(async () => {
   // Electron's default session REFUSES getUserMedia unless something answers
   // the permission request. Without this the webcam fallback fails silently.
@@ -201,6 +214,7 @@ app.whenReady().then(async () => {
       queue,
       cfg,
       onRelease: printOrder,
+      onKeychain: printKeychain,
       isLocked: () => boothLocked,
       onStartSession: () => {
         boothLocked = false;
@@ -425,9 +439,23 @@ ipcMain.handle('order:submit', async (_e, order) => {
     const out = path.join(dir, `print_${Date.now()}.jpg`);
     const b64 = String(order.dataUrl).replace(/^data:image\/\w+;base64,/, '');
     fs.writeFileSync(out, Buffer.from(b64, 'base64'));
+    // Saved next to the print. Nothing prints it yet; staff decide that.
+    let keychainPath = null;
+    if (order.keychainDataUrl) {
+      try {
+        keychainPath = path.join(dir, `keychain_${Date.now()}.jpg`);
+        const kb = String(order.keychainDataUrl).replace(/^data:image\/\w+;base64,/, '');
+        fs.writeFileSync(keychainPath, Buffer.from(kb, 'base64'));
+      } catch (err) {
+        log.error('[main] keychain save failed:', err.message);
+        keychainPath = null;
+      }
+    }
+
     const entry = queue.add({
       dir,
       imagePath: out,
+      keychainPath,
       copies: Math.max(1, Math.min(cfg.maxCopies, parseInt(order.copies, 10) || 1)),
       frameId: order.frameId,
       frameName: order.frameName,

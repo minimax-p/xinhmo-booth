@@ -1444,6 +1444,17 @@ async function doPrint() {
     if (!composite(out)) throw new Error('no frame selected');
     const dataUrl = out.toDataURL('image/jpeg', 0.92);
 
+    // Built for every session, bought or not. Staff can sell a keychain after
+    // the photos have already printed, and going back for one should never
+    // mean asking the customer to shoot again.
+    let keychainUrl = null;
+    try {
+      const kc = document.createElement('canvas');
+      if (compositeKeychain(kc)) keychainUrl = kc.toDataURL('image/jpeg', 0.92);
+    } catch (err) {
+      log('error', 'keychain render failed: ' + err.message);
+    }
+
     const order = computeOrder();
     const res = await window.booth.submitOrder({
       dataUrl,
@@ -1452,6 +1463,7 @@ async function doPrint() {
       frameName: order.frame ? order.frame.name : 'Photos',
       items: order.items,
       total: order.total,
+      keychainDataUrl: keychainUrl,
       extras: S.extras.slice(),
       styleId: S.styleId,
     });

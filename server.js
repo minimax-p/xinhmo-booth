@@ -77,7 +77,7 @@ function retotal(order, pricing) {
  * @param {object} opts.cfg
  * @param {(order) => Promise<{ok:boolean,error?:string}>} opts.onRelease
  */
-function start({ queue, cfg, onRelease, isLocked, onStartSession }) {
+function start({ queue, cfg, onRelease, onKeychain, isLocked, onStartSession }) {
   const pin = String(cfg.staffPin || '');
   const port = cfg.staffPort || 8080;
 
@@ -151,6 +151,37 @@ function start({ queue, cfg, onRelease, isLocked, onStartSession }) {
         return json(res, r && r.ok ? 200 : 500, queue.get(o.code));
       } catch (err) {
         queue.update(o.code, { status: 'pending', error: err.message });
+        return json(res, 500, { error: err.message });
+      }
+    }
+
+    /**
+     * Keychains are sold at the table, often after the photos have already
+     * been handed over, so this is its own action: it prints the keychain
+     * sheet and nothing else, and it works whether or not the order has been
+     * released. The add-on is recorded on the order so the total stays honest.
+     */
+    if (p === '/api/keychain' && req.method === 'POST') {
+      const o = queue.get(url.searchParams.get('code'));
+      if (!o) return json(res, 404, { error: 'no such order' });
+      if (!o.keychainPath) return json(res, 409, { error: 'no keychain sheet for this order' });
+      if (!onKeychain) return json(res, 501, { error: 'not supported' });
+      if (!(o.extras || []).includes('keychain')) {
+        o.extras = (o.extras || []).concat('keychain');
+        retotal(o, cfg.pricing || {});
+      }
+      try {
+        const r = await onKeychain(o);
+        queue.update(o.code, {
+          extras: o.extras,
+          items: o.items,
+          total: o.total,
+          keychainPrinted: !!(r && r.ok),
+          error: r && r.ok ? null : (r && r.error) || 'keychain print failed',
+        });
+        return json(res, r && r.ok ? 200 : 500, queue.get(o.code));
+      } catch (err) {
+        queue.update(o.code, { error: err.message });
         return json(res, 500, { error: err.message });
       }
     }
@@ -236,6 +267,11 @@ const PAGE = `<!doctype html>
   .booth .start{width:100%;padding:17px;background:var(--ink);color:var(--paper);font-size:17px}
   .booth.open{background:transparent;color:var(--paper);padding:4px 4px 10px;text-align:center;
     font-size:13px;opacity:.6}
+  .kc{width:100%;margin-top:8px;background:transparent;color:var(--ink);
+    border:1px solid var(--line);font-weight:600;padding:12px;font-size:14px}
+  .kc.small{width:auto;margin:0 0 0 10px;padding:6px 10px;font-size:12px;
+    color:var(--paper);border-color:rgba(255,248,238,.35)}
+  .past{align-items:center}
 </style></head><body>
 <div id="gate" class="gate">
   <h1>Xinhmo</h1>
@@ -292,9 +328,20 @@ const PAGE = `<!doctype html>
     }
     var past=d.recent||[];
     $('pastHead').hidden=!past.length;
-    $('past').innerHTML=past.map(function(o){
-      return '<div class="past"><span>'+o.code+' &middot; '+(o.status==='void'?'voided':'printed')+'</span><span>'+money(o.total)+'</span></div>';
-    }).join('');
+    $('past').innerHTML='';
+    past.forEach(function(o){
+      var row=document.createElement('div'); row.className='past';
+      row.innerHTML='<span>'+o.code+' &middot; '+(o.status==='void'?'voided':'printed')+'</span>'+
+        '<span>'+money(o.total)+'</span>';
+      // Most keychains are sold here: after the photos are already in a hand.
+      if(o.keychainPath&&o.status!=='void'){
+        var b=document.createElement('button'); b.className='kc small';
+        b.textContent=o.keychainPrinted?'Keychain again':'+ Keychain';
+        b.addEventListener('click',function(){keychain(o,b)});
+        row.appendChild(b);
+      }
+      $('past').appendChild(row);
+    });
   }
 
   // The booth locks itself between sessions. Once the last group has walked
@@ -334,6 +381,7 @@ const PAGE = `<!doctype html>
 
     right.innerHTML=head+lines+chips+
       '<button class="go">Paid '+money(o.total)+' &middot; Print</button>'+
+      (o.keychainPath?'<button class="kc">'+(o.keychainPrinted?'Print keychain again':'Add keychain &middot; print it now')+'</button>':'')+
       (o.error?'<p class="err">'+o.error+'</p>':'')+
       '<button class="void">Void this order</button>';
 
@@ -350,6 +398,8 @@ const PAGE = `<!doctype html>
       });
     });
     right.querySelector('.go').addEventListener('click',function(){release(o,this)});
+    var kcBtn=right.querySelector('.kc');
+    if(kcBtn)kcBtn.addEventListener('click',function(){keychain(o,this)});
     right.querySelector('.void').addEventListener('click',function(){
       if(!confirm('Void order '+o.code+'? It will not print.'))return;
       busy[o.code]=1;
@@ -358,6 +408,19 @@ const PAGE = `<!doctype html>
 
     el.appendChild(img); el.appendChild(right);
     return el;
+  }
+
+  function keychain(o,btn){
+    btn.disabled=true; var was=btn.textContent; btn.textContent='Printing keychain...';
+    busy[o.code]=1;
+    api('/api/keychain?code='+o.code,{method:'POST'})
+      .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})
+      .then(function(x){
+        delete busy[o.code];
+        if(x.ok){refresh()}
+        else{btn.disabled=false;btn.textContent=was;alert((x.j&&x.j.error)||'Keychain print failed.')}
+      })
+      .catch(function(){delete busy[o.code];btn.disabled=false;btn.textContent=was});
   }
 
   function patch(o,body){
