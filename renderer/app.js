@@ -1154,17 +1154,18 @@ function stripRegion(frame) {
 }
 
 /**
- * The keychain sheet: one strip shrunk to keychain size and tiled across a
- * 4x6, because the SELPHY only prints 4x6 and the inserts get cut out by hand.
- * Built for every session whether anyone buys one, so that staff can sell a
- * keychain after the photos have already printed without a reshoot.
+ * One strip at full resolution, saved with every session.
+ *
+ * This is the raw material for anything small: a keychain, a charm, whatever
+ * gets sold next year. Saving a single strip rather than a finished sheet is
+ * what lets add-ons from several groups share one piece of paper -- a sheet is
+ * already committed to one order, a strip is not.
  */
-function compositeKeychain(canvas) {
+function compositeStrip(canvas) {
   const frame = currentFrame();
   if (!frame) return false;
   const style = currentStyle();
 
-  // Render the design once at full size, then sample a strip out of it.
   const src = document.createElement('canvas');
   src.width = frame.width;
   src.height = frame.height;
@@ -1174,44 +1175,98 @@ function compositeKeychain(canvas) {
   drawFrameDesign(sctx, frame, style);
 
   const strip = stripRegion(frame);
-  const kc = (S.cfg && S.cfg.keychain) || {};
-  const cellH = Math.round(mmToPx(kc.heightMm || 55));
-  const cellW = Math.round(strip.w * (cellH / strip.h));
-  const gap = Math.round(mmToPx(kc.gapMm || 4));
-  if (cellW <= 0 || cellH <= 0) return false;
+  canvas.width = strip.w;
+  canvas.height = strip.h;
+  canvas
+    .getContext('2d')
+    .drawImage(src, strip.x, strip.y, strip.w, strip.h, 0, 0, strip.w, strip.h);
+  return true;
+}
 
-  canvas.width = frame.width;
-  canvas.height = frame.height;
+/**
+ * Tile small prints from any number of orders onto one 4x6.
+ *
+ * A keychain insert is about a fifth the height of the paper, so printing one
+ * order's single keychain burns a whole sheet to use an eighth of it. Pooling
+ * them across groups is most of the paper cost of the add-on. Every cell is
+ * stamped with its pickup code, because once they are cut apart a pile of
+ * small strips is otherwise unsortable.
+ *
+ * Called from the main process, which owns the queue and the printer. Returns
+ * how many cells it managed to place so main knows what to mark as printed.
+ */
+async function buildBatchSheet({ cells, heightMm, gapMm }) {
+  const W = 1200;
+  const H = 1800;
+  const cellH = Math.round(mmToPx(heightMm || 55));
+  const gap = Math.round(mmToPx(Number.isFinite(gapMm) ? gapMm : 4));
+  const label = Math.round(mmToPx(4));
+
+  const loaded = await Promise.all(
+    cells.map(
+      (c) =>
+        new Promise((res) => {
+          const img = new Image();
+          img.onload = () => res({ code: c.code, img });
+          img.onerror = () => res(null);
+          img.src = c.dataUrl;
+        })
+    )
+  );
+  const usable = loaded.filter(Boolean);
+  if (!usable.length) return null;
+
+  // Widest cell wins the column width, so rows stay aligned even when orders
+  // used different layouts.
+  const cellW = Math.max(
+    ...usable.map((c) => Math.round((c.img.naturalWidth / c.img.naturalHeight) * cellH))
+  );
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, W, H);
 
-  const t = safeTransform(frame);
+  const t = safeTransform({ width: W, height: H });
   ctx.save();
   ctx.translate(t.dx, t.dy);
   ctx.scale(t.scale, t.scale);
 
-  const cols = Math.max(1, Math.floor((frame.width + gap) / (cellW + gap)));
-  const rows = Math.max(1, Math.floor((frame.height + gap) / (cellH + gap)));
-  const ox = Math.round((frame.width - (cols * cellW + (cols - 1) * gap)) / 2);
-  const oy = Math.round((frame.height - (rows * cellH + (rows - 1) * gap)) / 2);
+  const rowH = cellH + label;
+  const cols = Math.max(1, Math.floor((W + gap) / (cellW + gap)));
+  const rows = Math.max(1, Math.floor((H + gap) / (rowH + gap)));
+  const capacity = cols * rows;
+  const placed = usable.slice(0, capacity);
 
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const x = ox + c * (cellW + gap);
-      const y = oy + r * (cellH + gap);
-      ctx.drawImage(src, strip.x, strip.y, strip.w, strip.h, x, y, cellW, cellH);
-      // A faint box to cut around, same reasoning as the strip cut line.
-      ctx.save();
-      ctx.globalAlpha = 0.35;
-      ctx.strokeStyle = '#26357E';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, cellW - 1, cellH - 1);
-      ctx.restore();
-    }
-  }
+  const ox = Math.round((W - (cols * cellW + (cols - 1) * gap)) / 2);
+  const oy = Math.round((H - (rows * rowH + (rows - 1) * gap)) / 2);
+
+  placed.forEach((c, i) => {
+    const x = ox + (i % cols) * (cellW + gap);
+    const y = oy + Math.floor(i / cols) * (rowH + gap);
+    const w = Math.round((c.img.naturalWidth / c.img.naturalHeight) * cellH);
+    ctx.drawImage(c.img, x + Math.round((cellW - w) / 2), y, w, cellH);
+
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = '#26357E';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, cellW - 1, cellH - 1);
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = '#26357E';
+    ctx.font = `600 ${Math.round(label * 0.62)}px ui-monospace, Menlo, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(c.code, x + cellW / 2, y + cellH + Math.round(label * 0.18));
+    ctx.restore();
+  });
+
   ctx.restore();
-  return true;
+  return { dataUrl: canvas.toDataURL('image/jpeg', 0.92), used: placed.length };
 }
 
 /**
@@ -1482,15 +1537,15 @@ async function doPrint() {
     if (!composite(out)) throw new Error('no frame selected');
     const dataUrl = out.toDataURL('image/jpeg', 0.92);
 
-    // Built for every session, bought or not. Staff can sell a keychain after
-    // the photos have already printed, and going back for one should never
-    // mean asking the customer to shoot again.
-    let keychainUrl = null;
+    // Saved for every session, bought or not. Staff sell small prints long
+    // after the photos have gone out, and going back for one should never mean
+    // asking the customer to shoot again.
+    let stripUrl = null;
     try {
-      const kc = document.createElement('canvas');
-      if (compositeKeychain(kc)) keychainUrl = kc.toDataURL('image/jpeg', 0.92);
+      const st = document.createElement('canvas');
+      if (compositeStrip(st)) stripUrl = st.toDataURL('image/jpeg', 0.92);
     } catch (err) {
-      log('error', 'keychain render failed: ' + err.message);
+      log('error', 'strip render failed: ' + err.message);
     }
 
     const order = computeOrder();
@@ -1501,7 +1556,7 @@ async function doPrint() {
       frameName: order.frame ? order.frame.name : 'Photos',
       items: order.items,
       total: order.total,
-      keychainDataUrl: keychainUrl,
+      stripDataUrl: stripUrl,
       extras: S.extras.slice(),
       styleId: S.styleId,
     });
@@ -1676,10 +1731,6 @@ function wireEvents() {
   // the get-ready screen, either when its timer runs out or when people say so.
   $('readyNowBtn').addEventListener('click', () => beginShooting());
 
-  $('pickBackBtn').addEventListener('click', () => {
-    stopStepTimer();
-    abandonSession();
-  });
   $('pickNextBtn').addEventListener('click', () => advanceStep('pick'));
   $('frameBackBtn').addEventListener('click', () => gotoStep('pick'));
   $('frameNextBtn').addEventListener('click', () => advanceStep('frame'));
