@@ -147,6 +147,16 @@ function load() {
   merged.print.safeArea = Object.assign({}, DEFAULTS.print.safeArea, merged.print.safeArea);
   merged.print.cutLine = Object.assign({}, DEFAULTS.print.cutLine, merged.print.cutLine);
   merged.keychain = Object.assign({}, DEFAULTS.keychain, merged.keychain);
+
+  // settings.json replaces `pricing` wholesale, so an operator's file written
+  // before add-ons became printable would silently drop heightMm and the batch
+  // sheet would quietly refuse to print anything. Fill each add-on's missing
+  // fields from the default of the same id.
+  merged.pricing = Object.assign({}, DEFAULTS.pricing, merged.pricing);
+  merged.pricing.addons = (merged.pricing.addons || []).map((a) => {
+    const dflt = (DEFAULTS.pricing.addons || []).find((d) => d.id === a.id) || {};
+    return Object.assign({}, dflt, a);
+  });
   merged.maxCopies = clamp(int(merged.maxCopies, 3), 1, 9);
   merged.liveViewFps = clamp(int(merged.liveViewFps, 12), 1, 30);
 

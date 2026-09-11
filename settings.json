@@ -32,12 +32,14 @@
       {
         "id": "keychain",
         "name": "keychain",
-        "price": 8
+        "price": 8,
+        "heightMm": 55
       },
       {
         "id": "charm",
         "name": "charm",
-        "price": 5
+        "price": 5,
+        "heightMm": 35
       }
     ],
     "extraCopy": 3,
