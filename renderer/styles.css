@@ -1546,12 +1546,11 @@ img.live:not([src]) {
   flex: 0 0 auto;
 }
 
-/* The price. There is no longer a button to sit beside, so it rides with the
-   line that explains the step. */
+/* The price, kept next to the button that commits to it. */
 .running-total {
-  float: right;
+  margin-left: auto;
   font-family: var(--serif);
-  font-size: var(--fs-md);
+  font-size: var(--fs-lg);
   color: var(--ink);
   white-space: nowrap;
 }
@@ -1649,47 +1648,16 @@ img.live:not([src]) {
   color: var(--ink);
 }
 
-/* With no Back and no Next, this is the only thing that moves the screen on,
-   so it has to be legible from where a group is standing rather than tucked
-   away like a status line. */
 .review-timer {
   margin-left: auto;
-  min-width: 2.4em;
-  padding: 0.08em 0.42em;
+  min-width: 2.2em;
+  padding: 0.1em 0.5em;
   border-radius: 999px;
   border: 1px solid var(--ink-line);
   font-family: var(--mono);
-  font-size: var(--fs-md);
-  font-weight: 700;
-  color: var(--ink);
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
   text-align: center;
-}
-
-/* The last few seconds are the ones people act on. */
-.review-timer.is-low {
-  background: var(--seal);
-  border-color: var(--seal);
-  color: var(--paper);
-}
-
-/* A bar draining is what tells someone the screen will move by itself; a
-   number alone reads as a countdown to something they have to do. */
-.review-bar {
-  flex: 0 0 auto;
-  width: 100%;
-  height: clamp(3px, 0.5vmin, 6px);
-  border-radius: 999px;
-  background: var(--ink-wash);
-  overflow: hidden;
-}
-
-.review-bar i {
-  display: block;
-  height: 100%;
-  width: 100%;
-  background: var(--ink);
-  border-radius: 999px;
-  transition: width 0.9s linear;
 }
 
 .review-sub {
