@@ -38,6 +38,11 @@ const DEFAULTS = {
   liveView: true, // show the live camera feed while posing
   liveViewFps: 12,
   cameraTimeoutMs: 25000,
+  // Focus the lens before each shot. Needed when the lens switch is on AF:
+  // a Canon in AF refuses to fire until it has locked focus. Costs about six
+  // seconds a shot. Turn it off and pre-focus by hand (lens switch on MF) for
+  // a much faster, more predictable booth.
+  cameraAutofocus: true,
 
   // --- review steps --- one decision per screen, each on its own clock
   pickSeconds: 30, // choosing which photos go on the paper

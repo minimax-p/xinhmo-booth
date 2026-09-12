@@ -87,6 +87,23 @@ class Camera extends EventEmitter {
   }
 
   /**
+   * One gphoto2 invocation that optionally focuses first.
+   *
+   * `autofocusdrive` only does anything while live view is up -- without
+   * `viewfinder=1` the camera accepts the command and quietly ignores it. Both
+   * settings have to ride along on the same command as the capture, because each
+   * gphoto2 run opens its own session and live view dies with it.
+   */
+  runCapture(destPath, autofocus) {
+    const args = [];
+    if (autofocus) {
+      args.push('--set-config', 'viewfinder=1', '--set-config', 'autofocusdrive=1');
+    }
+    args.push('--capture-image-and-download', '--force-overwrite', '--filename', destPath);
+    return run('gphoto2', args, this.cfg.cameraTimeoutMs);
+  }
+
+  /**
    * Take one photo. Resolves { ok, path } or { ok:false, error }.
    * Never rejects.
    */
@@ -105,16 +122,16 @@ class Camera extends EventEmitter {
       }
 
       await this.freeUsb();
-      const res = await run(
-        'gphoto2',
-        [
-          '--capture-image-and-download',
-          '--force-overwrite',
-          '--filename',
-          destPath,
-        ],
-        this.cfg.cameraTimeoutMs
-      );
+      const autofocus = this.cfg.cameraAutofocus !== false;
+      let res = await this.runCapture(destPath, autofocus);
+
+      // If focusing was the thing that failed, shoot again without it. At a live
+      // event a slightly soft photo beats no photo at all.
+      if (autofocus && (!res.ok || !fs.existsSync(destPath))) {
+        log.warn('[camera] autofocus capture failed, retrying without focus');
+        await delay(300);
+        res = await this.runCapture(destPath, false);
+      }
 
       if (!res.ok || !fs.existsSync(destPath)) {
         const error = friendlyError(res);
@@ -320,7 +337,7 @@ function friendlyError(res) {
     return 'No camera found. Check the USB cable and that the camera is on.';
   }
   if (/out of focus|focus/i.test(text)) {
-    return 'The camera could not focus. Set the lens switch to MF.';
+    return 'The camera could not focus. Set the lens switch to MF and focus by hand.';
   }
   if (/battery|power/i.test(text)) return 'The camera battery is low or it has powered off.';
   if (/card|storage/i.test(text)) return 'The camera has no memory card, or the card is full.';
