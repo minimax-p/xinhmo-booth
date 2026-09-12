@@ -1,6 +1,6 @@
 {
-  "captureCount": 10,
-  "countdownSeconds": 10,
+  "captureCount": 5,
+  "countdownSeconds": 3,
   "printerName": "Canon_SELPHY_CP1500",
   "printerMedia": "Postcard(4x6in)",
   "printDryRun": false,
@@ -48,6 +48,6 @@
   "staffPort": 8080,
   "webcamFallback": true,
   "beepLastSeconds": 3,
-  "readySeconds": 20,
+  "readySeconds": 10,
   "lockAfterSession": true
 }
