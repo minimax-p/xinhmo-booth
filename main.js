@@ -675,6 +675,20 @@ ipcMain.handle('staff:unlock', (_e, pin) => {
   return { ok };
 });
 
+/**
+ * Actually go and look for the camera again.
+ *
+ * camera.status() reports a flag set by the last detect(), which is normally
+ * the one at startup -- so a camera plugged in after the booth opened shows as
+ * missing forever, and the staff panel says "No camera found" while gphoto2 on
+ * the same machine can see it perfectly well. Re-detecting is the whole point
+ * of a button called Check again.
+ */
+ipcMain.handle('staff:redetect', async () => {
+  const res = await camera.detect();
+  return Object.assign(camera.status(), res);
+});
+
 ipcMain.handle('staff:status', async () => {
   const [printerStatus, queues] = await Promise.all([printer.status(), printer.listQueues()]);
   return {

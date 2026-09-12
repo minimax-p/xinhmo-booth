@@ -646,7 +646,15 @@ async function startSession(frameId) {
   $('poseHint').textContent = 'Look at the camera.';
   $('shotPill').textContent = `Photo 1 of ${shotsNeeded()}`;
 
-  if (!S.camMode) await chooseCameraSource();
+  // Look again every session rather than once per launch. This camera drops
+  // off the USB bus when it power-saves, and a booth that decided "webcam" at
+  // 6pm would still be saying it at midnight with the DSLR sitting there
+  // plugged in and awake. Re-checking costs a few seconds of the get-ready
+  // screen, which is time the group is using anyway, and it means the booth
+  // heals itself both ways: back to the DSLR when it returns, over to the
+  // webcam if it dies mid-evening.
+  S.camMode = null;
+  await chooseCameraSource();
   const webcam = S.camMode === 'webcam';
   $('liveVid').hidden = !webcam;
   $('liveImg').hidden = webcam;
@@ -1918,9 +1926,17 @@ function wireEvents() {
     unlockBooth();
     closeStaff();
   });
-  $('staffRecheck').addEventListener('click', () => {
+  $('staffRecheck').addEventListener('click', async () => {
+    // Go and look, rather than redrawing what we last heard. A DSLR plugged in
+    // after the booth opened is the normal case for this button.
+    toast('Looking for the camera\u2026');
     S.camMode = null;
     S.camError = null;
+    try {
+      await window.booth.staff.redetect();
+    } catch (err) {
+      log('error', 'redetect failed: ' + err.message);
+    }
     refreshStaffStatus();
   });
   $('staffCamera').addEventListener('click', async () => {

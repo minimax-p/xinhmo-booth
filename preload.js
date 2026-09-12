@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('booth', {
     unlock: (pin) => ipcRenderer.invoke('staff:unlock', pin),
     status: () => ipcRenderer.invoke('staff:status'),
     testPrint: () => ipcRenderer.invoke('staff:testPrint'),
+    redetect: () => ipcRenderer.invoke('staff:redetect'),
     restartCamera: () => ipcRenderer.invoke('staff:restartCamera'),
     openLogs: () => ipcRenderer.invoke('staff:openLogs'),
     quit: () => ipcRenderer.invoke('staff:quit'),
