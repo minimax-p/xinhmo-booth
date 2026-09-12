@@ -457,12 +457,18 @@ img.live:not([src]) {
   display: none;
 }
 
+/* This used to be a three-word whisper, because it only ever said "camera
+   preview is off". It now carries the reason and what to do about it, which
+   is a sentence someone has to be able to read across a booth. */
 .live-off {
   position: absolute;
-  color: rgba(255, 248, 238, 0.55);
+  max-width: 32ch;
+  padding: 0 1em;
+  color: rgba(255, 248, 238, 0.92);
   font-size: var(--fs-sm);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  line-height: 1.5;
+  text-align: center;
+  text-wrap: balance;
 }
 
 .stage-frame:has(#countdown:not([hidden])) .live-off {
