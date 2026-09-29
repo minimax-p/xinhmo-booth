@@ -10,8 +10,11 @@ const fs = require('fs');
 const path = require('path');
 
 const LOG_DIR = path.join(__dirname, 'logs');
-const KEEP_DAYS = 14;
-const MAX_BYTES = 64 * 1024 * 1024; // one day's log, capped
+// Three days of logs, a few megabytes each. Enough to ask someone to send you
+// last night's file; not enough to ever matter on disk. A runaway loop once
+// wrote 2.8 GB in an evening and filled the volume, so both limits are hard.
+const KEEP_DAYS = 3;
+const MAX_BYTES = 4 * 1024 * 1024;
 
 let stream = null;
 let streamDay = null;
@@ -24,10 +27,14 @@ function ensureStream() {
   try {
     fs.mkdirSync(LOG_DIR, { recursive: true });
     if (stream) stream.end();
-    stream = fs.createWriteStream(path.join(LOG_DIR, `booth-${day}.log`), { flags: 'a' });
+    const file = path.join(LOG_DIR, `booth-${day}.log`);
+    // Restarting mid-day appends to the file that is already there, so the
+    // count has to start from its real size or the cap would reset on
+    // every launch.
+    written = fs.existsSync(file) ? fs.statSync(file).size : 0;
+    stream = fs.createWriteStream(file, { flags: 'a' });
     stream.on('error', () => { stream = null; }); // never let logging crash the app
     streamDay = day;
-    written = 0;
     pruneOldLogs();
   } catch {
     stream = null;
@@ -35,16 +42,42 @@ function ensureStream() {
   return stream;
 }
 
+/** Drop anything older than KEEP_DAYS. Only ever our own files. */
 function pruneOldLogs() {
   try {
-    const cutoff = Date.now() - KEEP_DAYS * 86400000;
+    const keep = new Set();
+    for (let i = 0; i < KEEP_DAYS; i++) {
+      keep.add(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
+    }
     for (const f of fs.readdirSync(LOG_DIR)) {
-      const full = path.join(LOG_DIR, f);
-      if (fs.statSync(full).mtimeMs < cutoff) fs.unlinkSync(full);
+      const m = f.match(/^booth-(\d{4}-\d{2}-\d{2})\.log$/);
+      if (m && !keep.has(m[1])) fs.unlinkSync(path.join(LOG_DIR, f));
     }
   } catch {
     // housekeeping only
   }
+}
+
+/**
+ * Start the day's file over once it reaches the cap.
+ *
+ * Throwing away the older half and keeping what follows is deliberate: when
+ * something is going wrong now, the lines written now are the ones worth
+ * having, and a file that stopped recording hours ago tells you nothing.
+ */
+function rollFile() {
+  try {
+    const file = path.join(LOG_DIR, `booth-${streamDay}.log`);
+    if (stream) stream.end();
+    stream = fs.createWriteStream(file, { flags: 'w' });
+    stream.on('error', () => { stream = null; });
+    const note = `${new Date().toISOString()} [WARN] log reached ${MAX_BYTES / 1048576} MB, started over\n`;
+    stream.write(note);
+    written = note.length;
+  } catch {
+    stream = null;
+  }
+  return stream;
 }
 
 function write(level, args) {
@@ -52,19 +85,13 @@ function write(level, args) {
     .map((a) => (typeof a === 'string' ? a : safeJson(a)))
     .join(' ')}`;
   try {
-    // A booth left running for a weekend should not be able to fill the disk,
-    // whatever goes wrong. Past the cap the file stops growing and the console
-    // carries on, which is enough to see what is happening.
-    if (written < MAX_BYTES) {
-      const s = ensureStream();
-      if (s) {
-        if (written + line.length >= MAX_BYTES) {
-          s.write(`${line}\n${new Date().toISOString()} [WARN] log full, no more written today\n`);
-        } else {
-          s.write(line + '\n');
-        }
-        written += line.length + 1;
-      }
+    // A booth left running for a weekend must not be able to fill the disk,
+    // whatever goes wrong, so the file starts over rather than growing.
+    let s = ensureStream();
+    if (s && written + line.length + 1 > MAX_BYTES) s = rollFile();
+    if (s) {
+      s.write(line + '\n');
+      written += line.length + 1;
     }
   } catch {
     // ignore
