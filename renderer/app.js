@@ -26,6 +26,7 @@ const S = {
   frameId: null,
   decorId: null, // frame decoration, free
   decorImgs: {}, // id -> decoded overlay
+  art: {}, // frame art path -> Image, fetched when a design is first chosen
   filterId: 'none',
   addons: {}, // paid add-ons by id -> how many
   copies: 1,
@@ -243,8 +244,9 @@ function computeOrder() {
   const pricing = (S.cfg && S.cfg.pricing) || {};
   const cur = pricing.currency || '$';
   const frame = currentFrame();
-  const entry = frame && (pricing.frames || {})[frame.id];
-  const items = [{ label: frame ? frame.name : 'Photos', amount: entry ? entry.price : 0 }];
+  // A design costs what its layout costs; the art is free, like the filters.
+  const entry = frame && (pricing.frames || {})[frame.layout || frame.id];
+  const items = [{ label: frameLabel(frame), amount: entry ? entry.price : 0 }];
 
   const extraCopies = Math.max(0, S.copies - 1);
   if (extraCopies > 0) {
@@ -262,6 +264,12 @@ function computeOrder() {
   });
 
   return { cur, items, total: items.reduce((n, i) => n + i.amount, 0), frame };
+}
+
+/** "Trio", or "Trio · design 7": enough for staff to reprint the right one. */
+function frameLabel(frame) {
+  if (!frame) return 'Photos';
+  return frame.label ? `${frame.name} · design ${frame.label}` : frame.name;
 }
 
 /**
@@ -312,8 +320,9 @@ function frameGlyph(f) {
 /** Default to the frame whose slot count matches how many shots we take. */
 function pickDefaultFrame() {
   const n = (S.cfg && S.cfg.captureCount) || 4;
-  const exact = S.frames.find((f) => f.slotCount === n);
-  return (exact || S.frames[0] || {}).id || null;
+  const layouts = S.frames.filter((f) => !f.layout);
+  const exact = layouts.find((f) => f.slotCount === n);
+  return (exact || layouts[0] || {}).id || null;
 }
 
 function currentFrame() {
@@ -340,6 +349,46 @@ function currentDecor() {
   const meta = ((S.cfg && S.cfg.decor) || []).find((d) => d.id === S.decorId);
   if (!meta) return null;
   return { meta, img: S.decorImgs[meta.id] || null };
+}
+
+/**
+ * A frame's artwork, fetched and decoded once. Designs are too big to ship
+ * with the config, so each comes over when it is first chosen; the preview
+ * redraws as soon as it lands. Resolves to null if the file is missing, and a
+ * design with no art still prints -- just as its plain layout would.
+ */
+function loadArt(rel) {
+  if (!rel) return Promise.resolve(null);
+  if (!S.art[rel]) {
+    // { img } is only set once decoded: an Image still waiting for its source
+    // reports complete, so it cannot be trusted to say whether it is ready.
+    const entry = { img: null };
+    entry.ready = window.booth
+      .getArt(rel)
+      .then(
+        (url) =>
+          new Promise((res) => {
+            if (!url) return res(null);
+            const img = new Image();
+            img.onload = () => res((entry.img = img));
+            img.onerror = () => res(null);
+            img.src = url;
+          })
+      )
+      .catch(() => null);
+    S.art[rel] = entry;
+  }
+  return S.art[rel].ready;
+}
+
+/** Everything a frame draws with: its own art, and its keychain strip's. */
+function loadFrameArt(frame) {
+  if (!frame) return Promise.resolve();
+  return Promise.all([loadArt(frame.art), loadArt(frame.keychain && frame.keychain.art)]);
+}
+
+function artImage(rel) {
+  return (rel && S.art[rel] && S.art[rel].img) || null;
 }
 
 /** Decode every decoration once, at startup, so choosing one is instant. */
@@ -631,6 +680,13 @@ async function startSession(frameId) {
   if (S.locked) return;
   S.photos = [];
   S.selected = [];
+  // Decoded artwork is held per session, not for the life of the booth. A
+  // strip design costs 4 MB decoded and a sheet 8 MB, so a night in which
+  // every one of the sixty gets picked would otherwise end up carrying all of
+  // them -- around 330 MB of art nobody is looking at any more. The bytes
+  // themselves stay cached in the main process, so picking one again is a
+  // decode, not a disk read.
+  S.art = {};
   S.filterId = 'none';
   S.decorId = null;
   S.addons = {};
@@ -999,6 +1055,58 @@ function togglePhoto(idx) {
  */
 const DECOR_CELLS = 9;
 
+/** The priced layout a frame belongs to: itself, or the layout a design is on. */
+function layoutOf(frame) {
+  if (!frame) return null;
+  return frame.layout ? S.frames.find((f) => f.id === frame.layout) || frame : frame;
+}
+
+/**
+ * Every frame for the layout this session is on: the plain one first, then
+ * each design, shown whole so people can tell them apart at a glance.
+ *
+ * Rebuilt each time the step opens, because which designs apply depends on
+ * the layout chosen at the start of the session.
+ */
+function buildDesignTiles() {
+  const wrap = $('designTiles');
+  if (!wrap) return;
+  const base = layoutOf(currentFrame());
+  wrap.innerHTML = '';
+  if (!base) return;
+
+  const layoutDesigns = S.frames.filter((f) => f.layout === base.id);
+  wrap.classList.toggle('is-sheet', !(base.border && (base.border.rects || []).length > 1));
+
+  [base].concat(layoutDesigns).forEach((f) => {
+    const b = document.createElement('button');
+    b.className = 'design-tile';
+    b.dataset.frame = f.id;
+    // A strip design is one column of the sheet, so its thumbnail is a strip.
+    b.innerHTML =
+      (f.thumb
+        ? `<span class="design-art"><img src="${f.thumb}" alt=""></span>`
+        : `<span class="design-art is-plain">${frameGlyph(f)}</span>`) +
+      `<span class="design-name">${f.label ? escapeHtml(f.label) : 'Plain'}</span>`;
+    b.addEventListener('click', () => chooseFrame(f.id));
+    wrap.appendChild(b);
+  });
+  syncChips();
+}
+
+function chooseFrame(id) {
+  const frame = S.frames.find((f) => f.id === id);
+  if (!frame) return;
+  S.frameId = id;
+  // A design is its own decoration; one on top of the other would clash.
+  if (frame.layout) S.decorId = null;
+  syncChips();
+  drawPreview();
+  loadFrameArt(frame).then(() => {
+    if (S.frameId === id) drawPreview();
+  });
+}
+
 function buildDecorChips() {
   const wrap = $('decorChips');
   if (!wrap) return;
@@ -1108,6 +1216,12 @@ function syncChips() {
   document.querySelectorAll('#decorChips [data-decor]').forEach((c) =>
     c.classList.toggle('active', (c.dataset.decor || null) === S.decorId)
   );
+  document.querySelectorAll('#designTiles [data-frame]').forEach((c) =>
+    c.classList.toggle('active', c.dataset.frame === S.frameId)
+  );
+  const frame = currentFrame();
+  const picker = $('decorPicker');
+  if (picker) picker.hidden = !!(frame && frame.layout);
   document.querySelectorAll('[data-count]').forEach((el) => {
     const n = S.addons[el.dataset.count] || 0;
     el.textContent = String(n);
@@ -1218,8 +1332,11 @@ function drawFrameDesign(ctx, frame) {
     ctx.restore();
   });
 
+  drawArt(ctx, frame);
+
   // Optional printed rule: the poster's dashed cut line, drawn at print size.
-  if (frame.border) {
+  // Designs bring their own edges and switch it off.
+  if (frame.border && frame.border.stroke !== false) {
     const b = frame.border;
     const inset = Number.isFinite(b.inset) ? b.inset : 40;
     ctx.save();
@@ -1266,6 +1383,26 @@ function drawFrameDesign(ctx, frame) {
 }
 
 /**
+ * A design's artwork, over the photos. The photos fill each hole's box and the
+ * art trims them to shape, which is how a heart or a star gets its outline. A
+ * strip's art is one column, drawn into each column; a sheet's covers it all.
+ * Never filtered: the filter is for faces, the frame keeps its colours.
+ */
+function drawArt(ctx, frame) {
+  const img = artImage(frame.art);
+  if (!img) return;
+  const rects = frame.border && frame.border.rects;
+  const targets =
+    Array.isArray(rects) && rects.length
+      ? rects
+      : [{ x: 0, y: 0, w: frame.width, h: frame.height }];
+  ctx.save();
+  ctx.filter = 'none';
+  targets.forEach((r) => ctx.drawImage(img, r.x, r.y, r.w, r.h));
+  ctx.restore();
+}
+
+/**
  * Lay the chosen decoration over the strip.
  *
  * Art is authored at one column's proportions, so a two-column layout gets the
@@ -1302,7 +1439,8 @@ function drawCutLine(ctx, frame, ink) {
 
   const left = rects[0].x + rects[0].w;
   const right = rects[1].x;
-  if (right <= left) return;
+  // Designs' columns meet edge to edge; the cut is right where they meet.
+  if (right < left) return;
   const x = (left + right) / 2;
 
   ctx.save();
@@ -1338,6 +1476,20 @@ function stripRegion(frame) {
 function compositeStrip(canvas) {
   const frame = currentFrame();
   if (!frame) return false;
+
+  // A sheet layout is two photos wide and a keychain is one, so cutting a
+  // column out of it would halve the photos. Such a frame carries a strip of
+  // its own -- the same photos, stacked -- drawn at strip size.
+  if (frame.keychain) {
+    const k = frame.keychain;
+    canvas.width = k.width;
+    canvas.height = k.height;
+    const kctx = canvas.getContext('2d');
+    kctx.fillStyle = paperColour(k);
+    kctx.fillRect(0, 0, k.width, k.height);
+    drawFrameDesign(kctx, k);
+    return true;
+  }
 
   const src = document.createElement('canvas');
   src.width = frame.width;
@@ -1694,6 +1846,7 @@ function gotoStep(id) {
   // the pickup code is up, but a focused button and a stray key press is, and
   // the whole point of the lock is that only staff move the booth on.
   if (S.locked) return;
+  if (id === 'frame') buildDesignTiles();
   show(id);
   drawPreview();
   runStepTimer(step);
@@ -1732,9 +1885,11 @@ function stopStepTimer() {
   S.stepTimer = null;
 }
 
-/** Wait until every selected photo has actually decoded. */
+/** Wait until every selected photo, and the frame's art, has actually decoded. */
 async function waitForImages(timeoutMs = 8000) {
   const start = Date.now();
+  // A design printed without its art would come out as bare photos on white.
+  await Promise.race([loadFrameArt(currentFrame()), sleep(timeoutMs)]);
   for (;;) {
     const pending = S.selected
       .map((i) => S.photos[i] && S.photos[i].img)
@@ -1784,7 +1939,8 @@ async function doPrint() {
       dataUrl,
       copies: S.copies,
       frameId: order.frame ? order.frame.id : null,
-      frameName: order.frame ? order.frame.name : 'Photos',
+      layoutId: order.frame ? order.frame.layout || order.frame.id : null,
+      frameName: frameLabel(order.frame),
       items: order.items,
       total: order.total,
       stripDataUrl: stripUrl,
