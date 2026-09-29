@@ -175,8 +175,15 @@ function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartS
       if (Number.isFinite(body.print)) {
         qty.print = Math.max(1, Math.min(cfg.maxCopies || 3, body.print));
       }
+      // Anything with a height is cut from the session's strip. A Grand sheet
+      // never had one, so the booth did not offer these and the phone must not
+      // either -- an order taken here would have nothing to print from.
       for (const a of (cfg.pricing || {}).addons || []) {
-        if (Number.isFinite(body[a.id])) qty[a.id] = Math.max(0, Math.min(20, body[a.id]));
+        if (!Number.isFinite(body[a.id])) continue;
+        if (a.heightMm && !o.stripPath) {
+          return json(res, 409, { error: `no strip in this order, so no ${a.name}` });
+        }
+        qty[a.id] = Math.max(0, Math.min(20, body[a.id]));
       }
       // Never book fewer than have already come out of the printer.
       for (const k of Object.keys(qty)) {
@@ -301,6 +308,7 @@ const PAGE = `<!doctype html>
     font-size:13px;opacity:.6}
   .qrows{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
   .qrow{display:flex;align-items:center;gap:10px;padding:5px 0}
+  .qrow.off{opacity:.45}
   .qname{font-size:14px;text-transform:capitalize}
   .qname b{font-weight:600;color:var(--soft)}
   .done{display:block;font-size:11px;color:var(--ok)}
@@ -589,15 +597,23 @@ const PAGE = `<!doctype html>
     // One row per thing that can be sold, each with its own count. Quantities
     // rather than on/off, because "how many" is what staff actually get asked.
     var products=[{id:'print',name:'photo print'}].concat((pricing.addons||[]).map(function(a){
-      return {id:a.id,name:a.name,price:a.price};
+      return {id:a.id,name:a.name,price:a.price,strip:!!a.heightMm};
     }));
+    // A Grand sheet keeps no strip, so there is nothing to cut a keychain or a
+    // charm out of. Shown greyed with the reason rather than hidden: staff get
+    // asked for one, and "this frame cannot" is the answer they need.
+    var hasStrip=!!o.stripPath;
     var rows=products.map(function(pr){
       var n=(o.qty||{})[pr.id]||0, done=(o.printed||{})[pr.id]||0;
-      return '<div class="qrow"><span class="qname">'+pr.name+
+      var off=pr.strip&&!hasStrip;
+      return '<div class="qrow'+(off?' off':'')+'"><span class="qname">'+pr.name+
         (pr.price?' <b>'+money(pr.price)+'</b>':'')+
-        (done?'<span class="done">'+done+' printed</span>':'')+'</span>'+
-        '<span class="stepper"><button data-q="'+pr.id+'" data-d="-1">&minus;</button>'+
-        '<span>'+n+'</span><button data-q="'+pr.id+'" data-d="1">+</button></span></div>';
+        (done?'<span class="done">'+done+' printed</span>':'')+
+        (off?'<span class="done">no strip on this frame</span>':'')+'</span>'+
+        (off?'<span class="stepper"><span>&mdash;</span></span>'
+            :'<span class="stepper"><button data-q="'+pr.id+'" data-d="-1">&minus;</button>'+
+             '<span>'+n+'</span><button data-q="'+pr.id+'" data-d="1">+</button></span>')+
+        '</div>';
     }).join('');
 
     var owedPrints=owed('print');

@@ -49,13 +49,6 @@ MIN_HOLE = 0.01     # of the image area; smaller clear patches are art, not hole
 BLEED = 6           # px the photo runs under the art (0.5 mm at 300 dpi)
 MERGE = 0.10        # boxes overlapping this much of the smaller one are one hole
 
-# Grand designs that come in a matching Quad strip, used for their keychain.
-# The first six of each are the same plain template in the same six colours.
-KEYCHAIN_MATCH = {f"B{n}": f"SV-{n}" for n in range(1, 7)}
-
-# Where four photos sit in a plain strip: the plain Quad template's holes. A
-# Grand design with no matching strip gets these on its own paper colour.
-PLAIN_QUAD = [(60, 158, 480, 310), (60, 525, 480, 310), (60, 892, 480, 311), (60, 1260, 480, 310)]
 
 
 def number(path):
@@ -197,20 +190,11 @@ def main(src):
             designs.append(entry)
             print(f"  {did:14} {len(holes)} holes  paper {entry['background']}")
 
-    # Keychains: a Grand sheet is two photos wide, and the insert is one, so a
-    # Grand keychain is a strip of its own. Where the design has a matching
-    # Quad strip, use that art; otherwise stack the photos on its paper colour.
-    for d in designs:
-        if d["layout"] != "grand_4":
-            continue
-        stem = Path(d["art"]).stem
-        match = KEYCHAIN_MATCH.get(stem)
-        if match and match in holes_by_name:
-            rel, holes = holes_by_name[match]
-            d["keychain"] = {"art": rel, "holes": holes}
-        else:
-            d["keychain"] = {"background": d["background"],
-                             "holes": [dict(zip("xywh", r)) for r in PLAIN_QUAD]}
+    # No keychains from a Grand sheet. It is two photos wide and the insert is
+    # one, so anything small has to be a different picture from the one that
+    # was printed -- either a stranger's frame borrowed from the Quad set, or
+    # the photos stacked on bare paper. Both were worse than not offering it,
+    # so the booth says so at the menu instead.
 
     (OUT / "designs.json").write_text(json.dumps(designs, indent=1))
     size = sum(p.stat().st_size for p in OUT.rglob("*") if p.is_file())

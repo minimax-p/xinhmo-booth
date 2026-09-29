@@ -145,12 +145,22 @@ async function checkAsync(name, fn) {
     return true;
   });
   check('every design has a picker thumbnail', () => designs.every((d) => d.thumb));
-  // A keychain is one photo wide. Strips cut a column off; a layout two photos
-  // wide must bring a stacked strip of its own, or its keychain is half a sheet.
-  check('every frame can make a keychain strip', () => {
+  // A keychain is one photo wide, so it is cut from a strip. A two-column
+  // layout has one; a sheet does not, and must not claim otherwise -- the
+  // booth reads exactly this to decide whether to offer the add-ons at all.
+  check('only strip frames claim a keychain', () => {
+    let sheets = 0;
     for (const f of all) {
       const cols = ((f.border || {}).rects || []).length;
-      if (cols !== 2 && !f.keychain) throw new Error(`${f.id}: no keychain strip`);
+      if (cols === 2) continue;
+      sheets++;
+      if (f.keychain) throw new Error(`${f.id}: a sheet offering a keychain`);
+    }
+    if (!sheets) throw new Error('no sheet frames found to check');
+    return `${sheets} sheet frames, none offering one`;
+  });
+  check('strip frames hold every photo on their strip', () => {
+    for (const f of all) {
       if (f.keychain && f.keychain.slots.length < f.slotCount) {
         throw new Error(`${f.id}: keychain strip holds fewer photos than the print`);
       }

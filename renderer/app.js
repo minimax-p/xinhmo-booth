@@ -215,7 +215,11 @@ function buildMenu() {
       `<span class="menu-glyph">${frameGlyph(f)}</span>` +
       `<span class="menu-name">${escapeHtml(f.name)}</span>` +
       `<span class="menu-price">${cur}${entry.price}</span>` +
-      `<span class="menu-note">${shots}${entry.note ? ' · ' + escapeHtml(entry.note) : ''}</span>`;
+      `<span class="menu-note">${shots}${entry.note ? ' · ' + escapeHtml(entry.note) : ''}</span>` +
+      // Said here, at the only moment the choice is still open. Finding out at
+      // the till that this frame cannot do keychains is finding out too late:
+      // the layout is settled on the get-ready screen and never reopens.
+      (frameHasStrip(f) ? '' : '<span class="menu-warn">no keychains or charms</span>');
     b.addEventListener('click', () => startSession(f.id));
     list.appendChild(b);
   });
@@ -223,11 +227,13 @@ function buildMenu() {
   const addons = pricing.addons || [];
   const ad = $('menuAddons');
   if (ad) {
+    const stripOnly = addons.some((x) => x.heightMm) && priced.some((f) => !frameHasStrip(f));
     ad.innerHTML = addons.length
       ? '<span class="menu-addons-label">Add-ons</span>' +
         addons
           .map((x) => `<span class="menu-addon">${x.name} <b>${cur}${x.price}</b></span>`)
-          .join('')
+          .join('') +
+        (stripOnly ? '<span class="menu-addons-fine">strip frames only</span>' : '')
       : '';
   }
   const fine = $('menuFine');
@@ -1055,6 +1061,29 @@ function togglePhoto(idx) {
  */
 const DECOR_CELLS = 9;
 
+/**
+ * Can this frame make a strip one photo wide?
+ *
+ * Keychains and charms are cut from a strip, so this is really the question
+ * "can anything small be made of this?". A Grand sheet is two photos across;
+ * a strip of it would either halve the picture or have to borrow a frame that
+ * was never drawn for these photos. It cannot, and the booth says so from the
+ * menu onwards rather than discovering it at the till.
+ */
+function frameHasStrip(frame) {
+  if (!frame) return false;
+  if (frame.keychain) return true;
+  return (((frame.border || {}).rects) || []).length > 1;
+}
+
+/** The add-ons this frame can actually produce. */
+function addonsFor(frame) {
+  const all = ((S.cfg && S.cfg.pricing) || {}).addons || [];
+  // Anything with a height is cut from the strip; anything else is just a
+  // line on the bill and can be sold against any frame.
+  return frameHasStrip(frame) ? all : all.filter((a) => !a.heightMm);
+}
+
 /** The priced layout a frame belongs to: itself, or the layout a design is on. */
 function layoutOf(frame) {
   if (!frame) return null;
@@ -1150,7 +1179,7 @@ function buildAddonRows() {
   if (!wrap) return;
   const pricing = (S.cfg && S.cfg.pricing) || {};
   const cur = pricing.currency || '$';
-  const addons = pricing.addons || [];
+  const addons = addonsFor(currentFrame());
   wrap.innerHTML = '';
 
   addons.forEach((a) => {
@@ -1178,7 +1207,19 @@ function buildAddonRows() {
   });
 
   const hint = $('addonHint');
-  if (hint) hint.textContent = addons.length ? 'pay at the table' : '';
+  if (hint) {
+    hint.textContent = addons.length
+      ? 'pay at the table'
+      : 'not available for this frame';
+  }
+  // Say why the row is missing, rather than leaving a blank panel.
+  const none = $('addonNone');
+  if (none) {
+    none.hidden = addons.length > 0;
+    none.textContent = addons.length
+      ? ''
+      : 'Keychains and charms are cut from a photo strip. This frame prints one large sheet, so there is no strip to cut.';
+  }
 }
 
 /** Keep the price in front of people while they are still changing things. */
@@ -1476,10 +1517,11 @@ function stripRegion(frame) {
 function compositeStrip(canvas) {
   const frame = currentFrame();
   if (!frame) return false;
+  // Nothing small can be made of a sheet, so no strip is kept for one.
+  if (!frameHasStrip(frame)) return false;
 
-  // A sheet layout is two photos wide and a keychain is one, so cutting a
-  // column out of it would halve the photos. Such a frame carries a strip of
-  // its own -- the same photos, stacked -- drawn at strip size.
+  // A frame may carry a strip of its own -- the same photos, stacked -- drawn
+  // at strip size rather than cut from the printed sheet.
   if (frame.keychain) {
     const k = frame.keychain;
     canvas.width = k.width;
