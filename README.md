@@ -37,7 +37,20 @@ main process (main.js)          renderer (renderer/app.js)
 - A Canon DSLR on USB. Developed against the EOS Rebel T6 / 1300D.
 - A Canon Selphy CP1500 or similar, added as a printer
 
-## First run
+## Moving to another Mac
+
+```bash
+scripts/make-bundle.sh      # -> ~/Desktop/Xinhmo-Booth.zip, committed files only
+```
+
+Send the zip however you like. On the other Mac: unzip, open `START-HERE.txt`,
+double-click `TEST-MODE.command`. Nothing else needs installing by hand: on a
+Mac without them, the first double-click installs Homebrew, Node.js and
+gphoto2, downloads the app's parts, and runs the self-test (`scripts/setup.sh`
+does this, and does nothing on a Mac already set up). It needs internet and the
+Mac's login password once, from an administrator account.
+
+## First run (by hand, for development)
 
 ```bash
 npm install
@@ -52,11 +65,12 @@ actually reachable.
 
 For staff, the two double-clickable files are the whole interface:
 
-- `START-BOOTH.command` runs the booth, installing dependencies on first use and
+- `START-BOOTH.command` runs the booth, setting the Mac up on first use and
   restarting the app automatically if it ever stops unexpectedly.
 - `TEST-MODE.command` runs it with no camera and no printing, for training.
 
-On macOS you may need to allow these once: right-click, Open, then Open again.
+On macOS you may need to allow the first one: right-click, Open, then Open
+again. After that the setup clears the download flag, so the rest just open.
 
 ## Settings
 
@@ -189,6 +203,11 @@ For unattended use, also:
 npm run check      # settings, frames, camera, printer, geometry
 node scripts/e2e.js  # drives a whole session end to end, no hardware needed
 ```
+
+**`e2e.js` deletes the whole `sessions/` folder before it starts**, order
+queue included, and it cannot run while the booth is open (one instance at a
+time). Quit the booth and copy `sessions/` somewhere first on a machine that
+has taken real orders.
 
 The end-to-end test launches the app, runs a full customer session through live
 view, capture, editing, filters, and printing, and checks the resulting print

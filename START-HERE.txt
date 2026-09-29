@@ -1,0 +1,39 @@
+XINHMO BOOTH -- START HERE
+==========================
+
+Needs: a Mac, internet for the first run, and the Mac's login password.
+
+
+1. TRY IT (no camera or printer needed)
+
+   Double-click  TEST-MODE.command
+
+   The first time, macOS will say it "cannot be opened". Instead:
+     right-click TEST-MODE.command  >  Open  >  Open
+   You only have to do this once.
+
+   The first run sets everything up by itself: 5-15 minutes.
+   - It asks for this Mac's password. Nothing shows while you type. Press Return.
+   - Click "Allow" on any pop-up asking about the camera or files.
+
+   When the booth window opens, tap through a session. Nothing prints.
+
+
+2. RUN THE REAL BOOTH
+
+   Plug in the camera and printer, then double-click  START-BOOTH.command
+   Leave the black Terminal window open while the booth runs.
+
+   No Canon camera? It uses the Mac's own camera instead.
+
+
+IF SOMETHING IS OFF
+
+   Printer does nothing:
+     System Settings > Printers & Scanners > add the printer.
+     Then open settings.json and set "printerName" to that printer's name,
+     written exactly as the Printers list shows it, with _ instead of spaces.
+
+   Staff menu code is "staffPin" in settings.json (it is 1234 -- change it).
+
+   Everyday running: OPERATORS-GUIDE.md
