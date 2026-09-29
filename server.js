@@ -62,7 +62,10 @@ function readBody(req) {
  */
 function retotal(order, pricing) {
   const qty = order.qty || {};
-  const framePrice = ((pricing.frames || {})[order.frameId] || {}).price || 0;
+  // A design is priced as its layout. Orders from before designs have no
+  // layoutId, and their frameId was the layout.
+  const priceId = order.layoutId || order.frameId;
+  const framePrice = ((pricing.frames || {})[priceId] || {}).price || 0;
   const items = [{ label: order.frameName || order.frameId, amount: framePrice }];
 
   const extraCopies = Math.max(0, (qty.print || 1) - 1);

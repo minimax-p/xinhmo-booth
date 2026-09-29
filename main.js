@@ -539,6 +539,24 @@ function rendererConfig() {
 
 ipcMain.handle('app:config', () => rendererConfig());
 
+/**
+ * One frame's artwork, as a data URL. Designs are megabytes each, so they are
+ * fetched when chosen rather than shipped with the config; and as data, not a
+ * file:// link, because a file image would taint the canvas and the print
+ * could not be saved. Only files inside frames/ are served.
+ */
+const artCache = new Map();
+ipcMain.handle('art:get', (_e, rel) => {
+  const file = frames.artFile(rel);
+  if (!file) return null;
+  if (!artCache.has(file)) {
+    const ext = path.extname(file).slice(1).toLowerCase();
+    const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
+    artCache.set(file, `data:${mime};base64,` + fs.readFileSync(file).toString('base64'));
+  }
+  return artCache.get(file);
+});
+
 ipcMain.handle('camera:detect', async () => {
   const res = await camera.detect();
   return Object.assign(camera.status(), res);
@@ -625,6 +643,7 @@ ipcMain.handle('order:submit', async (_e, order) => {
       stripPath,
       copies: Math.max(1, Math.min(cfg.maxCopies, parseInt(order.copies, 10) || 1)),
       frameId: order.frameId,
+      layoutId: order.layoutId || order.frameId,
       frameName: order.frameName,
       items: order.items || [],
       total: order.total || 0,

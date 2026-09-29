@@ -9,6 +9,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('booth', {
   // setup
   getConfig: () => ipcRenderer.invoke('app:config'),
+  getArt: (rel) => ipcRenderer.invoke('art:get', String(rel)),
   log: (level, msg) => ipcRenderer.invoke('app:log', level, String(msg)),
 
   // camera
