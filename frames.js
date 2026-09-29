@@ -92,7 +92,9 @@ function all() {
     console.error('[frames] frames.json unreadable, using built-ins:', err.message);
   }
 
-  return list.filter(valid).map((f) => {
+  const layouts = list.filter(valid);
+  // Layouts first: they are what the menu offers and what a session starts on.
+  return layouts.concat(designs(layouts)).map((f) => {
     const out = Object.assign({}, f);
     // A slot may name which selected photo it draws (`photo`), so a two-column
     // strip repeats the same 3 or 4 photos. slotCount is what the customer picks.
@@ -100,14 +102,100 @@ function all() {
       (n, sl, i) => Math.max(n, (Number.isFinite(sl.photo) ? sl.photo : i) + 1),
       0
     );
-    if (f.overlay) {
-      const p = path.join(FRAMES_DIR, f.overlay);
-      out.overlayPath = fs.existsSync(p) ? p : null;
-    } else {
-      out.overlayPath = null;
-    }
+    // `overlay` is the older name for art on a hand-written frame.
+    if (f.overlay && !f.art) out.art = f.overlay;
+    delete out.overlay;
     return out;
   });
+}
+
+/**
+ * Designed frames: artwork over one of the layouts above.
+ *
+ * frames/designs/designs.json is written by scripts/import-designs.py and says,
+ * for every piece of art, which layout it belongs to and where its photo holes
+ * are. Each becomes a frame of its own -- same size and price as its layout,
+ * its own slots, and the art drawn over the photos. A strip design is authored
+ * as one 600px column and printed twice, side by side, like every strip.
+ *
+ * The art itself stays on disk (it is megabytes); the renderer asks for the one
+ * it needs. Only the small picker thumbnail travels with the frame list.
+ */
+const DESIGNS_DIR = path.join(FRAMES_DIR, 'designs');
+
+function designs(layouts) {
+  let list = [];
+  try {
+    const p = path.join(DESIGNS_DIR, 'designs.json');
+    if (!fs.existsSync(p)) return [];
+    list = JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (err) {
+    console.error('[frames] designs.json unreadable, offering none:', err.message);
+    return [];
+  }
+
+  const out = [];
+  for (const d of Array.isArray(list) ? list : []) {
+    const base = layouts.find((f) => f.id === d.layout);
+    if (!base || !Array.isArray(d.holes) || !d.holes.length || !d.art) continue;
+
+    // Strips repeat the art in both columns; the sheet layout is one piece.
+    const strip = Array.isArray((base.border || {}).rects) && base.border.rects.length > 1;
+    const colW = strip ? base.width / 2 : base.width;
+    const columns = strip
+      ? [{ x: 0, y: 0, w: colW, h: base.height }, { x: colW, y: 0, w: colW, h: base.height }]
+      : [{ x: 0, y: 0, w: base.width, h: base.height }];
+    const slots = [];
+    columns.forEach((c) =>
+      d.holes.forEach((h, i) => slots.push({ x: c.x + h.x, y: c.y + h.y, w: h.w, h: h.h, photo: i }))
+    );
+
+    let thumb = null;
+    try {
+      thumb =
+        'data:image/jpeg;base64,' +
+        fs.readFileSync(path.join(DESIGNS_DIR, d.thumb)).toString('base64');
+    } catch {
+      // A missing thumbnail only costs the picker its picture.
+    }
+
+    out.push({
+      id: d.id,
+      name: base.name,
+      label: d.label,
+      layout: base.id,
+      width: base.width,
+      height: base.height,
+      background: d.background || '#FFFFFF',
+      art: 'designs/' + d.art,
+      thumb,
+      // The columns are where the art goes and where strips are cut apart,
+      // but the art brings its own edges, so no dashed rule is drawn.
+      border: { stroke: false, rects: columns },
+      slots,
+      keychain: d.keychain ? keychainFrame(d.keychain) : undefined,
+    });
+  }
+  return out;
+}
+
+/** A keychain strip for a sheet design, as a small frame of its own. */
+function keychainFrame(k) {
+  return {
+    width: 600,
+    height: 1800,
+    background: k.background || '#FFFFFF',
+    art: k.art ? 'designs/' + k.art : undefined,
+    border: { stroke: false, rects: [{ x: 0, y: 0, w: 600, h: 1800 }] },
+    slots: (k.holes || []).map((h, i) => ({ x: h.x, y: h.y, w: h.w, h: h.h, photo: i })),
+  };
+}
+
+/** The file behind an art path, or null if it is not a file inside frames/. */
+function artFile(rel) {
+  const full = path.resolve(FRAMES_DIR, String(rel || ''));
+  if (!full.startsWith(FRAMES_DIR + path.sep)) return null;
+  return fs.existsSync(full) && fs.statSync(full).isFile() ? full : null;
 }
 
 function valid(f) {
@@ -121,4 +209,4 @@ function valid(f) {
   );
 }
 
-module.exports = { all, FRAMES_DIR };
+module.exports = { all, artFile, FRAMES_DIR };
