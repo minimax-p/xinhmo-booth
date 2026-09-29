@@ -68,7 +68,10 @@ ensure_ready() {
   if [ ! -d node_modules ]; then
     echo ""
     say "Downloading the booth's parts (about 200 MB)..."
-    npm install --no-audit --no-fund \
+    # --loglevel=error: npm's deprecation notices are about build tooling the
+    # booth never runs, and "security vulnerabilities" scrolling past would
+    # only alarm whoever is setting this up. Real errors still show.
+    npm install --no-audit --no-fund --loglevel=error \
       || stop_setup "The download failed. Check the internet connection and double-click START-BOOTH again."
 
     # Once, right after a fresh install: prove the machine works before anyone
