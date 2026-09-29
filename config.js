@@ -127,18 +127,28 @@ const SETTINGS_PATH = path.join(ROOT, 'settings.json');
 
 let cached = null;
 
-function load() {
-  if (cached) return cached;
-  let fromFile = {};
+/** Just what the operator wrote, with no defaults or env vars folded in. */
+function readFile() {
   try {
     if (fs.existsSync(SETTINGS_PATH)) {
-      fromFile = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'));
+      return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'));
     }
   } catch (err) {
     // Bad JSON should not stop the booth. Defaults win and the log records it.
     console.error('[config] settings.json unreadable, using defaults:', err.message);
-    fromFile = {};
   }
+  return {};
+}
+
+/** Forget the cached copy, so the next load() reads the file again. */
+function reload() {
+  cached = null;
+  return load();
+}
+
+function load() {
+  if (cached) return cached;
+  const fromFile = readFile();
 
   const merged = Object.assign({}, DEFAULTS, fromFile);
 
@@ -178,19 +188,46 @@ function load() {
   return cached;
 }
 
+/**
+ * Change settings.json, keeping it the operator's file.
+ *
+ * Built from what is on disk rather than from the merged config, for two
+ * reasons. Writing the merged copy back would bake every default into the
+ * file, so it stopped being a short list of deliberate choices. Worse, it
+ * would bake in the environment overrides too: change a timing from the phone
+ * while the booth happens to be running under PB_PRINT_DRYRUN=1 and
+ * printDryRun:true would be written to settings.json for good, and the booth
+ * would quietly stop printing -- at an event, with nobody knowing why.
+ *
+ * Re-read on the way out rather than trusting the patch: staff edit these from
+ * a phone, and the clamps are the only thing between a typo and a booth that
+ * waits three hours between shots.
+ */
 function save(patch) {
-  const next = Object.assign({}, load(), patch || {});
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(stripRuntime(next), null, 2));
-  // Re-read rather than trusting the patch: staff edit these from a phone, and
-  // the clamps are the only thing standing between a typo and a booth that
-  // waits three hours between shots.
-  cached = null;
-  return load();
+  const next = Object.assign({}, readFile(), patch || {});
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(next, null, 2));
+  return reload();
 }
 
-function stripRuntime(obj) {
-  const copy = Object.assign({}, obj);
-  return copy;
+/**
+ * Tell me when the file changes underneath us.
+ *
+ * Hand-editing settings.json used to do nothing until the booth was
+ * restarted, because the merged config was cached for the life of the
+ * process. watchFile rather than watch: editors save by writing a new file
+ * and renaming it over the old one, which loses an fs.watch on the inode.
+ */
+function watch(onChange) {
+  let timer = null;
+  fs.watchFile(SETTINGS_PATH, { interval: 1000 }, () => {
+    // Editors touch the file more than once per save; settle first.
+    clearTimeout(timer);
+    timer = setTimeout(() => onChange(reload()), 250);
+  });
+  return () => {
+    clearTimeout(timer);
+    fs.unwatchFile(SETTINGS_PATH);
+  };
 }
 
 function truthy(v) {
@@ -204,4 +241,4 @@ function clamp(n, lo, hi) {
   return Math.min(hi, Math.max(lo, n));
 }
 
-module.exports = { load, save, DEFAULTS, SETTINGS_PATH, ROOT };
+module.exports = { load, save, reload, watch, DEFAULTS, SETTINGS_PATH, ROOT };

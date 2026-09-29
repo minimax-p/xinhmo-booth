@@ -338,8 +338,7 @@ app.whenReady().then(async () => {
       // to be restarted to change a number would never get the number changed.
       onSettings: (patch) => {
         const next = config.save(patch);
-        Object.assign(cfg, next);
-        send('app:settings', rendererConfig());
+        applySettings(next);
         log.info('[main] settings updated from the staff phone');
         return { ok: true, settings: timingSettings(), phases: timingPhases() };
       },
@@ -536,6 +535,31 @@ function rendererConfig() {
   frames: frames.all(),
   };
 }
+
+/**
+ * Take a fresh config and put it in front of the customer immediately.
+ *
+ * cfg is handed around by reference, so it is updated in place rather than
+ * replaced: a booth that had to be restarted to change a number would never
+ * get the number changed.
+ */
+function applySettings(next) {
+  Object.assign(cfg, next);
+  send('app:settings', rendererConfig());
+}
+
+/**
+ * Hand-edits to settings.json take effect as soon as the file is saved.
+ *
+ * Until now the merged config was read once at startup and cached for the life
+ * of the process, so editing the file did nothing at all until the booth was
+ * restarted -- with no hint that the change had been ignored.
+ */
+const unwatchSettings = config.watch((next) => {
+  applySettings(next);
+  log.info('[main] settings.json changed on disk, reloaded');
+});
+app.on('will-quit', () => unwatchSettings());
 
 ipcMain.handle('app:config', () => rendererConfig());
 
