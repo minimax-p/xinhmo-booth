@@ -153,12 +153,17 @@
                   <canvas id="frameCanvas" class="preview-canvas"></canvas>
                 </div>
                 <div class="edit-controls">
-                  <!-- Decoration only. The layout was settled on the
-                       get-ready screen and the photos were framed for it;
-                       changing it here would re-crop shots that were composed
-                       for a different shape. -->
+                  <!-- Designs for the layout already chosen, never another
+                       layout. The layout was settled on the get-ready screen
+                       and the photos were framed for it; changing it here
+                       would re-crop shots composed for a different shape. -->
                   <div class="picker">
                     <h2 class="section-title">Frame <span class="section-hint">free</span></h2>
+                    <div class="design-grid" id="designTiles"></div>
+                  </div>
+                  <!-- Only for the plain frame: a design brings its own art. -->
+                  <div class="picker" id="decorPicker">
+                    <h2 class="section-title">Decoration <span class="section-hint">plain frame</span></h2>
                     <div class="decor-grid" id="decorChips"></div>
                   </div>
                 </div>

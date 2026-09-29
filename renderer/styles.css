@@ -1804,6 +1804,86 @@ img.live:not([src]) {
   pointer-events: none;
 }
 
+/*
+  Designs: whole frames, so the whole thing is shown, at its real shape. Unlike
+  the decorations (edge treatments, shown as a corner at 1:1), a design is
+  told apart by its colours and overall layout, which survive shrinking.
+  Strips are tall, so they get narrow columns; the sheet layout is wider.
+  There are twenty-odd per layout; the panel around this scrolls.
+*/
+.design-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(46px, 7.4vmin, 84px), 1fr));
+  gap: clamp(6px, 1.2vmin, 12px);
+  width: 100%;
+}
+
+.design-grid.is-sheet {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(64px, 11vmin, 130px), 1fr));
+}
+
+.design-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: clamp(3px, 0.6vmin, 6px);
+  padding: clamp(3px, 0.6vmin, 6px);
+  border: 1px solid var(--ink-line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  min-width: 0;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.design-tile.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+.design-tile:active {
+  background: var(--ink-wash);
+}
+
+.design-art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 3;
+  overflow: hidden;
+  background: var(--paper-2);
+}
+
+.design-grid.is-sheet .design-art {
+  aspect-ratio: 2 / 3;
+}
+
+.design-art img,
+.design-art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* The plain frame has no picture, so it gets its outline, drawn from the
+   real slot geometry like the menu cards. */
+.design-art.is-plain {
+  color: var(--ink);
+  padding: 8%;
+}
+
+.design-name {
+  font-family: var(--serif);
+  font-size: var(--fs-xs);
+  line-height: 1.1;
+  text-align: center;
+}
+
+[hidden].picker {
+  display: none;
+}
+
 /* The frame step has one control and it is three rows tall, so in portrait it
    gets an even split with the preview rather than the 1.4:1 the other steps
    use; without this the last row of tiles sits under the fold.
