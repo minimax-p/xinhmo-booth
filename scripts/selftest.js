@@ -117,6 +117,47 @@ async function checkAsync(name, fn) {
     `a layout needs more than ${cfg.captureCount} photos`
   );
 
+  // Designs: art over a layout, imported by scripts/import-designs.py.
+  const layouts = all.filter((f) => !f.layout);
+  const designs = all.filter((f) => f.layout);
+  check('designs belong to a priced layout', () => {
+    const priced = (cfg.pricing || {}).frames || {};
+    for (const d of designs) {
+      if (!layouts.some((l) => l.id === d.layout)) throw new Error(`${d.id}: no layout ${d.layout}`);
+      if (!priced[d.layout]) throw new Error(`${d.id}: ${d.layout} has no price`);
+    }
+    return `${designs.length} designs`;
+  });
+  check('every design holds the same photos as its layout', () => {
+    for (const d of designs) {
+      const base = layouts.find((l) => l.id === d.layout);
+      if (d.slotCount !== base.slotCount) {
+        throw new Error(`${d.id}: ${d.slotCount} photos, ${base.name} takes ${base.slotCount}`);
+      }
+    }
+    return true;
+  });
+  check("every design's art is on disk", () => {
+    const missing = all
+      .flatMap((f) => [f.art, f.keychain && f.keychain.art])
+      .filter((rel) => rel && !frames.artFile(rel));
+    if (missing.length) throw new Error('missing: ' + missing.slice(0, 5).join(', '));
+    return true;
+  });
+  check('every design has a picker thumbnail', () => designs.every((d) => d.thumb));
+  // A keychain is one photo wide. Strips cut a column off; a layout two photos
+  // wide must bring a stacked strip of its own, or its keychain is half a sheet.
+  check('every frame can make a keychain strip', () => {
+    for (const f of all) {
+      const cols = ((f.border || {}).rects || []).length;
+      if (cols !== 2 && !f.keychain) throw new Error(`${f.id}: no keychain strip`);
+      if (f.keychain && f.keychain.slots.length < f.slotCount) {
+        throw new Error(`${f.id}: keychain strip holds fewer photos than the print`);
+      }
+    }
+    return true;
+  });
+
   // ---- logging ----
   console.log('\nLogging');
   const log = require('../logger');
