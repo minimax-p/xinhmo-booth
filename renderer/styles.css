@@ -633,13 +633,14 @@ img.live:not([src]) {
   outline-offset: 0;
 }
 
-/* contain, not cover: the tile already matches the photo, so this only
-   matters if shapes are mixed (a webcam fallback mid-session), and then a
-   thin bar is better than a missing face. */
+/* cover, centred: exactly what drawCover() does when it composites the sheet,
+   so the tile is a true preview of the print rather than a picture of the
+   file. Anything outside the tile is not going to be on the paper. */
 .thumb img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center;
 }
 
 .thumb.selected {

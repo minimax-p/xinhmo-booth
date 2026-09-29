@@ -1000,17 +1000,21 @@ function buildThumbs() {
   const frame = currentFrame();
   const max = frame ? frame.slotCount : 4;
 
-  // Tiles take the shape of the photos themselves. A fixed portrait tile over
-  // a 16:9 webcam shot showed only the middle 42% of it, so people picked
-  // photos they could not actually see. The tile is also widened as it gets
-  // wider, keeping roughly the area a 3:4 tile had, so a landscape shot is not
-  // shrunk to a sliver to fit the old column.
-  const ar = photoAspect();
+  // Tiles are the shape of the hole the photo is going into, and are cropped
+  // to it the same way the print is -- centred, filled, nothing letterboxed.
+  // What is on the tile is what comes out of the printer.
+  //
+  // Neither of the two obvious alternatives is honest. A fixed 3:4 tile with
+  // cover showed the middle 42% of a 16:9 shot, cropped to a shape nothing
+  // was ever printed at. Showing the whole photo instead fixed that but
+  // introduced the opposite lie: people chose on a face near the edge that
+  // the frame then cut off. The slot is the only shape worth showing.
+  //
+  // The tile widens as the slot does, keeping roughly the area a 3:4 tile
+  // had, so a wide slot is not shrunk to a sliver to fit the old column.
+  const ar = slotRatio();
   wrap.style.setProperty('--thumb-ar', String(ar));
   wrap.style.setProperty('--thumb-scale', String(Math.sqrt(ar / 0.75).toFixed(3)));
-  // A shot still decoding has no size yet; lay out again once it does.
-  const pending = S.photos.find((x) => x.img && !(x.img.complete && x.img.naturalWidth));
-  if (pending) pending.img.addEventListener('load', buildThumbs, { once: true });
 
   S.photos.forEach((p, idx) => {
     const order = S.selected.indexOf(idx);
@@ -1025,12 +1029,6 @@ function buildThumbs() {
   });
 
   $('pickHint').textContent = `${S.selected.length} of ${max} chosen`;
-}
-
-/** Width over height of this session's photos, from the first one loaded. */
-function photoAspect() {
-  const p = S.photos.find((x) => x.img && x.img.naturalWidth && x.img.naturalHeight);
-  return p ? p.img.naturalWidth / p.img.naturalHeight : 3 / 4;
 }
 
 function togglePhoto(idx) {
