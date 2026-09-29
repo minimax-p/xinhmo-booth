@@ -11,9 +11,12 @@ const path = require('path');
 
 const LOG_DIR = path.join(__dirname, 'logs');
 const KEEP_DAYS = 14;
+const MAX_BYTES = 64 * 1024 * 1024; // one day's log, capped
 
 let stream = null;
 let streamDay = null;
+let consoleDead = false;
+let written = 0;
 
 function ensureStream() {
   const day = new Date().toISOString().slice(0, 10);
@@ -24,6 +27,7 @@ function ensureStream() {
     stream = fs.createWriteStream(path.join(LOG_DIR, `booth-${day}.log`), { flags: 'a' });
     stream.on('error', () => { stream = null; }); // never let logging crash the app
     streamDay = day;
+    written = 0;
     pruneOldLogs();
   } catch {
     stream = null;
@@ -48,13 +52,35 @@ function write(level, args) {
     .map((a) => (typeof a === 'string' ? a : safeJson(a)))
     .join(' ')}`;
   try {
-    const s = ensureStream();
-    if (s) s.write(line + '\n');
+    // A booth left running for a weekend should not be able to fill the disk,
+    // whatever goes wrong. Past the cap the file stops growing and the console
+    // carries on, which is enough to see what is happening.
+    if (written < MAX_BYTES) {
+      const s = ensureStream();
+      if (s) {
+        if (written + line.length >= MAX_BYTES) {
+          s.write(`${line}\n${new Date().toISOString()} [WARN] log full, no more written today\n`);
+        } else {
+          s.write(line + '\n');
+        }
+        written += line.length + 1;
+      }
+    }
   } catch {
     // ignore
   }
-  if (level === 'ERROR') console.error(line);
-  else console.log(line);
+  // The console is not always there. Launched from a terminal that is then
+  // closed, stdout becomes a broken pipe and every write throws EPIPE -- and
+  // the crash handler logs that failure through this very function, which
+  // throws again. That loop once pinned a core and wrote a 2.8 GB file in an
+  // evening, so a console that has failed is abandoned rather than retried.
+  if (consoleDead) return;
+  try {
+    if (level === 'ERROR') console.error(line);
+    else console.log(line);
+  } catch {
+    consoleDead = true;
+  }
 }
 
 function safeJson(v) {
