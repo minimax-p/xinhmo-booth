@@ -196,12 +196,14 @@ function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartS
       return json(res, 200, o);
     }
 
-    /** Fill one sheet with the small prints owed across every order. */
+    /** Print one order's keychains or charms, on sheets of their own. */
     if (p === '/api/batch' && req.method === 'POST') {
       if (!onBatch) return json(res, 501, { error: 'not supported' });
       const type = url.searchParams.get('type');
+      const code = url.searchParams.get('code');
+      if (!code) return json(res, 400, { error: 'which order?' });
       try {
-        const r = await onBatch(type);
+        const r = await onBatch(type, code);
         return json(res, r && r.ok ? 200 : 409, r || { error: 'failed' });
       } catch (err) {
         return json(res, 500, { error: err.message });
@@ -314,19 +316,10 @@ const PAGE = `<!doctype html>
   .done{display:block;font-size:11px;color:var(--ok)}
   .qrow .stepper{margin-left:auto}
   .qrow .stepper span{min-width:34px}
-  .batchcard{background:var(--paper);color:var(--ink);border-radius:16px;padding:12px 14px;
-    margin-bottom:12px;border-left:5px solid var(--soft)}
 
-  .bhead{display:flex;align-items:baseline;gap:8px;font-size:15px;margin-bottom:8px;
-    text-transform:capitalize}
-  .bcount{margin-left:auto;font:700 15px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
-  .bbar{height:8px;border-radius:999px;background:rgba(38,53,126,.12);overflow:hidden}
-  .bbar i{display:block;height:100%;background:var(--soft)}
 
-  .bwho{margin:8px 0 0;font-size:12px;color:var(--soft)}
-  .bpart{margin:6px 0 0;font-size:13px;color:var(--soft)}
-  .bover{margin:4px 0 0;font-size:12px;color:var(--ink);opacity:.8}
-  .bprint{background:var(--soft);color:#fff;margin-top:10px}
+  .bprint{background:var(--soft);color:#fff;margin-top:8px}
+  .bsummary{margin:0 0 12px;font-size:13px;line-height:1.5;color:#cbd2ee}
 
   .past{align-items:center}
   .tabs{display:flex;gap:8px;margin-left:auto}
@@ -522,48 +515,16 @@ const PAGE = `<!doctype html>
    * away; this pools them and prints one full sheet, with each little strip
    * stamped with its pickup code so the pile can be sorted after cutting.
    */
+  // No pooled sheet any more: each order's keychains print on their own, from
+  // that order's card. All this needs to say is who is still waiting.
   function batch(list){
     var el=$('batch');
     var live=(list||[]).filter(function(b){return b.waiting>0});
     if(!live.length){el.innerHTML='';return}
-    el.innerHTML=live.map(function(b){
-      var pct=Math.min(100,Math.round(b.onSheet/b.perSheet*100));
-      var who=b.orders.slice(0,6).map(function(o){return o.code+(o.n>1?' x'+o.n:'')}).join(', ')+
-              (b.orders.length>6?' +'+(b.orders.length-6)+' more':'');
-      var n=b.onSheet;
-      return '<div class="batchcard" data-type="'+b.id+'">'+
-        '<div class="bhead"><b>'+b.name+'s</b>'+
-          '<span class="bcount">'+n+' waiting</span></div>'+
-        '<div class="bbar"><i style="width:'+pct+'%"></i></div>'+
-        '<p class="bwho">'+who+'</p>'+
-        // Paper use is worth knowing, but it is never a reason to hold on to
-        // somebody's keychain. Stated as a fact, not as a thing to wait for.
-        '<p class="bpart">Uses '+pct+'% of a sheet'+
-          (b.full?'':'; a full one fits '+b.perSheet)+'.</p>'+
-        (b.overflow
-          ? '<p class="bover">Only '+b.perSheet+' fit on a sheet &mdash; the other '+
-            b.overflow+' print on the next one.</p>'
-          : '')+
-        '<button class="go bprint" data-type="'+b.id+'">Print '+n+' '+b.name+
-          (n>1?'s':'')+' now</button>'+
-      '</div>';
-    }).join('');
-    el.querySelectorAll('.bprint').forEach(function(btn){
-      btn.addEventListener('click',function(){
-        var type=btn.getAttribute('data-type');
-        // No confirmation, and no waiting for a sheet to fill. Somebody is
-        // standing at the table for this; a part sheet costs a few cents of
-        // paper and hands it over now.
-        btn.disabled=true; var was=btn.textContent; btn.textContent='Printing sheet...';
-        api('/api/batch?type='+type,{method:'POST'})
-          .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})
-          .then(function(x){
-            if(x.ok){refresh()}
-            else{btn.disabled=false;btn.textContent=was;alert((x.j&&x.j.error)||'Sheet failed.')}
-          })
-          .catch(function(){btn.disabled=false;btn.textContent=was});
-      });
-    });
+    el.innerHTML='<p class="bsummary">'+live.map(function(b){
+      return b.waiting+' '+b.name+(b.waiting>1?'s':'')+' to print &mdash; '+
+        b.orders.map(function(o){return o.code+(o.n>1?' x'+o.n:'')}).join(', ');
+    }).join('<br>')+'</p>';
   }
 
   // The booth locks itself between sessions. Once the last group has walked
@@ -617,13 +578,40 @@ const PAGE = `<!doctype html>
     }).join('');
 
     var owedPrints=owed('print');
+    // One button per add-on this order still owes. Their copies go on sheets
+    // of their own, so this prints for this customer and nobody else -- an
+    // order of one keychain prints one keychain, now, rather than waiting for
+    // strangers to buy three more.
+    var small=(pricing.addons||[]).filter(function(a){return a.heightMm}).map(function(a){
+      var n=owed(a.id);
+      if(!n||!hasStrip)return '';
+      var per=Math.max(1,a.perSheet||8), sheets=Math.ceil(n/per);
+      return '<button class="go bprint" data-type="'+a.id+'">Print '+n+' '+a.name+(n>1?'s':'')+
+        (sheets>1?' ('+sheets+' sheets)':'')+'</button>';
+    }).join('');
+
     right.innerHTML=head+lines+'<div class="qrows">'+rows+'</div>'+
       '<button class="go"'+(owedPrints?'':' disabled')+'>'+
         (owedPrints?'Paid '+money(o.total)+' &middot; Print '+owedPrints+' photo'+(owedPrints>1?'s':'')
                    :'Photos printed')+
       '</button>'+
+      small+
       (o.error?'<p class="err">'+o.error+'</p>':'')+
       '<button class="void">Void this order</button>';
+
+    right.querySelectorAll('.bprint').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var type=btn.getAttribute('data-type');
+        btn.disabled=true; var was=btn.textContent; btn.textContent='Printing...';
+        api('/api/batch?type='+type+'&code='+encodeURIComponent(o.code),{method:'POST'})
+          .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})
+          .then(function(x){
+            if(x.ok){refresh()}
+            else{btn.disabled=false;btn.textContent=was;alert((x.j&&x.j.error)||'Sheet failed.')}
+          })
+          .catch(function(){btn.disabled=false;btn.textContent=was});
+      });
+    });
 
     right.querySelectorAll('[data-q]').forEach(function(b){
       b.addEventListener('click',function(){

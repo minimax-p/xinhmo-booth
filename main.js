@@ -205,74 +205,92 @@ async function printPhotos(order) {
  * taken oldest first, so nobody waits indefinitely for a sheet to fill, and
  * staff can force one out half empty whenever the queue has gone quiet.
  */
-async function printBatch(type) {
+/**
+ * Print the keychains or charms one order is owed.
+ *
+ * One customer, one sheet. Pooling several groups onto a sheet saved paper but
+ * meant nobody's keychain printed until enough strangers had bought one, and
+ * an order of one could sit there all evening. A sheet costs a few cents; the
+ * wait costs the visit.
+ *
+ * Their copies are laid out to fill a sheet as far as they go -- four
+ * keychains fit, so four are arranged on one -- and an order larger than a
+ * sheet simply runs onto the next. One press prints the lot.
+ */
+async function printBatch(type, code) {
   const addon = ((cfg.pricing || {}).addons || []).find((a) => a.id === type);
   if (!addon || !addon.heightMm) return { ok: false, error: 'That add-on is not a print.' };
   if (!win || win.isDestroyed()) return { ok: false, error: 'The booth window is not available.' };
 
-  // One entry per physical item, oldest order first, capped at a sheet. The
-  // rest stay owed and become the next queue, which is what "start a new
-  // queue" means here -- nothing is lost, it just moves to the next sheet.
+  const order = queue.get(code);
+  if (!order) return { ok: false, error: 'No such order.' };
+  const want = owed(order, type);
+  if (want < 1) return { ok: false, error: `No ${addon.name}s owed on ${order.code}.` };
+  if (!order.stripPath || !fs.existsSync(order.stripPath)) {
+    return { ok: false, error: `No photo strip was kept for ${order.code}.` };
+  }
+
   const perSheet = Math.max(1, addon.perSheet || 8);
-  const cells = [];
-  for (const o of queue.all().sort((a, b) => a.createdAt - b.createdAt)) {
-    if (cells.length >= perSheet) break;
-    if (!o.stripPath || !fs.existsSync(o.stripPath)) continue;
-    let n = Math.min(owed(o, type), perSheet - cells.length);
-    while (n-- > 0) cells.push({ code: o.code, path: o.stripPath });
-  }
-  if (!cells.length) return { ok: false, error: 'No ' + type + 's are waiting.' };
+  const dataUrl = 'data:image/jpeg;base64,' + fs.readFileSync(order.stripPath).toString('base64');
+  const sheets = Math.ceil(want / perSheet);
 
-  const payload = {
-    heightMm: addon.heightMm,
-    widthMm: addon.widthMm,
-    gapMm: (cfg.keychain || {}).gapMm || 4,
-    cells: cells.map((c) => ({
-      code: c.code,
-      dataUrl: 'data:image/jpeg;base64,' + fs.readFileSync(c.path).toString('base64'),
-    })),
-  };
+  let done = 0;
+  const files = [];
+  for (let i = 0; i < sheets; i++) {
+    const n = Math.min(perSheet, want - done);
+    const payload = {
+      heightMm: addon.heightMm,
+      widthMm: addon.widthMm,
+      gapMm: (cfg.keychain || {}).gapMm || 4,
+      cells: Array.from({ length: n }, () => ({ code: order.code, dataUrl })),
+    };
 
-  // The renderer owns every canvas in this app, so it builds the sheet too.
-  let built;
-  try {
-    built = await win.webContents.executeJavaScript(
-      `buildBatchSheet(${JSON.stringify(payload)})`
-    );
-  } catch (err) {
-    log.error('[main] batch sheet failed:', err.message);
-    return { ok: false, error: 'Could not lay out the sheet.' };
-  }
-  if (!built || !built.dataUrl) return { ok: false, error: 'Could not lay out the sheet.' };
-
-  const out = path.join(SESSIONS_ROOT, `${type}_sheet_${Date.now()}.jpg`);
-  fs.writeFileSync(out, Buffer.from(built.dataUrl.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
-  log.info(`[main] ${type} sheet: ${built.used} of ${cells.length} waiting`);
-
-  const res = await printer.print(out, 1);
-  if (res && res.ok) {
-    // Credit the sheet back to the orders it came from, in the same order.
-    let left = built.used;
-    for (const o of queue.all().sort((a, b) => a.createdAt - b.createdAt)) {
-      if (left <= 0) break;
-      const n = Math.min(left, owed(o, type));
-      if (n <= 0) continue;
-      const printed = Object.assign({}, o.printed, { [type]: ((o.printed || {})[type] || 0) + n });
-      queue.update(o.code, { printed });
-      left -= n;
+    // The renderer owns every canvas in this app, so it builds the sheet too.
+    let built;
+    try {
+      built = await win.webContents.executeJavaScript(`buildBatchSheet(${JSON.stringify(payload)})`);
+    } catch (err) {
+      log.error('[main] batch sheet failed:', err.message);
+      break;
     }
+    if (!built || !built.dataUrl || !built.used) break;
+
+    const out = path.join(SESSIONS_ROOT, `${type}_${order.code}_${Date.now()}.jpg`);
+    fs.writeFileSync(out, Buffer.from(built.dataUrl.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+    const res = await printer.print(out, 1);
+    if (!res || !res.ok) {
+      // Credit whatever did print before giving up, so a jam on the second
+      // sheet does not make staff reprint the first.
+      if (done > 0) creditPrinted(order.code, type, done);
+      return Object.assign({ used: done, want, file: files[0] || out }, res || { ok: false });
+    }
+    files.push(out);
+    done += built.used;
   }
-  return Object.assign({ used: built.used, waiting: cells.length, file: out }, res);
+
+  if (done > 0) creditPrinted(order.code, type, done);
+  log.info(`[main] ${type} for ${order.code}: ${done} of ${want} on ${files.length} sheet(s)`);
+  if (done < want) {
+    return { ok: false, used: done, want, error: `Only ${done} of ${want} printed.`, file: files[0] };
+  }
+  return { ok: true, used: done, want, sheets: files.length, file: files[0] };
+}
+
+/** Mark n of an add-on as having come out of the printer for this order. */
+function creditPrinted(code, type, n) {
+  const o = queue.get(code);
+  if (!o) return;
+  const printed = Object.assign({}, o.printed, { [type]: ((o.printed || {})[type] || 0) + n });
+  queue.update(code, { printed });
 }
 
 /**
- * The small-print queues, one per add-on type.
+ * What small prints are still owed, per order.
  *
- * They are separate on purpose: a keychain and a charm are different sizes, so
- * they cannot share a sheet, and pooling them into one number would tell staff
- * nothing they could act on. Each queue holds one sheet's worth. Past that the
- * overflow is real work waiting for a second sheet, and saying so is the whole
- * point -- a queue that silently grows is one nobody prints.
+ * Kept per type because a keychain and a charm are different sizes and cannot
+ * share a sheet. No longer pooled across orders: each customer's copies go on
+ * their own sheet, so what staff need is a list of who is waiting, not a
+ * single number counting up to a sheetful.
  */
 function batchStatus() {
   return ((cfg.pricing || {}).addons || [])
@@ -283,17 +301,13 @@ function batchStatus() {
         .all()
         .sort((x, y) => x.createdAt - y.createdAt)
         .filter((o) => owed(o, a.id) > 0)
-        .map((o) => ({ code: o.code, n: owed(o, a.id) }));
-      const waiting = orders.reduce((n, o) => n + o.n, 0);
+        .map((o) => ({ code: o.code, n: owed(o, a.id), sheets: Math.ceil(owed(o, a.id) / perSheet) }));
       return {
         id: a.id,
         name: a.name,
         heightMm: a.heightMm,
         perSheet,
-        waiting,
-        onSheet: Math.min(waiting, perSheet),
-        overflow: Math.max(0, waiting - perSheet),
-        full: waiting >= perSheet,
+        waiting: orders.reduce((n, o) => n + o.n, 0),
         orders,
       };
     });

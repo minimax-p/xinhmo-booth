@@ -380,28 +380,39 @@ function restoreSettings() {
       JSON.stringify(more.body.qty));
     t('and it re-prices', more.body.total === 8 + 11 * 8, '$' + more.body.total);
 
-    // Eleven keychains is more than one sheet holds, which is the case the
-    // queue exists for.
+    // Eleven keychains is more than one sheet holds. They are all one
+    // customer's, so they go on that customer's own sheets and nobody else's.
     const q = (await staff('/api/queue')).body.batches.find((b) => b.id === 'keychain');
     t('the queue knows its own size', q && q.perSheet === 4, 'perSheet ' + (q && q.perSheet));
-    t('and reports itself full', q && q.full === true);
-    t('with the rest held for the next sheet', q && q.onSheet === 4 && q.overflow === 7,
-      q && `${q.onSheet} on sheet, ${q.overflow} over`);
+    t('it is listed against the order that wants them',
+      q && q.orders.length === 1 && q.orders[0].n === 11,
+      q && JSON.stringify(q.orders));
+    t('and knows how many sheets that takes', q && q.orders[0].sheets === 3,
+      q && q.orders[0].sheets + ' sheets');
 
     // The layout decides how many actually fit; perSheet is only a promise
     // about it. This is the line that catches the two drifting apart.
-    const sheet = await staff('/api/batch?type=keychain', { method: 'POST' });
-    t('a full sheet prints exactly one sheet worth', sheet.ok && sheet.body.used === 4,
+    const sheet = await staff(`/api/batch?type=keychain&code=${code}`, { method: 'POST' });
+    t('one press prints every one they bought', sheet.ok && sheet.body.used === 11,
       'used ' + (sheet.body && sheet.body.used));
+    t('across as many sheets as it takes', sheet.body && sheet.body.sheets === 3,
+      (sheet.body && sheet.body.sheets) + ' sheets');
 
     const after = (await staff('/api/queue')).body.batches.find((b) => b.id === 'keychain');
-    t('the overflow becomes the next queue', after && after.waiting === 7,
-      after && after.waiting + ' waiting');
-    // Seven owed at four a sheet: the next queue is already full, with three
-    // more behind it. Nothing is lost between sheets.
-    t('which fills the next sheet too', after && after.full === true &&
-      after.onSheet === 4 && after.overflow === 3,
-      after && `${after.onSheet} on sheet, ${after.overflow} over`);
+    t('and none are left waiting', !after || after.waiting === 0,
+      after ? after.waiting + ' waiting' : 'queue empty');
+
+    // An order of one still gets a sheet of its own, printed now.
+    const solo = await staff(`/api/order?code=${code}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keychain: 12 }),
+    });
+    t('a single extra keychain is owed', solo.ok && solo.body.qty.keychain === 12);
+    const one = await staff(`/api/batch?type=keychain&code=${code}`, { method: 'POST' });
+    t('one keychain prints on its own sheet, not held back',
+      one.ok && one.body.used === 1 && one.body.sheets === 1,
+      'used ' + (one.body && one.body.used) + ' on ' + (one.body && one.body.sheets) + ' sheet');
 
     t('charms queue separately, at their own size',
       (await staff('/api/queue')).body.batches.some((b) => b.id === 'charm' && b.perSheet === 18));
