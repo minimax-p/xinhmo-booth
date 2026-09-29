@@ -96,11 +96,15 @@ function write(level, args) {
   } catch {
     // ignore
   }
-  // The console is not always there. Launched from a terminal that is then
-  // closed, stdout becomes a broken pipe and every write throws EPIPE -- and
-  // the crash handler logs that failure through this very function, which
-  // throws again. That loop once pinned a core and wrote a 2.8 GB file in an
-  // evening, so a console that has failed is abandoned rather than retried.
+  // The console is not always there: launched from a terminal that is then
+  // closed, stdout is a broken pipe and every write fails. The crash handler
+  // logs that failure through this very function, which fails again -- a loop
+  // that pinned a core and wrote 2.8 GB in an evening.
+  //
+  // A try/catch here does not stop it. A failed pipe write is reported
+  // asynchronously, as an 'error' event on the stream that surfaces as an
+  // uncaught exception, so nothing is ever thrown at this call site to catch.
+  // The stream has to be asked directly, which is what deafen() does below.
   if (consoleDead) return;
   try {
     if (level === 'ERROR') console.error(line);
@@ -109,6 +113,22 @@ function write(level, args) {
     consoleDead = true;
   }
 }
+
+/**
+ * Stop writing to the console the moment its pipe breaks.
+ *
+ * Errors on stdout and stderr arrive here rather than at the write that caused
+ * them. Without this the booth keeps writing to a dead pipe forever.
+ */
+function deafen() {
+  for (const stream of [process.stdout, process.stderr]) {
+    if (!stream || typeof stream.on !== 'function') continue;
+    stream.on('error', () => {
+      consoleDead = true;
+    });
+  }
+}
+deafen();
 
 function safeJson(v) {
   try {
