@@ -65,7 +65,8 @@ const DEFAULTS = {
 
   // Small copies of one strip, tiled onto a 4x6 sheet to be cut out and
   // dropped into a keychain. Built every session whether or not anyone buys one.
-  keychain: { heightMm: 55, gapMm: 4 },
+  // The size lives on the keychain add-on below; these are its fallbacks.
+  keychain: { heightMm: 73.66, widthMm: 25.4, gapMm: 4 },
 
   // --- pricing --- (the poster is the source of truth; keep them in sync)
   pricing: {
@@ -79,13 +80,21 @@ const DEFAULTS = {
     // shrunk to that height, cut out by hand. Without it, it is just a line on
     // the bill. Staff sell these by quantity, often long after the photos.
     //
-    // perSheet is how many fit on one 4x6 at that height, and it is what makes
+    // Give it a widthMm too and it becomes a fixed-size insert: the cell is
+    // cut to exactly widthMm x heightMm, and the strip is fitted inside it.
+    // The keychain is the 12-pack acrylic one whose photo slot is 2.9 x 1 inch
+    // (73.66 x 25.4 mm; the 84 x 32 mm on the listing is the outside of the
+    // acrylic, not the photo).
+    //
+    // perSheet is how many fit on one 4x6 at that size, and it is what makes
     // a queue a queue: it fills up, and a full one wants printing. Measured,
-    // not guessed -- 55mm gives 4 columns of 2, 35mm gives 6 of 3. Raise the
-    // height and you must lower this or the overflow silently rolls to the
-    // next sheet.
+    // not guessed -- a 2.9in insert is too tall for two rows, so the sheet
+    // lays keychains on their side, 4 down; 35mm charms fit 6 across by 3.
+    // Change a size and you must re-measure this (scripts/e2e.js checks one
+    // full sheet prints exactly perSheet) or the overflow silently rolls to
+    // the next sheet.
     addons: [
-      { id: 'keychain', name: 'keychain', price: 8, heightMm: 55, perSheet: 8 },
+      { id: 'keychain', name: 'keychain', price: 8, heightMm: 73.66, widthMm: 25.4, perSheet: 4 },
       { id: 'charm', name: 'charm', price: 5, heightMm: 35, perSheet: 18 },
     ],
     extraCopy: 3,

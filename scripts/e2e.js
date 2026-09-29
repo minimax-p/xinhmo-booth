@@ -383,19 +383,25 @@ function restoreSettings() {
     // Eleven keychains is more than one sheet holds, which is the case the
     // queue exists for.
     const q = (await staff('/api/queue')).body.batches.find((b) => b.id === 'keychain');
-    t('the queue knows its own size', q && q.perSheet === 8, 'perSheet ' + (q && q.perSheet));
+    t('the queue knows its own size', q && q.perSheet === 4, 'perSheet ' + (q && q.perSheet));
     t('and reports itself full', q && q.full === true);
-    t('with the rest held for the next sheet', q && q.onSheet === 8 && q.overflow === 3,
+    t('with the rest held for the next sheet', q && q.onSheet === 4 && q.overflow === 7,
       q && `${q.onSheet} on sheet, ${q.overflow} over`);
 
+    // The layout decides how many actually fit; perSheet is only a promise
+    // about it. This is the line that catches the two drifting apart.
     const sheet = await staff('/api/batch?type=keychain', { method: 'POST' });
-    t('a full sheet prints exactly one sheet worth', sheet.ok && sheet.body.used === 8,
+    t('a full sheet prints exactly one sheet worth', sheet.ok && sheet.body.used === 4,
       'used ' + (sheet.body && sheet.body.used));
 
     const after = (await staff('/api/queue')).body.batches.find((b) => b.id === 'keychain');
-    t('the overflow becomes the next queue', after && after.waiting === 3,
+    t('the overflow becomes the next queue', after && after.waiting === 7,
       after && after.waiting + ' waiting');
-    t('which is not full yet', after && after.full === false);
+    // Seven owed at four a sheet: the next queue is already full, with three
+    // more behind it. Nothing is lost between sheets.
+    t('which fills the next sheet too', after && after.full === true &&
+      after.onSheet === 4 && after.overflow === 3,
+      after && `${after.onSheet} on sheet, ${after.overflow} over`);
 
     t('charms queue separately, at their own size',
       (await staff('/api/queue')).body.batches.some((b) => b.id === 'charm' && b.perSheet === 18));

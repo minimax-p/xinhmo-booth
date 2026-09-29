@@ -225,6 +225,7 @@ async function printBatch(type) {
 
   const payload = {
     heightMm: addon.heightMm,
+    widthMm: addon.widthMm,
     gapMm: (cfg.keychain || {}).gapMm || 4,
     cells: cells.map((c) => ({
       code: c.code,

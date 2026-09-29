@@ -33,7 +33,9 @@
         "id": "keychain",
         "name": "keychain",
         "price": 8,
-        "heightMm": 55
+        "heightMm": 73.66,
+        "widthMm": 25.4,
+        "perSheet": 4
       },
       {
         "id": "charm",

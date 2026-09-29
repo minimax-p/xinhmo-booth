@@ -938,6 +938,18 @@ function buildThumbs() {
   const frame = currentFrame();
   const max = frame ? frame.slotCount : 4;
 
+  // Tiles take the shape of the photos themselves. A fixed portrait tile over
+  // a 16:9 webcam shot showed only the middle 42% of it, so people picked
+  // photos they could not actually see. The tile is also widened as it gets
+  // wider, keeping roughly the area a 3:4 tile had, so a landscape shot is not
+  // shrunk to a sliver to fit the old column.
+  const ar = photoAspect();
+  wrap.style.setProperty('--thumb-ar', String(ar));
+  wrap.style.setProperty('--thumb-scale', String(Math.sqrt(ar / 0.75).toFixed(3)));
+  // A shot still decoding has no size yet; lay out again once it does.
+  const pending = S.photos.find((x) => x.img && !(x.img.complete && x.img.naturalWidth));
+  if (pending) pending.img.addEventListener('load', buildThumbs, { once: true });
+
   S.photos.forEach((p, idx) => {
     const order = S.selected.indexOf(idx);
     const isSel = order !== -1;
@@ -951,6 +963,12 @@ function buildThumbs() {
   });
 
   $('pickHint').textContent = `${S.selected.length} of ${max} chosen`;
+}
+
+/** Width over height of this session's photos, from the first one loaded. */
+function photoAspect() {
+  const p = S.photos.find((x) => x.img && x.img.naturalWidth && x.img.naturalHeight);
+  return p ? p.img.naturalWidth / p.img.naturalHeight : 3 / 4;
 }
 
 function togglePhoto(idx) {
@@ -1350,10 +1368,10 @@ function compositeStrip(canvas) {
  * Called from the main process, which owns the queue and the printer. Returns
  * how many cells it managed to place so main knows what to mark as printed.
  */
-async function buildBatchSheet({ cells, heightMm, gapMm }) {
+async function buildBatchSheet({ cells, heightMm, widthMm, gapMm }) {
   const W = 1200;
   const H = 1800;
-  const cellH = Math.round(mmToPx(heightMm || 55));
+  const insertH = Math.round(mmToPx(heightMm || 55));
   const gap = Math.round(mmToPx(Number.isFinite(gapMm) ? gapMm : 4));
   const label = Math.round(mmToPx(4));
 
@@ -1371,11 +1389,29 @@ async function buildBatchSheet({ cells, heightMm, gapMm }) {
   const usable = loaded.filter(Boolean);
   if (!usable.length) return null;
 
-  // Widest cell wins the column width, so rows stay aligned even when orders
-  // used different layouts.
-  const cellW = Math.max(
-    ...usable.map((c) => Math.round((c.img.naturalWidth / c.img.naturalHeight) * cellH))
-  );
+  // With a width, an insert is a fixed size -- the keychain's photo slot -- and
+  // each strip is fitted inside it. Without one, the widest strip at this
+  // height sets the column, so rows stay aligned even when orders used
+  // different layouts.
+  const insertW = widthMm
+    ? Math.round(mmToPx(widthMm))
+    : Math.max(
+        ...usable.map((c) => Math.round((c.img.naturalWidth / c.img.naturalHeight) * insertH))
+      );
+
+  // Upright or on its side, whichever fits more. A 2.9in keychain is too tall
+  // for two upright rows on a 6in sheet, so only 3 fit standing but 4 lying
+  // down; a short charm packs best upright. Once cut out it goes into the
+  // keychain the same way whichever way it was printed.
+  const grid = (w, h) => {
+    const cols = Math.max(1, Math.floor((W + gap) / (w + gap)));
+    const rows = Math.max(1, Math.floor((H + gap) / (h + label + gap)));
+    return { w, h, cols, rows, capacity: cols * rows };
+  };
+  const upright = grid(insertW, insertH);
+  const sideways = grid(insertH, insertW);
+  const rotated = sideways.capacity > upright.capacity;
+  const g = rotated ? sideways : upright;
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -1389,26 +1425,30 @@ async function buildBatchSheet({ cells, heightMm, gapMm }) {
   ctx.translate(t.dx, t.dy);
   ctx.scale(t.scale, t.scale);
 
-  const rowH = cellH + label;
-  const cols = Math.max(1, Math.floor((W + gap) / (cellW + gap)));
-  const rows = Math.max(1, Math.floor((H + gap) / (rowH + gap)));
-  const capacity = cols * rows;
-  const placed = usable.slice(0, capacity);
-
-  const ox = Math.round((W - (cols * cellW + (cols - 1) * gap)) / 2);
-  const oy = Math.round((H - (rows * rowH + (rows - 1) * gap)) / 2);
+  const placed = usable.slice(0, g.capacity);
+  const ox = Math.round((W - (g.cols * g.w + (g.cols - 1) * gap)) / 2);
+  const oy = Math.round((H - (g.rows * (g.h + label) + (g.rows - 1) * gap)) / 2);
 
   placed.forEach((c, i) => {
-    const x = ox + (i % cols) * (cellW + gap);
-    const y = oy + Math.floor(i / cols) * (rowH + gap);
-    const w = Math.round((c.img.naturalWidth / c.img.naturalHeight) * cellH);
-    ctx.drawImage(c.img, x + Math.round((cellW - w) / 2), y, w, cellH);
+    const x = ox + (i % g.cols) * (g.w + gap);
+    const y = oy + Math.floor(i / g.cols) * (g.h + label + gap);
+
+    const insert = drawInsert(c.img, insertW, insertH, !!widthMm);
+    if (rotated) {
+      ctx.save();
+      ctx.translate(x + g.w, y);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(insert, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.drawImage(insert, x, y);
+    }
 
     ctx.save();
     ctx.globalAlpha = 0.4;
     ctx.strokeStyle = '#26357E';
     ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, y + 0.5, cellW - 1, cellH - 1);
+    ctx.strokeRect(x + 0.5, y + 0.5, g.w - 1, g.h - 1);
     ctx.restore();
 
     ctx.save();
@@ -1416,12 +1456,49 @@ async function buildBatchSheet({ cells, heightMm, gapMm }) {
     ctx.font = `600 ${Math.round(label * 0.62)}px ui-monospace, Menlo, monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(c.code, x + cellW / 2, y + cellH + Math.round(label * 0.18));
+    ctx.fillText(c.code, x + g.w / 2, y + g.h + Math.round(label * 0.18));
     ctx.restore();
   });
 
   ctx.restore();
   return { dataUrl: canvas.toDataURL('image/jpeg', 0.92), used: placed.length };
+}
+
+/**
+ * One insert, upright, at print size.
+ *
+ * A fixed-size insert is filled with the strip's own paper colour and the
+ * strip is fitted inside, whole: a 4-photo strip is a touch narrower than a
+ * 2.9 x 1 inch slot, and white slivers down both long edges would show
+ * through the acrylic. The colour is read just inside the corner, clear of
+ * the dashed border that runs along the strip's very edge.
+ */
+function drawInsert(img, w, h, fixed) {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  const ir = img.naturalWidth / img.naturalHeight;
+
+  if (!fixed) {
+    const dw = Math.round(ir * h);
+    ctx.drawImage(img, Math.round((w - dw) / 2), 0, dw, h);
+    return c;
+  }
+
+  const probe = document.createElement('canvas');
+  probe.width = probe.height = 1;
+  const inset = Math.max(4, Math.round(img.naturalWidth * 0.015));
+  probe.getContext('2d').drawImage(img, inset, inset, 1, 1, 0, 0, 1, 1);
+  const [r, gr, b] = probe.getContext('2d').getImageData(0, 0, 1, 1).data;
+  ctx.fillStyle = `rgb(${r},${gr},${b})`;
+  ctx.fillRect(0, 0, w, h);
+
+  const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight);
+  const dw = Math.round(img.naturalWidth * scale);
+  const dh = Math.round(img.naturalHeight * scale);
+  ctx.drawImage(img, Math.round((w - dw) / 2), Math.round((h - dh) / 2), dw, dh);
+  return c;
 }
 
 /**
