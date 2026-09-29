@@ -71,7 +71,7 @@ ensure_ready() {
     # --loglevel=error: npm's deprecation notices are about build tooling the
     # booth never runs, and "security vulnerabilities" scrolling past would
     # only alarm whoever is setting this up. Real errors still show.
-    npm install --no-audit --no-fund --loglevel=error \
+    NODE_NO_WARNINGS=1 npm install --no-audit --no-fund --loglevel=error \
       || stop_setup "The download failed. Check the internet connection and double-click START-BOOTH again."
 
     # Once, right after a fresh install: prove the machine works before anyone
@@ -80,7 +80,7 @@ ensure_ready() {
     echo ""
     say "Checking this Mac..."
     local report
-    report="$(npm run --silent check 2>&1)"
+    report="$(NODE_NO_WARNINGS=1 npm run --silent check 2>&1)"
     echo "$report" | grep -E "FAIL|passed" | sed 's/^/  /'
     if echo "$report" | grep -q "FAIL"; then
       echo ""
