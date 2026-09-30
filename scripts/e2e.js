@@ -24,6 +24,7 @@ const PORT = 9333;
 const STAFF_PORT = 8099;
 const SETTINGS = path.join(ROOT, 'settings.json');
 const BACKUP = path.join(ROOT, 'settings.e2e-backup.json');
+const TEST_SESSIONS = path.join(require('os').tmpdir(), 'xinhmo-e2e-sessions');
 
 // Matches queue.js: no O/0/I/1/S/5, since staff read these aloud.
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRTUVWXY2346789';
@@ -88,12 +89,16 @@ function restoreSettings() {
 (async () => {
   console.log('\nXinhmo booth end-to-end flow test\n');
 
-  fs.rmSync(path.join(ROOT, 'sessions'), { recursive: true, force: true });
+  // A throwaway folder for this run's photos and orders. Never the booth's
+  // real sessions/ -- this line used to delete that, and with it every
+  // customer's photos and the order queue, whenever the suite was run.
+  fs.rmSync(TEST_SESSIONS, { recursive: true, force: true });
+  fs.mkdirSync(TEST_SESSIONS, { recursive: true });
   useTestSettings();
 
   let booth;
   try {
-    booth = await launchBooth({ port: PORT, root: ROOT });
+    booth = await launchBooth({ port: PORT, root: ROOT, env: { PB_SESSIONS_DIR: TEST_SESSIONS } });
     const { cdp, evalJs, screen, waitForScreen } = booth;
 
     /**
@@ -393,7 +398,7 @@ function restoreSettings() {
 
     // ----------------------------------------------------- files + queue
     console.log('\nOn disk');
-    const sessionsRoot = path.join(ROOT, 'sessions');
+    const sessionsRoot = TEST_SESSIONS;
     const dirs = fs.readdirSync(sessionsRoot).filter((n) =>
       fs.statSync(path.join(sessionsRoot, n)).isDirectory()
     );

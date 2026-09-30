@@ -44,7 +44,10 @@ let server = null;
 // so a renderer crash and reload cannot unlock the booth by accident.
 let boothLocked = false;
 
-const SESSIONS_ROOT = path.join(__dirname, 'sessions');
+// Where photos, prints and the order queue live. Overridable so the test suite
+// can work in a throwaway folder: it used to run against this one and delete
+// it, which took every customer's photos and every unpaid order with it.
+const SESSIONS_ROOT = process.env.PB_SESSIONS_DIR || path.join(__dirname, 'sessions');
 
 // --------------------------------------------------------------------------
 // Crash resistance
