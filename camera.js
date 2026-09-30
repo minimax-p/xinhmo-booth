@@ -50,7 +50,7 @@ class Camera extends EventEmitter {
       return { ok: true, model: 'Mock camera', mock: true };
     }
     await this.freeUsb();
-    const res = await run('gphoto2', ['--auto-detect'], 12000);
+    const res = await this.claimed(() => run('gphoto2', ['--auto-detect'], 12000));
     if (!res.ok) {
       this.detected = false;
       this.lastError = friendlyError(res);
@@ -94,13 +94,33 @@ class Camera extends EventEmitter {
    * settings have to ride along on the same command as the capture, because each
    * gphoto2 run opens its own session and live view dies with it.
    */
-  runCapture(destPath, autofocus) {
+  async runCapture(destPath, autofocus) {
     const args = [];
     if (autofocus) {
       args.push('--set-config', 'viewfinder=1', '--set-config', 'autofocusdrive=1');
     }
     args.push('--capture-image-and-download', '--force-overwrite', '--filename', destPath);
-    return run('gphoto2', args, this.cfg.cameraTimeoutMs);
+    return this.claimed(() => run('gphoto2', args, this.cfg.cameraTimeoutMs));
+  }
+
+  /**
+   * Run a gphoto2 command, trying again if macOS got to the camera first.
+   *
+   * macOS runs ptpcamerad to grab any camera that appears, and launchd starts
+   * it again moments after it is killed. freeUsb() clears it, but it can come
+   * back and claim the camera in the gap before gphoto2 opens it. That is a
+   * race, not a fault, so it is worth a couple more goes before telling
+   * anyone the camera is busy.
+   */
+  async claimed(fn) {
+    let res = await fn();
+    for (let i = 0; i < 2 && isClaimError(res); i++) {
+      log.warn('[camera] camera was busy, freeing it and trying again');
+      await this.freeUsb();
+      await delay(250 * (i + 1));
+      res = await fn();
+    }
+    return res;
   }
 
   /**
@@ -112,9 +132,9 @@ class Camera extends EventEmitter {
     this.busy = true;
     const resumeLive = this.wantLive;
     try {
-      this.killMovie(); // release the camera for the still capture
+      await this.killMovie(); // release the camera for the still capture
       this.stopMockLive();
-      await delay(120); // let the device settle before reclaiming it
+      await delay(150); // the camera needs a moment after live view ends
 
       if (this.cfg.mockCamera) {
         await writeMockPhoto(destPath, ++this.mockTick);
@@ -250,19 +270,49 @@ class Camera extends EventEmitter {
       .catch(() => {});
   }
 
+  /**
+   * Stop live view and resolve once the process has really gone.
+   *
+   * The live-view gphoto2 holds the camera's USB interface for as long as it
+   * lives. The still capture needs that interface, so it has to wait for the
+   * process to exit, not merely for the signal to be sent: starting sooner is
+   * what made the booth report "another program is using the camera" when the
+   * other program was its own live view.
+   *
+   * p.killed cannot be used to tell: it turns true the moment a signal is
+   * delivered, whether or not the process exits, so a force-kill guarded by it
+   * never fires. A stream that shrugs off SIGTERM mid-transfer would then hold
+   * the camera for good. Wait for 'exit', and SIGKILL if it does not come.
+   */
   killMovie() {
     const p = this.movie;
     this.movie = null;
-    if (!p) return;
-    try {
+    if (!p) return Promise.resolve();
+    return new Promise((resolve) => {
+      if (p.exitCode !== null || p.signalCode !== null) return resolve();
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(force);
+        clearTimeout(giveUp);
+        resolve();
+      };
       p.removeAllListeners('close');
-      p.kill('SIGTERM');
-      setTimeout(() => {
+      p.once('exit', done);
+      const force = setTimeout(() => {
         try {
-          if (!p.killed) p.kill('SIGKILL');
+          p.kill('SIGKILL');
         } catch {}
-      }, 400);
-    } catch {}
+      }, 600);
+      // A process that ignores even SIGKILL is not ours to wait on forever.
+      const giveUp = setTimeout(done, 2000);
+      try {
+        p.kill('SIGTERM');
+      } catch {
+        done();
+      }
+    });
   }
 
   startMockLive() {
@@ -286,6 +336,14 @@ function delay(ms) {
 }
 
 /** Run a command with a hard timeout. Always resolves. */
+/** Did gphoto2 fail because something else had the camera open? */
+function isClaimError(res) {
+  if (!res || res.ok) return false;
+  return /could not claim|claim interface|device busy|resource busy/i.test(
+    `${res.stderr || ''} ${res.stdout || ''}`
+  );
+}
+
 function run(cmd, args, timeoutMs) {
   return new Promise((resolve) => {
     let done = false;
