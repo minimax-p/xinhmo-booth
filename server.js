@@ -92,10 +92,16 @@ function retotal(order, pricing) {
  * @param {(order) => Promise<{ok:boolean,error?:string}>} opts.onRelease
  */
 function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartSession, onSettings, timings, phases }) {
-  const pin = String(cfg.staffPin || '');
+  // The port is bound once and cannot move without a restart. The PIN is read
+  // on every request instead of copied here: settings.json is watched, and a
+  // PIN changed there should work at once rather than the old one lingering
+  // until the booth happens to be restarted.
   const port = cfg.staffPort || 8080;
 
-  const authed = (url) => url.searchParams.get('k') === pin;
+  const authed = (url) => {
+    const pin = String(cfg.staffPin || '');
+    return pin !== '' && url.searchParams.get('k') === pin;
+  };
 
   const server = http.createServer(async (req, res) => {
     let url;
