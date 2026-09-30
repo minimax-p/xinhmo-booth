@@ -865,7 +865,11 @@ async function runCaptureSequence() {
     // left the subject lit for the on-screen flash but not for the real shutter.
     const flashEl = $('flash');
     flashEl.classList.add('on');
-    beep(1500, 70);
+    // Hold, don't cheer. With autofocus the shutter fires several seconds after
+    // the countdown ends, once focus has locked; a beep at zero told people the
+    // photo was done, they relaxed, and the camera caught them mid-shuffle.
+    // So zero says "hold still", and the beep waits for the photo to exist.
+    $('poseHint').textContent = 'Hold still…';
     const flashStarted = Date.now();
 
     let res;
@@ -874,6 +878,7 @@ async function runCaptureSequence() {
     } catch (err) {
       res = { ok: false, error: err.message };
     }
+    if (res && res.ok) beep(1500, 70);
 
     const MIN_FLASH_MS = 180;
     const litFor = Date.now() - flashStarted;
