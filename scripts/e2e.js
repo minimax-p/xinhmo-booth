@@ -25,6 +25,7 @@ const STAFF_PORT = 8099;
 const SETTINGS = path.join(ROOT, 'settings.json');
 const BACKUP = path.join(ROOT, 'settings.e2e-backup.json');
 const TEST_SESSIONS = path.join(require('os').tmpdir(), 'xinhmo-e2e-sessions');
+const TEST_SETTINGS = path.join(require('os').tmpdir(), 'xinhmo-e2e-settings.json');
 
 // Matches queue.js: no O/0/I/1/S/5, since staff read these aloud.
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRTUVWXY2346789';
@@ -41,23 +42,22 @@ const staff = (p, opts) =>
   );
 
 /** Short timings for the test run, with the operator's file put back after. */
+/**
+ * Test timings in a file of the suite's own. The operator's settings.json is
+ * read -- for the printer and prices the checks expect -- and never written.
+ */
 function useTestSettings() {
-  // A backup already here means a run was killed before it could put the
-  // operator's file back -- so settings.json is holding test values, and the
-  // backup is the only copy of the real ones. Copying over it would destroy
-  // them: the next run would then "restore" three photos, a one-second
-  // countdown and the test's staff port as if the operator had chosen them.
-  // That happened once. Put the real file back first.
+  // Older versions of this suite swapped values into settings.json and kept
+  // the original here. If one of those runs was interrupted, this is still
+  // the only copy of the real settings: put it back.
   if (fs.existsSync(BACKUP)) {
-    console.log('  (restoring settings.json left over from an interrupted run)');
+    console.log('  (restoring settings.json left over from an old interrupted run)');
     fs.copyFileSync(BACKUP, SETTINGS);
+    fs.rmSync(BACKUP, { force: true });
   }
-  // Keep the operator's file byte for byte, not a re-serialised copy: they
-  // edit this by hand, and a test should not quietly reformat it.
-  fs.copyFileSync(SETTINGS, BACKUP);
   const real = JSON.parse(fs.readFileSync(SETTINGS, 'utf8'));
   fs.writeFileSync(
-    SETTINGS,
+    TEST_SETTINGS,
     JSON.stringify(
       Object.assign({}, real, {
         captureCount: 3,
@@ -68,6 +68,7 @@ function useTestSettings() {
         frameSeconds: 30,
         filterSeconds: 30,
         staffPort: STAFF_PORT,
+        cameraDriver: 'gphoto2',
       }),
       null,
       2
@@ -76,14 +77,7 @@ function useTestSettings() {
 }
 
 function restoreSettings() {
-  try {
-    if (fs.existsSync(BACKUP)) {
-      fs.copyFileSync(BACKUP, SETTINGS);
-      fs.rmSync(BACKUP, { force: true });
-    }
-  } catch (err) {
-    console.error('could not restore settings.json:', err.message);
-  }
+  fs.rmSync(TEST_SETTINGS, { force: true });
 }
 
 (async () => {
@@ -98,7 +92,11 @@ function restoreSettings() {
 
   let booth;
   try {
-    booth = await launchBooth({ port: PORT, root: ROOT, env: { PB_SESSIONS_DIR: TEST_SESSIONS } });
+    booth = await launchBooth({
+      port: PORT,
+      root: ROOT,
+      env: { PB_SESSIONS_DIR: TEST_SESSIONS, PB_SETTINGS_PATH: TEST_SETTINGS },
+    });
     const { cdp, evalJs, screen, waitForScreen } = booth;
 
     /**
@@ -417,6 +415,17 @@ function restoreSettings() {
     console.log('\nStaff phone');
     t('wrong code is refused',
       (await fetch(`http://127.0.0.1:${STAFF_PORT}/api/start`, { method: 'POST' })).status === 401);
+    // Settings are for staff and whoever edits the file, never anyone else on
+    // the network: without the code, a change must be refused and not land.
+    const countdownBefore = JSON.parse(fs.readFileSync(TEST_SETTINGS, 'utf8')).countdownSeconds;
+    const sneaky = await fetch(`http://127.0.0.1:${STAFF_PORT}/api/settings?k=0000`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ countdownSeconds: 9 }),
+    });
+    t('settings cannot be changed without the staff code',
+      sneaky.status === 401 && JSON.parse(fs.readFileSync(TEST_SETTINGS, 'utf8')).countdownSeconds === countdownBefore,
+      'status ' + sneaky.status);
 
     const rel = await staff('/api/release?code=' + code, { method: 'POST' });
     t('photos release to the printer', rel.ok && rel.body.status === 'released', rel.body.status);

@@ -137,7 +137,11 @@ const DEFAULTS = {
 };
 
 const ROOT = __dirname;
-const SETTINGS_PATH = path.join(ROOT, 'settings.json');
+// PB_SETTINGS_PATH lets the test suite run against a copy. It used to swap
+// test values into the real file and put the original back afterwards, and a
+// run killed in between left the booth with a one-second countdown and the
+// test's staff port.
+const SETTINGS_PATH = process.env.PB_SETTINGS_PATH || path.join(ROOT, 'settings.json');
 
 let cached = null;
 
