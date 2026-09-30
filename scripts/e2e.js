@@ -41,6 +41,16 @@ const staff = (p, opts) =>
 
 /** Short timings for the test run, with the operator's file put back after. */
 function useTestSettings() {
+  // A backup already here means a run was killed before it could put the
+  // operator's file back -- so settings.json is holding test values, and the
+  // backup is the only copy of the real ones. Copying over it would destroy
+  // them: the next run would then "restore" three photos, a one-second
+  // countdown and the test's staff port as if the operator had chosen them.
+  // That happened once. Put the real file back first.
+  if (fs.existsSync(BACKUP)) {
+    console.log('  (restoring settings.json left over from an interrupted run)');
+    fs.copyFileSync(BACKUP, SETTINGS);
+  }
   // Keep the operator's file byte for byte, not a re-serialised copy: they
   // edit this by hand, and a test should not quietly reformat it.
   fs.copyFileSync(SETTINGS, BACKUP);
