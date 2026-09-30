@@ -188,6 +188,7 @@ class Camera extends EventEmitter {
   status() {
     return {
       mock: !!this.cfg.mockCamera,
+      driver: 'gphoto2',
       detected: this.detected,
       liveRunning: !!this.movie || !!this.mockTimer,
       busy: this.busy,

@@ -192,3 +192,105 @@ function drawInsert(img, w, h, fixed) {
   ctx.drawImage(img, Math.round((w - dw) / 2), Math.round((h - dh) / 2), dw, dh);
   return c;
 }
+
+/**
+ * The calibration sheet. Print it, look at what survived, and put the trim you
+ * measured into print.safeArea. The dashed SAFE box is the important line: if
+ * any edge of it is missing, that edge is losing more than we think.
+ */
+function drawCalibrationSheet(canvas) {
+  const W = 1200;
+  const H = 1800;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const px = (mm) => mmToPx(mm);
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#000000';
+  ctx.fillStyle = '#000000';
+  ctx.textBaseline = 'middle';
+
+  const line = (x1, y1, x2, y2) => {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  };
+
+  // Edge rule, right on the boundary: whatever is missing was trimmed off.
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, W - 2, H - 2);
+
+  // Millimetre ticks in from every edge. Labels go on the top and left rulers
+  // only, and skip the first 8mm, because at the corner the two rulers would
+  // otherwise print their numbers on top of each other.
+  ctx.lineWidth = 1;
+  ctx.font = '600 22px -apple-system, Helvetica, Arial, sans-serif';
+  for (let mm = 1; mm <= 15; mm++) {
+    const d = px(mm);
+    const len = mm % 5 === 0 ? 46 : 22;
+    line(d, 0, d, len);
+    line(d, H, d, H - len);
+    line(0, d, len, d);
+    line(W, d, W - len, d);
+    if (mm % 5 === 0 && mm >= 10) {
+      ctx.textAlign = 'center';
+      ctx.fillText(String(mm), d, len + 22);
+      ctx.fillText(String(mm), d, H - len - 22);
+      ctx.textAlign = 'left';
+      ctx.fillText(String(mm), len + 10, d);
+    }
+  }
+
+  // The safe box currently in force. This is the line that matters.
+  const sa = ((sheetConfig().print || {}).safeArea) || {};
+  ctx.save();
+  ctx.lineWidth = 3;
+  ctx.setLineDash([18, 12]);
+  ctx.strokeRect(
+    px(sa.left) + 1.5,
+    px(sa.top) + 1.5,
+    W - px(sa.left) - px(sa.right) - 3,
+    H - px(sa.top) - px(sa.bottom) - 3
+  );
+  ctx.restore();
+
+  ctx.textAlign = 'center';
+  ctx.font = '700 62px -apple-system, Helvetica, Arial, sans-serif';
+  ctx.fillText('TOP', W / 2, 150);
+  ctx.fillText('BOTTOM', W / 2, H - 150);
+
+  // Text sits above the crosshair rather than through it.
+  ctx.font = '600 30px -apple-system, Helvetica, Arial, sans-serif';
+  [
+    'Solid rule sits on the paper edge.',
+    'Dashed rule is the safe area. It must print whole.',
+    '',
+    `safe area   top ${sa.top || 0}   right ${sa.right || 0}   ` +
+      `bottom ${sa.bottom || 0}   left ${sa.left || 0}   (mm)`,
+    '',
+    'If a dashed edge is cut, raise that number by what is missing.',
+    'If there is white beyond a dashed edge, lower it.',
+  ].forEach((t, i) => ctx.fillText(t, W / 2, 430 + i * 46));
+
+  // Centre crosshair, to catch the whole sheet being shifted.
+  ctx.lineWidth = 2;
+  line(W / 2 - 90, H / 2, W / 2 + 90, H / 2);
+  line(W / 2, H / 2 - 90, W / 2, H / 2 + 90);
+  ctx.beginPath();
+  ctx.arc(W / 2, H / 2, 60, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.font = '500 26px -apple-system, Helvetica, Arial, sans-serif';
+  ctx.fillText(new Date().toLocaleString(), W / 2, H - 300);
+  return true;
+}
+
+/** The calibration sheet as a JPEG, for the main process to print. */
+function buildCalibrationSheet() {
+  const c = document.createElement('canvas');
+  drawCalibrationSheet(c);
+  return c.toDataURL('image/jpeg', 0.95);
+}

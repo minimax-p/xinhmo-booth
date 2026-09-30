@@ -41,6 +41,11 @@ contextBridge.exposeInMainWorld('booth', {
     ipcRenderer.on('app:settings', handler);
     return () => ipcRenderer.removeListener('app:settings', handler);
   },
+  onReset: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('booth:reset', handler);
+    return () => ipcRenderer.removeListener('booth:reset', handler);
+  },
   onUnlock: (cb) => {
     const handler = () => cb();
     ipcRenderer.on('booth:unlock', handler);
@@ -58,6 +63,6 @@ contextBridge.exposeInMainWorld('booth', {
     quit: () => ipcRenderer.invoke('staff:quit'),
     queueUrl: () => ipcRenderer.invoke('staff:queueUrl'),
     unlockBooth: () => ipcRenderer.invoke('booth:unlock'),
-    calibration: (dataUrl) => ipcRenderer.invoke('staff:calibration', dataUrl),
+    calibration: () => ipcRenderer.invoke('staff:calibration'),
   },
 });

@@ -496,6 +496,32 @@ function restoreSettings() {
     await sleep(600);
     t('booth reopens on the layout picker', (await screen()) === 'welcome');
     t('and reports unlocked', (await staff('/api/queue')).body.locked === false);
+
+    // ------------------------------------------------ booth controls
+    console.log('\nBooth controls from the phone');
+    const health = (await staff('/api/queue')).body.health || {};
+    t('the phone is told which camera driver is running',
+      health.camera && health.camera.driver === 'gphoto2' && health.camera.mock === true,
+      JSON.stringify({ driver: health.camera && health.camera.driver, mock: health.camera && health.camera.mock }));
+    const act = (a) => staff(`/api/booth?action=${a}`, { method: 'POST' });
+    t('booth controls need the staff code',
+      (await fetch(`http://127.0.0.1:${STAFF_PORT}/api/booth?action=shutdown`, { method: 'POST' })).status === 401);
+    t('an unknown control is refused', (await act('format-disk')).status === 409);
+    const cam = await act('restart-camera');
+    t('restart camera works from the phone', cam.ok && cam.body.detected === true, JSON.stringify(cam.body.error || ''));
+    const tp = await act('test-print');
+    t('test print works from the phone', tp.ok && tp.body.ok !== false, JSON.stringify(tp.body.error || ''));
+    const cal = await act('calibration');
+    t('the calibration sheet is drawn and printed without the booth screen',
+      cal.ok && cal.body.file && fs.existsSync(cal.body.file), cal.body.file || cal.body.error);
+    // A group that walks off mid-session: staff send the booth back to the start.
+    await evalJs('document.querySelector("#menuList .menu-card").click()');
+    await sleep(800);
+    const mid = await screen();
+    const ended = await act('end-session');
+    await sleep(600);
+    t('end current session sends the booth back to the start',
+      mid !== 'welcome' && ended.ok && (await screen()) === 'welcome', `${mid} -> ${await screen()}`);
   } catch (err) {
     t('test harness ran without error', false, err.message);
   } finally {

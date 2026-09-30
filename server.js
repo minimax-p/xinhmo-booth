@@ -91,7 +91,7 @@ function retotal(order, pricing) {
  * @param {object} opts.cfg
  * @param {(order) => Promise<{ok:boolean,error?:string}>} opts.onRelease
  */
-function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartSession, onSettings, timings, phases, health, onRefill }) {
+function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartSession, onSettings, timings, phases, health, onRefill, onBoothAction }) {
   // The port is bound once and cannot move without a restart. The PIN is read
   // on every request instead of copied here: settings.json is watched, and a
   // PIN changed there should work at once rather than the old one lingering
@@ -131,6 +131,13 @@ function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartS
         batches: batchStatus ? batchStatus() : [],
         health: health ? await health() : null,
       });
+    }
+
+    /** Staff controlling the booth itself: camera, printer checks, shutting down. */
+    if (p === '/api/booth' && req.method === 'POST') {
+      if (!onBoothAction) return json(res, 501, { error: 'not supported' });
+      const r = await onBoothAction(url.searchParams.get('action'));
+      return json(res, r && r.ok !== false ? 200 : 409, Object.assign({ health: health ? await health() : null }, r));
     }
 
     /** Staff loaded paper or put in new ink: reset that count. */
@@ -356,6 +363,19 @@ const PAGE = `<!doctype html>
     padding:11px 14px;font-size:14px;font-weight:600;margin-bottom:6px}
   .alert.low{background:color-mix(in srgb,var(--warn) 12%,var(--surface));color:var(--warn)}
   .booth{border-radius:var(--r);margin:4px 0 20px}
+  .arow{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;
+    padding:14px 16px;font-size:16px;font-weight:500;color:var(--accent);position:relative}
+  .arow+.arow::before{content:"";position:absolute;top:0;left:16px;right:0;height:1px;background:var(--line)}
+  .arow:active{background:var(--surface-2)}
+  .arow:disabled{opacity:.45}
+  .arow.danger{color:var(--bad)}
+  .arow small{font-size:13px;font-weight:400;color:var(--ink-3)}
+  .srow .val{font-size:15px;color:var(--ink-2);text-align:right;font-variant-numeric:tabular-nums}
+  .srow .val.bad{color:var(--bad)} .srow .val.low{color:var(--warn)}
+  .mini{font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-soft);
+    border-radius:999px;padding:6px 11px;margin-left:10px;flex:0 0 auto}
+  .result{margin:12px 4px 0;font-size:14px;color:var(--ink-2);min-height:20px}
+  .result.bad{color:var(--bad)}
   .booth.locked{background:var(--surface);box-shadow:var(--shadow);padding:18px}
   .booth.locked .bt{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
   .booth.locked .bt i{width:10px;height:10px;border-radius:50%;background:var(--warn)}
@@ -489,6 +509,20 @@ const PAGE = `<!doctype html>
       </div>
     </section>
 
+    <section id="viewBooth" hidden>
+      <div class="sh"><h2>Status</h2></div>
+      <div class="list" id="boothInfo"></div>
+      <div class="sh"><h2>Controls</h2></div>
+      <div class="list" id="boothActions">
+        <button class="arow" data-act="restart-camera">Restart camera<small>fresh connection</small></button>
+        <button class="arow" data-act="test-print">Test print<small>reprints the last sheet</small></button>
+        <button class="arow" data-act="calibration">Calibration sheet<small>checks the print edges</small></button>
+        <button class="arow" data-act="end-session" data-confirm="End the session that is running now? The group goes back to the start.">End current session<small>if a group left</small></button>
+        <button class="arow danger" data-act="shutdown" data-confirm="Shut the booth down? It stays off until someone starts it on the Mac.">Shut down booth</button>
+      </div>
+      <p class="result" id="boothMsg"></p>
+    </section>
+
     <section id="viewSet" hidden>
       <div class="hero"><span>One session takes about</span><b id="estimate">&ndash;</b></div>
       <div id="flow"></div>
@@ -502,6 +536,10 @@ const PAGE = `<!doctype html>
     <button data-tab="queue" aria-selected="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
       Orders<span class="badge" id="badge" hidden></span>
+    </button>
+    <button data-tab="booth" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      Booth
     </button>
     <button data-tab="set" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
@@ -558,16 +596,17 @@ const PAGE = `<!doctype html>
   document.querySelectorAll('.tabbar button').forEach(function(b){
     b.addEventListener('click',function(){tab(b.getAttribute('data-tab'))});
   });
+  var VIEWS={queue:['viewQueue','Orders'],booth:['viewBooth','Booth'],set:['viewSet','Settings']};
   function tab(which){
     tabNow=which;
     var q=which==='queue';
-    $('viewQueue').hidden=!q; $('viewSet').hidden=q;
-    $('title').textContent=q?'Orders':'Settings';
+    Object.keys(VIEWS).forEach(function(k){$(VIEWS[k][0]).hidden=k!==which});
+    $('title').textContent=VIEWS[which][1];
     document.querySelectorAll('.tabbar button').forEach(function(b){
       b.setAttribute('aria-selected',String(b.getAttribute('data-tab')===which));
     });
-    $('dock').hidden=q||!dirty();
-    if(!q)loadSettings();
+    $('dock').hidden=which!=='set'||!dirty();
+    if(which==='set')loadSettings();
     window.scrollTo(0,0);
   }
 
@@ -627,7 +666,8 @@ const PAGE = `<!doctype html>
     if(tm.camera)alerts.push(['bad','Test mode: the camera is not being used. Turn off mockCamera.']);
 
     var c=h.camera||{};
-    pills.push('<span class="pill'+(c.detected?'':' bad')+'"><i></i>'+(c.detected?'Camera':'Camera off')+'</span>');
+    pills.push('<span class="pill'+(c.detected?'':' bad')+'"><i></i>'+(c.detected?'Camera':'Camera off')+
+      ' · '+(c.mock?'test':c.driver==='edsdk'?'SDK':c.driver==='gphoto2'?'gphoto2':'?')+'</span>');
     if(!c.detected&&!tm.camera)alerts.push(['bad','Camera: '+esc(c.lastError||'not connected. Check it is on and plugged in.')]);
 
     var pr=h.printer||{};
@@ -654,19 +694,72 @@ const PAGE = `<!doctype html>
     $('health').innerHTML=pills.join('');
     $('alerts').innerHTML=alerts.map(function(a){return '<div class="alert'+(a[0]==='low'?' low':'')+'">'+a[1]+'</div>'}).join('');
     $('health').querySelectorAll('[data-refill]').forEach(function(b){
-      b.addEventListener('click',function(){
-        var k=b.getAttribute('data-refill');
-        var q=k==='paper'?'Loaded a full paper cassette (18 sheets)?':'Put in a new ink cassette (36 prints)?';
-        if(!confirm(q))return;
-        api('/api/supplies?kind='+k,{method:'POST'}).then(function(r){return r.json()})
-          .then(function(x){healthSig='';health(x.health)}).catch(function(){});
-      });
+      b.addEventListener('click',function(){ refill(b.getAttribute('data-refill')) });
     });
   }
+
+  // Which driver is running, in words staff can act on.
+  function driverName(c){
+    if(c.mock)return 'Test mode (made-up photos)';
+    return c.driver==='edsdk'?'Canon SDK':c.driver==='gphoto2'?'gphoto2 (old driver)':(c.driver||'Unknown');
+  }
+  var boothSig='';
+  function boothTab(h){
+    if(!h)return;
+    var sig=JSON.stringify(h); if(sig===boothSig)return; boothSig=sig;
+    var c=h.camera||{}, pr=h.printer||{}, sp=h.supplies, d=h.disk||{}, rows=[];
+    function row(label,sub,val,cls,extra){
+      return '<div class="srow"><div class="slab"><b>'+label+'</b><span>'+sub+'</span></div>'+
+        '<span class="val'+(cls?' '+cls:'')+'">'+val+'</span>'+(extra||'')+'</div>';
+    }
+    rows.push(row('Camera', esc(driverName(c)),
+      c.detected?esc(c.model||'Connected'):'Not connected', c.detected?'':'bad'));
+    if(!c.detected&&c.lastError)rows.push('<div class="srow"><div class="slab"><span>'+esc(c.lastError)+'</span></div></div>');
+    rows.push(row('Printer', esc(pr.message||''), pr.ok?(pr.stuck?pr.waiting+' waiting':'Ready'):'Not ready', !pr.ok?'bad':pr.stuck?'low':''));
+    if(sp){
+      rows.push(row('Paper','cassette holds '+sp.paper.cap, sp.paper.left+' left', sp.paper.level==='out'?'bad':sp.paper.level==='low'?'low':'',
+        '<button class="mini" data-refill="paper">Reloaded</button>'));
+      rows.push(row('Ink','cassette prints '+sp.ink.cap, sp.ink.left+' left', sp.ink.level==='out'?'bad':sp.ink.level==='low'?'low':'',
+        '<button class="mini" data-refill="ink">New ink</button>'));
+      rows.push(row('Printed', 'since the booth started counting', String(sp.printed), ''));
+    }
+    if(d.gb)rows.push(row('Storage','room for about '+d.sessionsLeft+' sessions', d.gb+' GB free', d.level==='stop'?'bad':d.level==='low'?'low':''));
+    var tm=h.testMode||{};
+    if(tm.camera||tm.printing)rows.push(row('Test mode', (tm.printing?'not printing ':'')+(tm.camera?'made-up photos':''), 'On', 'bad'));
+    $('boothInfo').innerHTML=rows.join('');
+    $('boothInfo').querySelectorAll('[data-refill]').forEach(function(b){
+      b.addEventListener('click',function(){ refill(b.getAttribute('data-refill')) });
+    });
+  }
+  function refill(k){
+    var q=k==='paper'?'Loaded a full paper cassette (18 sheets)?':'Put in a new ink cassette (36 prints)?';
+    if(!confirm(q))return;
+    api('/api/supplies?kind='+k,{method:'POST'}).then(function(r){return r.json()})
+      .then(function(x){healthSig='';boothSig='';health(x.health);boothTab(x.health)}).catch(function(){});
+  }
+  document.querySelectorAll('#boothActions [data-act]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var q=b.getAttribute('data-confirm'); if(q&&!confirm(q))return;
+      var act=b.getAttribute('data-act'), msg=$('boothMsg'), was=b.innerHTML;
+      b.disabled=true; msg.className='result'; msg.textContent='Working…';
+      api('/api/booth?action='+act,{method:'POST'})
+        .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})
+        .then(function(x){
+          b.disabled=false;
+          var ok=x.ok&&x.j.ok!==false;
+          msg.className='result'+(ok?'':' bad');
+          msg.textContent=ok?({'restart-camera':'Camera restarted.','test-print':'Test print sent.','calibration':'Calibration sheet sent.',
+            'end-session':'Session ended. The booth is back at the start.','shutdown':'The booth is shutting down.'})[act]:(x.j.error||'That did not work.');
+          if(x.j.health){healthSig='';boothSig='';health(x.j.health);boothTab(x.j.health)}
+        })
+        .catch(function(){b.disabled=false;msg.className='result bad';msg.textContent='Could not reach the booth.'});
+    });
+  });
 
   function render(d){
     setLive(true);
     health(d.health);
+    boothTab(d.health);
     pricing=d.pricing||{};
     var pend=d.pending||[], past=d.recent||[];
     orders={}; pend.concat(past).forEach(function(o){orders[o.code]=o});

@@ -410,6 +410,7 @@ app.whenReady().then(async () => {
       onBatch: printBatch,
       batchStatus,
       health: boothHealth,
+      onBoothAction: boothAction,
       onRefill: (kind) => {
         healthCache = null; // the phone should see the new count at once
         return supplies.refill(kind);
@@ -905,6 +906,87 @@ ipcMain.handle('staff:unlock', (_e, pin) => {
  * the same machine can see it perfectly well. Re-detecting is the whole point
  * of a button called Check again.
  */
+/**
+ * What staff can do to the booth, from either place they can do it: the staff
+ * phone, which is the normal way, and the booth's own hidden panel, kept for
+ * emergencies. One function each, so the two cannot drift apart.
+ */
+const boothActions = {
+  /** A fresh camera connection. The Canon helper is restarted outright. */
+  async 'restart-camera'() {
+    const wasLive = !!camera.wantLive;
+    camera.stopLiveView();
+    await new Promise((r) => setTimeout(r, 500));
+    if (camera.restart) await camera.restart();
+    const res = await camera.detect();
+    // Put live view back only if a group was using it: a locked booth
+    // between sessions has no one to show it to.
+    if (wasLive) camera.startLiveView();
+    healthCache = null;
+    return Object.assign(camera.status(), res);
+  },
+
+  /** Print the most recent sheet again, to check colour and alignment. */
+  async 'test-print'() {
+    const dirs = fs
+      .readdirSync(SESSIONS_ROOT)
+      .map((d) => path.join(SESSIONS_ROOT, d))
+      .filter((d) => fs.statSync(d).isDirectory())
+      .sort();
+    for (let i = dirs.length - 1; i >= 0; i--) {
+      const files = fs.readdirSync(dirs[i]).filter((f) => f.startsWith('print_')).sort();
+      if (files.length) return printer.print(path.join(dirs[i], files[files.length - 1]), 1);
+    }
+    return { ok: false, error: 'No previous print found. Run one session first.' };
+  },
+
+  /** The ruler sheet for measuring how much the printer trims off. */
+  async calibration() {
+    const worker = await sheetWorker();
+    await worker.webContents.executeJavaScript(`window.SHEET_CFG = ${JSON.stringify({ print: cfg.print })}`);
+    const dataUrl = await worker.webContents.executeJavaScript('buildCalibrationSheet()');
+    const out = path.join(SESSIONS_ROOT, 'calibration.jpg');
+    fs.writeFileSync(out, Buffer.from(String(dataUrl).replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+    log.info('[main] calibration sheet written to ' + out);
+    return Object.assign({ file: out }, await printer.print(out, 1));
+  },
+
+  /** Send whoever is mid-session back to the start, e.g. a group that left. */
+  'end-session'() {
+    if (boothLocked) return { ok: false, error: 'No session is running.' };
+    send('booth:reset', {});
+    log.info('[main] staff ended the current session');
+    return { ok: true };
+  },
+
+  /** Close the booth. START-BOOTH.command stops too, since this exits cleanly. */
+  shutdown() {
+    log.info('[main] staff requested quit');
+    allowQuit = true;
+    cleanup();
+    setTimeout(() => app.quit(), 300);
+    return { ok: true };
+  },
+};
+
+async function boothAction(name) {
+  const act = boothActions[name];
+  if (!act) return { ok: false, error: 'Unknown action.' };
+  try {
+    const res = await act();
+    log.info(`[main] booth action ${name}: ${res && res.ok === false ? res.error : 'ok'}`);
+    return res;
+  } catch (err) {
+    log.error(`[main] booth action ${name} failed:`, err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
+ipcMain.handle('staff:restartCamera', () => boothAction('restart-camera'));
+ipcMain.handle('staff:testPrint', () => boothAction('test-print'));
+ipcMain.handle('staff:calibration', () => boothAction('calibration'));
+ipcMain.handle('staff:quit', () => boothAction('shutdown'));
+
 ipcMain.handle('staff:redetect', async () => {
   const res = await camera.detect();
   return Object.assign(camera.status(), res);
@@ -930,44 +1012,11 @@ ipcMain.handle('staff:status', async () => {
   };
 });
 
-ipcMain.handle('staff:testPrint', async () => {
-  // Print the most recent composite if there is one, so staff can check colour
-  // and alignment without running a whole customer session.
-  try {
-    const dirs = fs
-      .readdirSync(SESSIONS_ROOT)
-      .map((d) => path.join(SESSIONS_ROOT, d))
-      .filter((d) => fs.statSync(d).isDirectory())
-      .sort();
-    for (let i = dirs.length - 1; i >= 0; i--) {
-      const files = fs.readdirSync(dirs[i]).filter((f) => f.startsWith('print_'));
-      if (files.length) {
-        return await printer.print(path.join(dirs[i], files[files.length - 1]), 1);
-      }
-    }
-    return { ok: false, error: 'No previous print found. Run one session first.' };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-});
 
 /**
  * Write and print the calibration sheet. Saved next to the app as well as
  * printed, so what is on paper and what is on disk are the same sheet.
  */
-ipcMain.handle('staff:calibration', async (_e, dataUrl) => {
-  try {
-    const out = path.join(__dirname, 'calibration.jpg');
-    const b64 = String(dataUrl).replace(/^data:image\/\w+;base64,/, '');
-    fs.writeFileSync(out, Buffer.from(b64, 'base64'));
-    log.info('[main] calibration sheet written to ' + out);
-    const res = await printer.print(out, 1);
-    return Object.assign({ file: out }, res);
-  } catch (err) {
-    log.error('[main] calibration failed:', err.message);
-    return { ok: false, error: err.message };
-  }
-});
 
 ipcMain.handle('staff:openLogs', () => {
   try {
@@ -978,28 +1027,7 @@ ipcMain.handle('staff:openLogs', () => {
   }
 });
 
-ipcMain.handle('staff:restartCamera', async () => {
-  try {
-    camera.stopLiveView();
-    await new Promise((r) => setTimeout(r, 500));
-    // The Canon driver can start its helper afresh, which also clears a stuck
-    // session; the gphoto2 driver starts a new process per shot anyway.
-    if (camera.restart) await camera.restart();
-    const res = await camera.detect();
-    if (cfg.liveView) camera.startLiveView();
-    return Object.assign(camera.status(), res);
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-});
 
-ipcMain.handle('staff:quit', () => {
-  log.info('[main] staff requested quit');
-  allowQuit = true;
-  cleanup();
-  setTimeout(() => app.quit(), 150);
-  return { ok: true };
-});
 
 ipcMain.handle('app:log', (_e, level, msg) => {
   if (level === 'error') log.error('[renderer]', msg);

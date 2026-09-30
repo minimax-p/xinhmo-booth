@@ -1964,3 +1964,14 @@ img.live:not([src]) {
 .nowrap {
   white-space: nowrap;
 }
+
+/* The booth's own staff panel is the emergency route; say so up front. */
+.staff-emergency {
+  margin: 0 0 var(--gap-2);
+  padding: 0.6em 0.9em;
+  border-radius: 10px;
+  background: rgba(178, 106, 0, 0.12);
+  color: #8a5300;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}

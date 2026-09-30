@@ -150,6 +150,11 @@ async function init() {
     if (s && s.error) log('info', 'camera status: ' + s.error);
   });
   window.booth.onUnlock(unlockBooth);
+  // Staff ended the session from their phone, e.g. a group that walked off.
+  window.booth.onReset(() => {
+    log('info', 'session ended by staff');
+    abandonSession();
+  });
   // Staff retime the booth from their phone between groups. Taking the new
   // numbers live is the whole point -- an operator who has to restart the app
   // to change a countdown will just leave it wrong.
@@ -1558,100 +1563,6 @@ function compositeStrip(canvas) {
 
 
 
-/**
- * The calibration sheet. Print it, look at what survived, and put the trim you
- * measured into print.safeArea. The dashed SAFE box is the important line: if
- * any edge of it is missing, that edge is losing more than we think.
- */
-function drawCalibrationSheet(canvas) {
-  const W = 1200;
-  const H = 1800;
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d');
-  const px = (mm) => mmToPx(mm);
-
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = '#000000';
-  ctx.fillStyle = '#000000';
-  ctx.textBaseline = 'middle';
-
-  const line = (x1, y1, x2, y2) => {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-  };
-
-  // Edge rule, right on the boundary: whatever is missing was trimmed off.
-  ctx.lineWidth = 2;
-  ctx.strokeRect(1, 1, W - 2, H - 2);
-
-  // Millimetre ticks in from every edge. Labels go on the top and left rulers
-  // only, and skip the first 8mm, because at the corner the two rulers would
-  // otherwise print their numbers on top of each other.
-  ctx.lineWidth = 1;
-  ctx.font = '600 22px -apple-system, Helvetica, Arial, sans-serif';
-  for (let mm = 1; mm <= 15; mm++) {
-    const d = px(mm);
-    const len = mm % 5 === 0 ? 46 : 22;
-    line(d, 0, d, len);
-    line(d, H, d, H - len);
-    line(0, d, len, d);
-    line(W, d, W - len, d);
-    if (mm % 5 === 0 && mm >= 10) {
-      ctx.textAlign = 'center';
-      ctx.fillText(String(mm), d, len + 22);
-      ctx.fillText(String(mm), d, H - len - 22);
-      ctx.textAlign = 'left';
-      ctx.fillText(String(mm), len + 10, d);
-    }
-  }
-
-  // The safe box currently in force. This is the line that matters.
-  const sa = (((S.cfg || {}).print || {}).safeArea) || {};
-  ctx.save();
-  ctx.lineWidth = 3;
-  ctx.setLineDash([18, 12]);
-  ctx.strokeRect(
-    px(sa.left) + 1.5,
-    px(sa.top) + 1.5,
-    W - px(sa.left) - px(sa.right) - 3,
-    H - px(sa.top) - px(sa.bottom) - 3
-  );
-  ctx.restore();
-
-  ctx.textAlign = 'center';
-  ctx.font = '700 62px -apple-system, Helvetica, Arial, sans-serif';
-  ctx.fillText('TOP', W / 2, 150);
-  ctx.fillText('BOTTOM', W / 2, H - 150);
-
-  // Text sits above the crosshair rather than through it.
-  ctx.font = '600 30px -apple-system, Helvetica, Arial, sans-serif';
-  [
-    'Solid rule sits on the paper edge.',
-    'Dashed rule is the safe area. It must print whole.',
-    '',
-    `safe area   top ${sa.top || 0}   right ${sa.right || 0}   ` +
-      `bottom ${sa.bottom || 0}   left ${sa.left || 0}   (mm)`,
-    '',
-    'If a dashed edge is cut, raise that number by what is missing.',
-    'If there is white beyond a dashed edge, lower it.',
-  ].forEach((t, i) => ctx.fillText(t, W / 2, 430 + i * 46));
-
-  // Centre crosshair, to catch the whole sheet being shifted.
-  ctx.lineWidth = 2;
-  line(W / 2 - 90, H / 2, W / 2 + 90, H / 2);
-  line(W / 2, H / 2 - 90, W / 2, H / 2 + 90);
-  ctx.beginPath();
-  ctx.arc(W / 2, H / 2, 60, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.font = '500 26px -apple-system, Helvetica, Arial, sans-serif';
-  ctx.fillText(new Date().toLocaleString(), W / 2, H - 300);
-  return true;
-}
 
 /** object-fit: cover, in canvas terms. */
 /**
@@ -2008,9 +1919,9 @@ async function refreshStaffStatus() {
         'Camera',
         cam.mock
           ? 'Test mode, no real camera in use.'
-          : cam.detected
-          ? 'Connected and ready.'
-          : cam.lastError || 'Not detected. Check the cable and that it is switched on.'
+          : (cam.detected ? `${cam.model || 'Connected'}, ready.` : cam.lastError ||
+              'Not detected. Check the cable and that it is switched on.') +
+            (cam.driver === 'edsdk' ? ' Driver: Canon SDK.' : cam.driver === 'gphoto2' ? ' Driver: gphoto2 (old driver).' : '')
       )
     );
 
@@ -2104,7 +2015,10 @@ function wireEvents() {
   const corner = $('staffCorner');
   const startHold = () => {
     clearTimeout(holdTimer);
-    holdTimer = setTimeout(openStaff, 2500);
+    // Five seconds, not a quick press: the staff phone is how the booth is run,
+    // and this is the way in when the phone is not an option -- dead battery,
+    // no network. Long enough that nobody opens it by leaning on the corner.
+    holdTimer = setTimeout(openStaff, 5000);
   };
   const cancelHold = () => clearTimeout(holdTimer);
   corner.addEventListener('pointerdown', startHold);
@@ -2154,9 +2068,7 @@ function wireEvents() {
   $('staffCalibrate').addEventListener('click', async () => {
     toast('Printing a calibration sheet…');
     try {
-      const c = document.createElement('canvas');
-      drawCalibrationSheet(c);
-      const res = await window.booth.staff.calibration(c.toDataURL('image/jpeg', 0.95));
+      const res = await window.booth.staff.calibration();
       toast(
         res && res.ok ? 'Calibration sheet sent.' : (res && res.error) || 'Calibration failed.',
         !(res && res.ok)
