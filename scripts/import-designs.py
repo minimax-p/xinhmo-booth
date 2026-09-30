@@ -48,6 +48,12 @@ CLEAR = 24          # alpha below this is a hole
 MIN_HOLE = 0.01     # of the image area; smaller clear patches are art, not holes
 BLEED = 6           # px the photo runs under the art (0.5 mm at 300 dpi)
 MERGE = 0.10        # boxes overlapping this much of the smaller one are one hole
+# A hole filling less of its box than this is a shape, not a rectangle, and its
+# photo is fitted inside rather than cropped to the box. An ellipse fills pi/4
+# (0.785) of its box and a heart rather less; a rectangle tilted a few degrees
+# still fills over 0.82. The measured holes leave a clear gap between 0.784 and
+# 0.820, and this sits in it.
+FIT_BELOW = 0.80
 
 
 
@@ -91,15 +97,25 @@ def find_holes(alpha):
                     break
             if merged:
                 break
-    return boxes
+
+    # How much of its own box each hole actually fills. A rectangular window
+    # fills all of it; a heart, a cloud or a cat's head fills about two thirds,
+    # and that is the difference between a photo that can be cropped to the box
+    # and one that has to be fitted inside it.
+    out = []
+    for x0, y0, x1, y1 in boxes:
+        area = max(1, (x1 - x0) * (y1 - y0))
+        clear = int((alpha[y0:y1, x0:x1] < CLEAR).sum())
+        out.append((x0, y0, x1, y1, clear / area))
+    return out
 
 
 def with_bleed(boxes, W, H):
     """Grow each box under the art, never into a neighbour."""
     out = []
-    for i, (x0, y0, x1, y1) in enumerate(boxes):
+    for i, (x0, y0, x1, y1, fill) in enumerate(boxes):
         bleed = BLEED
-        for j, (a0, b0, a1, b1) in enumerate(boxes):
+        for j, (a0, b0, a1, b1, _f) in enumerate(boxes):
             if i == j:
                 continue
             # Keep half the gap to a neighbour in reserve.
@@ -112,6 +128,8 @@ def with_bleed(boxes, W, H):
             "x": max(0, x0 - bleed), "y": max(0, y0 - bleed),
             "w": min(W, x1 + bleed) - max(0, x0 - bleed),
             "h": min(H, y1 + bleed) - max(0, y0 - bleed),
+            "fill": round(fill, 3),
+            "fit": fill < FIT_BELOW,
         })
     return out
 

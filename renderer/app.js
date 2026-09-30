@@ -1013,6 +1013,10 @@ function buildThumbs() {
   // The tile widens as the slot does, keeping roughly the area a 3:4 tile
   // had, so a wide slot is not shrunk to a sliver to fit the old column.
   const ar = slotRatio();
+  // A shaped hole shows the whole photo rather than a crop of it, so the tile
+  // has to as well, or people would choose on a crop that never happens.
+  const fits = !!(frame && frame.slots && frame.slots[0] && frame.slots[0].fit);
+  wrap.classList.toggle('fits', fits);
   wrap.style.setProperty('--thumb-ar', String(ar));
   wrap.style.setProperty('--thumb-scale', String(Math.sqrt(ar / 0.75).toFixed(3)));
 
@@ -1367,7 +1371,8 @@ function drawFrameDesign(ctx, frame) {
     ctx.rect(slot.x, slot.y, slot.w, slot.h);
     ctx.clip();
     ctx.filter = filter.css;
-    drawCover(ctx, img, slot);
+    if (slot.fit) drawFit(ctx, img, slot, paperColour(frame));
+    else drawCover(ctx, img, slot);
     ctx.restore();
   });
 
@@ -1789,6 +1794,31 @@ function drawCalibrationSheet(canvas) {
 }
 
 /** object-fit: cover, in canvas terms. */
+/**
+ * object-fit: contain, on the frame's own paper.
+ *
+ * For a hole that is a heart, an oval or a cloud, cropping the photo to the
+ * hole's box and then letting the art cut the shape out of it takes two bites
+ * out of the picture, and faces near an edge lose to both. Fitting the whole
+ * photo inside instead leaves paper showing in the corners of the shape, which
+ * is the better trade: the shape is the decoration, and what it frames should
+ * be the whole photograph.
+ */
+function drawFit(ctx, img, slot, paper) {
+  const ir = img.naturalWidth / img.naturalHeight;
+  const sr = slot.w / slot.h;
+  const dw = ir > sr ? slot.w : slot.h * ir;
+  const dh = ir > sr ? slot.w / ir : slot.h;
+  // The gap has to be filled, not left transparent: the sheet behind it is the
+  // printed border, and a see-through hole would show that instead of paper.
+  ctx.save();
+  ctx.filter = 'none';
+  ctx.fillStyle = paper;
+  ctx.fillRect(slot.x, slot.y, slot.w, slot.h);
+  ctx.restore();
+  ctx.drawImage(img, slot.x + (slot.w - dw) / 2, slot.y + (slot.h - dh) / 2, dw, dh);
+}
+
 function drawCover(ctx, img, slot) {
   const ir = img.naturalWidth / img.naturalHeight;
   const sr = slot.w / slot.h;

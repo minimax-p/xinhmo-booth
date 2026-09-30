@@ -147,7 +147,9 @@ function designs(layouts) {
       : [{ x: 0, y: 0, w: base.width, h: base.height }];
     const slots = [];
     columns.forEach((c) =>
-      d.holes.forEach((h, i) => slots.push({ x: c.x + h.x, y: c.y + h.y, w: h.w, h: h.h, photo: i }))
+      d.holes.forEach((h, i) =>
+        slots.push({ x: c.x + h.x, y: c.y + h.y, w: h.w, h: h.h, photo: i, fit: !!h.fit })
+      )
     );
 
     let thumb = null;
@@ -187,7 +189,7 @@ function keychainFrame(k) {
     background: k.background || '#FFFFFF',
     art: k.art ? 'designs/' + k.art : undefined,
     border: { stroke: false, rects: [{ x: 0, y: 0, w: 600, h: 1800 }] },
-    slots: (k.holes || []).map((h, i) => ({ x: h.x, y: h.y, w: h.w, h: h.h, photo: i })),
+    slots: (k.holes || []).map((h, i) => ({ x: h.x, y: h.y, w: h.w, h: h.h, photo: i, fit: !!h.fit })),
   };
 }
 

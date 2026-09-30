@@ -643,6 +643,13 @@ img.live:not([src]) {
   object-position: center;
 }
 
+/* A frame whose holes are hearts or ovals fits the whole photo inside them,
+   so the tile does the same. Otherwise the tile would promise a crop the
+   print never makes. */
+.thumbs.fits .thumb img {
+  object-fit: contain;
+}
+
 .thumb.selected {
   border-color: var(--ink);
   outline-color: var(--ink);
