@@ -14,7 +14,8 @@
     "dist": "electron-builder --mac --dir",
     "pack": "electron-builder --mac",
     "mock-kiosk": "PB_MOCK_CAMERA=1 PB_PRINT_DRYRUN=1 electron .",
-    "dev": "PB_PRINT_DRYRUN=1 PB_KIOSK=0 electron ."
+    "dev": "PB_PRINT_DRYRUN=1 PB_KIOSK=0 electron .",
+    "build:camera": "bash scripts/build-camera-helper.sh"
   },
   "devDependencies": {
     "electron": "^32.2.0",

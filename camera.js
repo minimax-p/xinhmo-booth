@@ -176,6 +176,11 @@ class Camera extends EventEmitter {
     }
   }
 
+  /** This driver focuses as part of capture(); nothing to start early. */
+  async focus() {
+    return { ok: false, unsupported: true };
+  }
+
   shutdown() {
     this.stopLiveView();
   }

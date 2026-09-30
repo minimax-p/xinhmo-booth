@@ -92,4 +92,19 @@ ensure_ready() {
       read -n 1 -s
     fi
   fi
+
+  # The Canon camera helper. Built on this Mac rather than copied in, so macOS
+  # has nothing to quarantine. Rebuilt whenever its source is newer than the
+  # binary. Needs Canon's EDSDK folder, which is copied in by hand; without it
+  # this says so and the booth uses gphoto2.
+  local helper=camera-helper/bin/xinhmo-camera
+  if [ -d EDSDK ] && { [ ! -x "$helper" ] || [ camera-helper/edsdk-helper.m -nt "$helper" ]; }; then
+    if ! command -v clang >/dev/null 2>&1; then
+      say "Installing Apple's command-line tools for the Canon camera helper."
+      say "A window will open; click Install, then double-click START-BOOTH again."
+      xcode-select --install >/dev/null 2>&1
+    else
+      bash scripts/build-camera-helper.sh || say "The Canon camera helper did not build; the booth will use gphoto2."
+    fi
+  fi
 }

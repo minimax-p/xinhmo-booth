@@ -43,6 +43,13 @@ const DEFAULTS = {
   // seconds a shot. Turn it off and pre-focus by hand (lens switch on MF) for
   // a much faster, more predictable booth.
   cameraAutofocus: true,
+  // How the booth talks to the camera.
+  //   "edsdk"   Canon's own SDK through camera-helper: one connection all night,
+  //             focus during the countdown, photo in about a second. Needs the
+  //             EDSDK folder and `npm run build:camera` on this Mac.
+  //   "gphoto2" the original driver: a new gphoto2 process per shot.
+  // Falls back to gphoto2 by itself if the Canon helper has not been built.
+  cameraDriver: 'gphoto2',
 
   // --- review steps --- one decision per screen, each on its own clock
   pickSeconds: 30, // choosing which photos go on the paper
@@ -154,6 +161,7 @@ function load() {
 
   // Environment overrides, handy for testing without editing the file.
   if (process.env.PB_MOCK_CAMERA) merged.mockCamera = truthy(process.env.PB_MOCK_CAMERA);
+  if (process.env.PB_CAMERA_DRIVER) merged.cameraDriver = String(process.env.PB_CAMERA_DRIVER);
   if (process.env.PB_PRINT_DRYRUN) merged.printDryRun = truthy(process.env.PB_PRINT_DRYRUN);
   if (process.env.PB_PRINTER_NAME) merged.printerName = process.env.PB_PRINTER_NAME;
   if (process.env.PB_KIOSK !== undefined) merged.kiosk = truthy(process.env.PB_KIOSK);

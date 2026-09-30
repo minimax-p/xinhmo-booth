@@ -6,3 +6,7 @@ dist
 _backup_pre_revamp/
 keychain_safe_area*
 preview/
+
+# Canon EDSDK: licensed, never redistributed. Each machine supplies its own.
+EDSDK/
+camera-helper/bin/

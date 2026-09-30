@@ -24,6 +24,7 @@ const config = require('./config');
 const log = require('./logger');
 const { Camera } = require('./camera');
 const { Printer } = require('./printer');
+const { EdsdkCamera } = require('./camera-edsdk');
 const frames = require('./frames');
 const decor = require('./decor');
 const { Queue } = require('./queue');
@@ -384,7 +385,7 @@ app.whenReady().then(async () => {
 
   log.info('[main] starting Xinhmo booth', app.getVersion(), 'kiosk=' + !!cfg.kiosk);
 
-  camera = new Camera(cfg);
+  camera = makeCamera();
   printer = new Printer(cfg);
 
   try {
@@ -611,6 +612,25 @@ ipcMain.handle('camera:detect', async () => {
   const res = await camera.detect();
   return Object.assign(camera.status(), res);
 });
+
+/**
+ * Test mode uses the gphoto2 driver's generated photos. Otherwise the Canon
+ * helper when it is chosen and built, and gphoto2 if it is not -- a booth with
+ * a missing helper should still take photos, and the log says why.
+ */
+function makeCamera() {
+  if (!cfg.mockCamera && cfg.cameraDriver === 'edsdk') {
+    if (EdsdkCamera.available()) {
+      log.info('[main] camera driver: Canon EDSDK');
+      return new EdsdkCamera(cfg);
+    }
+    log.warn('[main] cameraDriver is "edsdk" but the helper is not built (npm run build:camera); using gphoto2');
+  }
+  log.info('[main] camera driver: gphoto2' + (cfg.mockCamera ? ' (test mode)' : ''));
+  return new Camera(cfg);
+}
+
+ipcMain.handle('camera:focus', async () => camera.focus());
 
 ipcMain.handle('camera:live', (_e, on) => {
   if (on) camera.startLiveView();
@@ -872,6 +892,9 @@ ipcMain.handle('staff:restartCamera', async () => {
   try {
     camera.stopLiveView();
     await new Promise((r) => setTimeout(r, 500));
+    // The Canon driver can start its helper afresh, which also clears a stuck
+    // session; the gphoto2 driver starts a new process per shot anyway.
+    if (camera.restart) await camera.restart();
     const res = await camera.detect();
     if (cfg.liveView) camera.startLiveView();
     return Object.assign(camera.status(), res);
