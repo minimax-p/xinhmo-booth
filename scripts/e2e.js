@@ -252,9 +252,17 @@ function restoreSettings() {
 
     // -------------------------------------------------------- review
     console.log('\nReview');
-    const showcase = await evalJs(
-      '(() => { const c = document.getElementById("pickCanvas"); return c.width + "x" + c.height; })()'
-    );
+    // The preview is drawn on the next animation frame, not the instant the
+    // screen appears. Reading it straight away occasionally caught the canvas
+    // still at its 300x150 default, before anything had been drawn on it.
+    let showcase = '';
+    for (let i = 0; i < 20; i++) {
+      showcase = await evalJs(
+        '(() => { const c = document.getElementById("pickCanvas"); return c.width + "x" + c.height; })()'
+      );
+      if (showcase !== '300x150') break;
+      await sleep(100);
+    }
     t('a two-column strip previews as two separate strips',
       showcase === `${564 + 564 + 72}x1764`, showcase);
 
