@@ -3,8 +3,8 @@
 #
 # Needs Canon's EDSDK in ./EDSDK -- it is licensed and never committed, so each
 # Mac gets its own copy by hand -- and Apple's command-line tools (clang).
-# Without the SDK this says so and stops cleanly: the booth still runs on the
-# gphoto2 driver.
+# Without it the booth reports the camera as unavailable -- it does not switch
+# to another driver by itself.
 set -e
 cd "$(dirname "$0")/.."
 

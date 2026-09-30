@@ -47,9 +47,9 @@ const DEFAULTS = {
   //   "edsdk"   Canon's own SDK through camera-helper: one connection all night,
   //             focus during the countdown, photo in about a second. Needs the
   //             EDSDK folder and `npm run build:camera` on this Mac.
-  //   "gphoto2" the original driver: a new gphoto2 process per shot.
-  // Falls back to gphoto2 by itself if the Canon helper has not been built.
-  cameraDriver: 'gphoto2',
+  //   "gphoto2" the original driver: a new gphoto2 process per shot. Only if
+  //             chosen here -- the booth never switches to it by itself.
+  cameraDriver: 'edsdk',
   // Seconds before the shutter that focusing starts. The 1300D needs about
   // three to lock; later leaves less time for people to move after it has.
   cameraFocusLeadSeconds: 4.5,

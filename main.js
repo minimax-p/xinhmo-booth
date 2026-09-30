@@ -671,20 +671,29 @@ ipcMain.handle('camera:detect', async () => {
 });
 
 /**
- * Test mode uses the gphoto2 driver's generated photos. Otherwise the Canon
- * helper when it is chosen and built, and gphoto2 if it is not -- a booth with
- * a missing helper should still take photos, and the log says why.
+ * The camera driver. Canon's SDK, and only that, unless someone chooses
+ * otherwise.
+ *
+ * There is deliberately no automatic fallback. A booth that quietly switched
+ * drivers when the Canon helper failed would carry on with worse photos and
+ * nobody would know; this way a failure shows up as a camera alert on the
+ * staff phone, and Restart camera starts the Canon helper afresh.
+ *
+ * Test mode uses the gphoto2 driver, which makes its own photos. The gphoto2
+ * driver is also still here for anyone who sets cameraDriver to "gphoto2" on
+ * purpose.
  */
 function makeCamera() {
-  if (!cfg.mockCamera && cfg.cameraDriver === 'edsdk') {
-    if (EdsdkCamera.available()) {
-      log.info('[main] camera driver: Canon EDSDK');
-      return new EdsdkCamera(cfg);
-    }
-    log.warn('[main] cameraDriver is "edsdk" but the helper is not built (npm run build:camera); using gphoto2');
+  if (cfg.mockCamera) {
+    log.info('[main] camera driver: gphoto2 (test mode)');
+    return new Camera(cfg);
   }
-  log.info('[main] camera driver: gphoto2' + (cfg.mockCamera ? ' (test mode)' : ''));
-  return new Camera(cfg);
+  if (cfg.cameraDriver === 'gphoto2') {
+    log.info('[main] camera driver: gphoto2 (chosen in settings.json)');
+    return new Camera(cfg);
+  }
+  log.info('[main] camera driver: Canon EDSDK');
+  return new EdsdkCamera(cfg);
 }
 
 ipcMain.handle('camera:focus', async () => camera.focus());

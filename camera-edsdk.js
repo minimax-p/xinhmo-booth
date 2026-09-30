@@ -45,6 +45,11 @@ class EdsdkCamera extends EventEmitter {
     this.lastError = null;
     this.stopping = false;
     this.restarts = 0;
+    if (!EdsdkCamera.available()) {
+      this.lastError = 'The Canon camera helper is not built on this Mac. Run: npm run build:camera';
+      log.error('[camera] ' + this.lastError);
+      return;
+    }
     this.start();
   }
 
@@ -110,6 +115,7 @@ class EdsdkCamera extends EventEmitter {
    * of the camera and taking it again clears whatever state it was stuck in.
    */
   async restart() {
+    if (!EdsdkCamera.available()) return;
     this.restarts = 0;
     if (this.proc) {
       const p = this.proc;
@@ -164,6 +170,11 @@ class EdsdkCamera extends EventEmitter {
       return;
     }
     this.proc = proc;
+    // A helper that cannot be started at all reports here, not by throwing.
+    proc.on('error', (err) => {
+      this.lastError = 'The Canon camera helper would not start: ' + err.message;
+      log.error('[camera] ' + this.lastError);
+    });
     let text = '';
     proc.stdout.on('data', (d) => {
       text += d;
