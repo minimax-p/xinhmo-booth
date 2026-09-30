@@ -132,6 +132,10 @@ function createWindow() {
   });
 
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  // The hidden sheet worker must not outlive the booth window: the app quits
+  // when its last window closes, and an invisible one would keep it -- and the
+  // camera helper -- running with nothing on screen.
+  win.on('closed', closeSheetWorker);
 
   win.once('ready-to-show', () => {
     win.show();
@@ -235,7 +239,6 @@ async function printPhotos(order) {
 async function printBatch(type, code) {
   const addon = ((cfg.pricing || {}).addons || []).find((a) => a.id === type);
   if (!addon || !addon.heightMm) return { ok: false, error: 'That add-on is not a print.' };
-  if (!win || win.isDestroyed()) return { ok: false, error: 'The booth window is not available.' };
 
   const order = queue.get(code);
   if (!order) return { ok: false, error: 'No such order.' };
@@ -263,7 +266,11 @@ async function printBatch(type, code) {
     // The renderer owns every canvas in this app, so it builds the sheet too.
     let built;
     try {
-      built = await win.webContents.executeJavaScript(`buildBatchSheet(${JSON.stringify(payload)})`);
+      const worker = await sheetWorker();
+      // The latest print settings every time: calibration can change the safe
+      // area while the booth is running.
+      await worker.webContents.executeJavaScript(`window.SHEET_CFG = ${JSON.stringify({ print: cfg.print })}`);
+      built = await worker.webContents.executeJavaScript(`buildBatchSheet(${JSON.stringify(payload)})`);
     } catch (err) {
       log.error('[main] batch sheet failed:', err.message);
       break;
@@ -297,6 +304,46 @@ function creditPrinted(code, type, n) {
   if (!o) return;
   const printed = Object.assign({}, o.printed, { [type]: ((o.printed || {})[type] || 0) + n });
   queue.update(code, { printed });
+}
+
+/**
+ * A hidden window that draws staff's keychain and charm sheets.
+ *
+ * They used to be drawn in the customer's window, so a sheet printed while
+ * the next group was shooting competed with their live view, and a crashed
+ * booth window meant no sheets at all. This one is never shown, is made the
+ * first time it is needed, and is made again if it ever goes away.
+ */
+let sheetWin = null;
+let sheetReady = null;
+function closeSheetWorker() {
+  sheetReady = null;
+  try {
+    if (sheetWin && !sheetWin.isDestroyed()) sheetWin.destroy();
+  } catch {}
+  sheetWin = null;
+}
+function sheetWorker() {
+  if (sheetWin && !sheetWin.isDestroyed() && sheetReady) return sheetReady;
+  sheetWin = new BrowserWindow({
+    show: false,
+    width: 400,
+    height: 400,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
+  });
+  sheetWin.webContents.on('render-process-gone', (_e, d) => {
+    log.warn('[main] sheet worker gone: ' + (d && d.reason));
+    sheetReady = null;
+    try {
+      sheetWin.destroy();
+    } catch {}
+  });
+  const w = sheetWin;
+  sheetReady = w.loadFile(path.join(__dirname, 'renderer', 'sheet-worker.html')).then(() => w);
+  sheetReady.catch(() => {
+    sheetReady = null;
+  });
+  return sheetReady;
 }
 
 /**
@@ -449,6 +496,7 @@ app.on('activate', () => {
 });
 
 function cleanup() {
+  closeSheetWorker();
   try {
     if (camera) camera.shutdown();
   } catch {}
