@@ -11,6 +11,24 @@ cd "$(dirname "$0")" || exit 1
 source scripts/setup.sh
 ensure_ready
 
+# This is the event launcher, so it never inherits test switches from
+# whatever terminal it was started in. Test runs use TEST-MODE.command or npm.
+unset PB_MOCK_CAMERA PB_PRINT_DRYRUN PB_KIOSK PB_CAMERA_DRIVER PB_SESSIONS_DIR PB_DISK_STOP_BYTES
+
+# settings.json can still switch test mode on by itself. That is how a booth
+# ends up "running" all night without printing a thing, so say it loudly.
+TESTMODE="$(node -e 'const c=require("./config.js").load();const o=[];if(c.mockCamera)o.push("no camera (fake photos)");if(c.printDryRun)o.push("not printing");console.log(o.join(" and "))' 2>/dev/null)"
+if [ -n "$TESTMODE" ]; then
+  echo ""
+  echo "  ============================================================"
+  echo "   WARNING: settings.json has TEST MODE on: $TESTMODE."
+  echo "   Guests will get no real photos or prints."
+  echo "   Fix: set \"mockCamera\" and \"printDryRun\" to false in settings.json."
+  echo "  ============================================================"
+  echo "  Press any key to start anyway."
+  read -n 1 -s
+fi
+
 echo ""
 echo "  Starting the photobooth..."
 echo "  Please wait about 20 seconds."
