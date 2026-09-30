@@ -168,6 +168,40 @@ async function checkAsync(name, fn) {
     return true;
   });
 
+  // ---- order queue ----
+  console.log('\nOrder queue');
+  {
+    const { Queue } = require('../queue');
+    const os = require('os');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'xinhmo-queue-'));
+    const store = path.join(dir, 'queue.json');
+    try {
+      const q = new Queue(store);
+      q.add({ total: 8 });
+      q.add({ total: 10 });
+      check('a saved queue reads back whole', () => new Queue(store).orders.length === 2);
+      check('no temporary file is left behind', () => !fs.existsSync(store + '.tmp'));
+
+      // Damage the file the way a crash mid-write used to.
+      fs.writeFileSync(store, '[{"code":"AB');
+      const q2 = new Queue(store);
+      check('a damaged queue is recovered whole from the backup', () => q2.orders.length === 2,
+        `${q2.orders.length} of 2 orders back`);
+      check('and the damaged file is kept, not overwritten', () =>
+        fs.readdirSync(dir).some((f) => f.startsWith('queue.json.unreadable-')));
+
+      // Codes: a finished order's code must not come round again.
+      const q3 = new Queue(path.join(dir, 'codes.json'));
+      const first = q3.add({ total: 1 });
+      q3.update(first.code, { status: 'released' });
+      let clash = false;
+      for (let i = 0; i < 3000 && !clash; i++) clash = q3.newCode() === first.code;
+      check('a finished order\'s code is never handed out again', () => !clash);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
   // ---- logging ----
   console.log('\nLogging');
   const log = require('../logger');

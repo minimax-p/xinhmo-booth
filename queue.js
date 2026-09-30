@@ -24,31 +24,93 @@ class Queue {
     this.load();
   }
 
-  load() {
-    try {
-      if (fs.existsSync(this.storePath)) {
-        const parsed = JSON.parse(fs.readFileSync(this.storePath, 'utf8'));
-        if (Array.isArray(parsed)) this.orders = parsed;
-      }
-    } catch (err) {
-      log.error('[queue] store unreadable, starting empty:', err.message);
-      this.orders = [];
-    }
+  get backupPath() {
+    return this.storePath + '.bak';
   }
 
+  /**
+   * Read the queue back, from the backup if the main file is gone or damaged.
+   *
+   * A file that will not parse is moved aside, never left in place: the next
+   * save would otherwise write straight over it, destroying the only copy of
+   * every unpaid order when the damage might have been a few bytes.
+   */
+  load() {
+    const read = (file) => {
+      const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (!Array.isArray(parsed)) throw new Error('not a list of orders');
+      return parsed;
+    };
+    if (fs.existsSync(this.storePath)) {
+      try {
+        this.orders = read(this.storePath);
+        return;
+      } catch (err) {
+        const aside = `${this.storePath}.unreadable-${Date.now()}`;
+        try {
+          fs.renameSync(this.storePath, aside);
+        } catch {}
+        log.error(`[queue] ${path.basename(this.storePath)} unreadable (${err.message}); kept as ${path.basename(aside)}`);
+      }
+    }
+    if (fs.existsSync(this.backupPath)) {
+      try {
+        this.orders = read(this.backupPath);
+        log.warn(`[queue] restored ${this.orders.length} orders from the backup`);
+        return;
+      } catch (err) {
+        log.error('[queue] backup unreadable too:', err.message);
+      }
+    }
+    this.orders = [];
+  }
+
+  /**
+   * Write the queue so that a crash or a full disk can never leave it half
+   * written.
+   *
+   * It goes to a temporary file first and is renamed over the real one, which
+   * the filesystem does in a single step: at every instant there is either the
+   * old complete queue or the new complete queue. Writing in place, a failure
+   * part way through left truncated JSON, which the next start read as empty.
+   */
   save() {
+    const tmp = this.storePath + '.tmp';
     try {
       fs.mkdirSync(path.dirname(this.storePath), { recursive: true });
-      fs.writeFileSync(this.storePath, JSON.stringify(this.orders, null, 2));
+      const fd = fs.openSync(tmp, 'w');
+      try {
+        fs.writeSync(fd, JSON.stringify(this.orders, null, 2));
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
+      fs.renameSync(tmp, this.storePath);
+      // The backup mirrors what was just written, so recovering from it loses
+      // nothing. Copied after the rename, never before: a copy taken first is
+      // always one change behind, and a restore would drop the newest order.
+      try {
+        fs.copyFileSync(this.storePath, this.backupPath);
+      } catch {}
     } catch (err) {
-      // A failed save must never break the booth. The in-memory queue still works.
+      // A failed save must never break the booth. The in-memory queue still
+      // works, and the file on disk is still the last complete one.
+      try {
+        fs.rmSync(tmp, { force: true });
+      } catch {}
       log.error('[queue] could not save:', err.message);
     }
   }
 
-  /** Short code the customer carries to the print table. */
+  /**
+   * Short code the customer carries to the print table.
+   *
+   * Unique against every order on file, not just the waiting ones. get() finds
+   * the oldest match, so a code reused from a finished order sent staff's
+   * print, re-price or void to the old order instead of the new one.
+   */
   newCode() {
-    const live = new Set(this.orders.filter((o) => o.status === 'pending').map((o) => o.code));
+    const live = new Set(this.orders.map((o) => o.code));
     for (let tries = 0; tries < 200; tries++) {
       let c = '';
       for (let i = 0; i < 3; i++) {
