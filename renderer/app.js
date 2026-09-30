@@ -215,7 +215,10 @@ function buildMenu() {
       `<span class="menu-glyph">${frameGlyph(f)}</span>` +
       `<span class="menu-name">${escapeHtml(f.name)}</span>` +
       `<span class="menu-price">${cur}${entry.price}</span>` +
-      `<span class="menu-note">${shots}${entry.note ? ' · ' + escapeHtml(entry.note) : ''}</span>` +
+      // Each phrase kept whole, so a narrow card breaks at the dot rather than
+      // leaving "strips" stranded on a line of its own.
+      `<span class="menu-note"><span class="nowrap">${shots}</span>` +
+      `${entry.note ? ' · <span class="nowrap">' + escapeHtml(entry.note) + '</span>' : ''}</span>` +
       // Said here, at the only moment the choice is still open. Finding out at
       // the till that this frame cannot do keychains is finding out too late:
       // the layout is settled on the get-ready screen and never reopens.
@@ -869,7 +872,6 @@ async function runCaptureSequence() {
     // the countdown ends, once focus has locked; a beep at zero told people the
     // photo was done, they relaxed, and the camera caught them mid-shuffle.
     // So zero says "hold still", and the beep waits for the photo to exist.
-    $('poseHint').textContent = 'Hold still…';
     const flashStarted = Date.now();
 
     let res;
@@ -920,11 +922,12 @@ async function runCaptureSequence() {
     toast(`${failures} photo${failures > 1 ? 's' : ''} did not work, carrying on with the rest.`);
   }
 
-  // Preselect in order, up to what the frame holds.
+  // Nothing chosen to begin with. Preselecting the first few made the
+  // obvious move "press Next", so people printed whatever came first instead
+  // of the ones they liked; starting empty makes choosing the thing to do.
+  // Anything left unchosen when the step ends is filled in by fillSelection().
   setCropMask(false);
-  const frame = currentFrame();
-  const max = frame ? frame.slotCount : S.photos.length;
-  S.selected = S.photos.map((_, idx) => idx).slice(0, max);
+  S.selected = [];
 
   buildThumbs();
   syncChips();
@@ -1037,7 +1040,9 @@ function buildThumbs() {
     wrap.appendChild(b);
   });
 
-  $('pickHint').textContent = `${S.selected.length} of ${max} chosen`;
+  const n = S.selected.length;
+  $('pickHint').textContent =
+    n === 0 ? `Tap ${max} to print` : n < max ? `${n} of ${max} chosen` : `All ${max} chosen`;
 }
 
 function togglePhoto(idx) {
@@ -1948,7 +1953,24 @@ function runStepTimer(step) {
   }, 1000);
 }
 
+/**
+ * Top the selection up to what the frame holds, from the photos not chosen,
+ * in the order they were taken.
+ *
+ * The pick step starts empty and runs on a clock, so a group that chose two
+ * of four, or none at all, still has to get a full print rather than blank
+ * holes in it.
+ */
+function fillSelection() {
+  const frame = currentFrame();
+  const max = frame ? frame.slotCount : S.photos.length;
+  for (let i = 0; i < S.photos.length && S.selected.length < max; i++) {
+    if (!S.selected.includes(i)) S.selected.push(i);
+  }
+}
+
 function advanceStep(from) {
+  if (from === 'pick') fillSelection();
   const next = REVIEW_STEPS[stepIndex(from) + 1];
   if (next) return gotoStep(next.id);
   stopStepTimer();

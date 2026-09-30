@@ -39,13 +39,13 @@
   --sans: 'Avenir Next', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
   --mono: 'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;
 
-  --fs-xs: clamp(11px, 1.5vmin, 16px);
-  --fs-sm: clamp(13px, 1.9vmin, 20px);
-  --fs-md: clamp(15px, 2.3vmin, 24px);
-  --fs-lg: clamp(19px, 3vmin, 32px);
-  --fs-xl: clamp(26px, 4.6vmin, 48px);
-  --fs-2xl: clamp(32px, 6.4vmin, 72px);
-  --fs-3xl: clamp(40px, 9vmin, 108px);
+  --fs-xs: clamp(14px, 1.95vmin, max(48px, 4.44vh));
+  --fs-sm: clamp(17px, 2.47vmin, max(60px, 5.55vh));
+  --fs-md: clamp(18px, 2.71vmin, max(72px, 6.66vh));
+  --fs-lg: clamp(22px, 3.54vmin, max(96px, 8.88vh));
+  --fs-xl: clamp(28px, 4.97vmin, max(144px, 13.33vh));
+  --fs-2xl: clamp(32px, 6.4vmin, 216px);
+  --fs-3xl: clamp(40px, 9vmin, 324px);
 
   /* ---------- rhythm ---------- */
   --gap-1: clamp(4px, 0.8vmin, 10px);
@@ -53,8 +53,8 @@
   --gap-3: clamp(12px, 2.4vmin, 30px);
   --gap-4: clamp(18px, 3.6vmin, 46px);
 
-  --tap: clamp(46px, 7.6vmin, 88px);   /* minimum finger target */
-  --radius: clamp(6px, 1vmin, 14px);
+  --tap: clamp(46px, 7.6vmin, max(88px, 8.14vh));   /* minimum finger target */
+  --radius: clamp(6px, 1vmin, max(14px, 1.29vh));
 }
 
 * {
@@ -117,7 +117,7 @@ img {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: clamp(10px, 2.2vmin, 34px);
+  padding: clamp(10px, 2.2vmin, max(34px, 3.14vh));
   gap: var(--gap-3);
   text-align: center;
 }
@@ -136,18 +136,18 @@ img {
 .paper {
   position: relative;
   width: 100%;
-  max-width: clamp(320px, 96vw, 1180px);
+  max-width: clamp(320px, 96vw, max(1180px, 109.25vh));
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--paper);
-  border-radius: clamp(8px, 1.4vmin, 18px);
-  padding: clamp(10px, 1.8vmin, 24px);
+  border-radius: clamp(8px, 1.4vmin, max(18px, 1.66vh));
+  padding: clamp(10px, 1.8vmin, max(24px, 2.22vh));
 }
 
 .paper-shadow {
-  filter: drop-shadow(0 clamp(6px, 1.6vmin, 22px) clamp(14px, 3.4vmin, 44px) rgba(9, 15, 48, 0.45));
+  filter: drop-shadow(0 clamp(6px, 1.6vmin, max(22px, 2.03vh)) clamp(14px, 3.4vmin, 44px) rgba(9, 15, 48, 0.45));
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
@@ -162,9 +162,9 @@ img {
     edges at once. Chromium only, which is all Electron is.
   */
   .paper {
-    --sc: clamp(7px, 1.15vmin, 15px);
+    --sc: clamp(7px, 1.15vmin, max(15px, 1.38vh));
     border-radius: 0;
-    padding: clamp(14px, 2.4vmin, 30px);
+    padding: clamp(14px, 2.4vmin, max(30px, 2.77vh));
     mask:
       radial-gradient(var(--sc) at 50% 0, #0000 98%, #000) 50% 0 / calc(4 * var(--sc)) 100% repeat-x,
       radial-gradient(var(--sc) at 50% 100%, #0000 98%, #000) 50% 0 / calc(4 * var(--sc)) 100% repeat-x,
@@ -183,7 +183,7 @@ img {
   align-items: center;
   justify-content: center;
   gap: var(--gap-2);
-  padding: clamp(12px, 2.6vmin, 40px) clamp(12px, 3vmin, 48px);
+  padding: clamp(12px, 2.6vmin, max(40px, 3.7vh)) clamp(12px, 3vmin, 48px);
   border: 1px dashed var(--ink-line);
   border-radius: 3px;
   overflow: hidden;
@@ -192,17 +192,17 @@ img {
 /* Wax seal, tucked inside the edge so the stamp mask never clips it. */
 .seal {
   position: absolute;
-  top: clamp(6px, 1.4vmin, 18px);
-  right: clamp(6px, 1.4vmin, 18px);
-  width: clamp(34px, 6vmin, 74px);
-  height: clamp(34px, 6vmin, 74px);
+  top: clamp(6px, 1.4vmin, max(18px, 1.66vh));
+  right: clamp(6px, 1.4vmin, max(18px, 1.66vh));
+  width: clamp(34px, 6vmin, max(74px, 6.85vh));
+  height: clamp(34px, 6vmin, max(74px, 6.85vh));
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: radial-gradient(circle at 34% 28%, #b3363a 0%, var(--seal) 58%, #5e0002 100%);
   color: rgba(255, 248, 238, 0.9);
   font-family: var(--script);
-  font-size: clamp(16px, 2.9vmin, 34px);
+  font-size: clamp(19px, 3.42vmin, max(102px, 9.44vh));
   line-height: 1;
   padding-bottom: 0.12em;
   box-shadow: inset 0 -0.2vmin 0.6vmin rgba(0, 0, 0, 0.4);
@@ -241,7 +241,7 @@ img {
 
 .wordmark-rule i {
   display: block;
-  width: clamp(16px, 4vmin, 52px);
+  width: clamp(16px, 4vmin, max(52px, 4.81vh));
   height: 1px;
   background: var(--ink-line);
 }
@@ -315,14 +315,14 @@ img {
 .primary-btn {
   flex: 1 1 auto;
   min-height: var(--tap);
-  padding: 0 clamp(16px, 3.2vmin, 44px);
+  padding: 0 clamp(16px, 3.2vmin, max(44px, 4.07vh));
   border-radius: 999px;
   background: var(--ink);
   color: var(--paper);
   font-family: var(--serif);
   font-size: var(--fs-lg);
   letter-spacing: 0.08em;
-  box-shadow: 0 clamp(3px, 0.8vmin, 10px) clamp(8px, 2vmin, 26px) -6px rgba(22, 33, 90, 0.6);
+  box-shadow: 0 clamp(3px, 0.8vmin, max(10px, 0.92vh)) clamp(8px, 2vmin, 26px) -6px rgba(22, 33, 90, 0.6);
   transition: transform 0.12s ease;
 }
 
@@ -337,7 +337,7 @@ img {
 
 .ghost-btn {
   min-height: var(--tap);
-  padding: 0 clamp(14px, 2.6vmin, 34px);
+  padding: 0 clamp(14px, 2.6vmin, max(34px, 3.14vh));
   border-radius: 999px;
   border: 1px solid var(--ink-line);
   color: var(--ink);
@@ -409,7 +409,7 @@ img {
   .cut-body {
     flex-direction: row;
     justify-content: center;
-    gap: clamp(24px, 6vmin, 90px);
+    gap: clamp(24px, 6vmin, max(90px, 8.33vh));
   }
 
   .copy-block {
@@ -426,7 +426,7 @@ img {
 /* ---------------------------------------------------------------- pose */
 
 .screen-pose {
-  padding: clamp(8px, 1.6vmin, 22px);
+  padding: clamp(8px, 1.6vmin, max(22px, 2.03vh));
   gap: var(--gap-2);
 }
 
@@ -436,14 +436,14 @@ img {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  max-width: clamp(320px, 96vw, 1180px);
+  max-width: clamp(320px, 96vw, max(1180px, 109.25vh));
   background: #0d1130;
-  border: clamp(3px, 0.7vmin, 9px) solid var(--paper);
-  border-radius: clamp(6px, 1vmin, 14px);
+  border: clamp(3px, 0.7vmin, max(9px, 0.83vh)) solid var(--paper);
+  border-radius: clamp(6px, 1vmin, max(14px, 1.29vh));
   overflow: hidden;
   display: grid;
   place-items: center;
-  box-shadow: 0 clamp(6px, 1.6vmin, 22px) clamp(14px, 3.4vmin, 44px) -14px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 clamp(6px, 1.6vmin, max(22px, 2.03vh)) clamp(14px, 3.4vmin, 44px) -14px rgba(0, 0, 0, 0.8);
 }
 
 .live {
@@ -489,13 +489,36 @@ img.live:not([src]) {
   transition: opacity 0.05s ease-in;
 }
 
+.flash {
+  display: grid;
+  place-items: center;
+}
+
+/* Sized off the stage, not the page, so it reads at arm's length on any
+   screen; ink on the white flash, which is the one surface guaranteed to be
+   behind it. */
+.flash-text {
+  font-family: var(--serif);
+  font-size: clamp(36px, 11vmin, max(780px, 72.22vh));
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.flash.on .flash-text {
+  opacity: 1;
+  transform: none;
+}
+
 /* Shot counter, styled like a little postage stamp. */
 .shot-pill {
   position: absolute;
-  top: clamp(8px, 1.6vmin, 20px);
+  top: clamp(8px, 1.6vmin, max(20px, 1.85vh));
   left: 50%;
   transform: translateX(-50%);
-  padding: clamp(4px, 0.8vmin, 10px) clamp(10px, 2vmin, 26px);
+  padding: clamp(4px, 0.8vmin, max(10px, 0.92vh)) clamp(10px, 2vmin, 26px);
   background: var(--paper);
   color: var(--ink);
   border: 1px dashed var(--ink-line);
@@ -508,14 +531,14 @@ img.live:not([src]) {
 .pose-bar {
   flex: 0 0 auto;
   width: 100%;
-  max-width: clamp(320px, 96vw, 1180px);
+  max-width: clamp(320px, 96vw, max(1180px, 109.25vh));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--gap-3);
-  padding: clamp(8px, 1.4vmin, 18px) clamp(12px, 2.4vmin, 30px);
+  padding: clamp(8px, 1.4vmin, max(18px, 1.66vh)) clamp(12px, 2.4vmin, 30px);
   background: var(--paper);
-  border-radius: clamp(6px, 1vmin, 14px);
+  border-radius: clamp(6px, 1vmin, max(14px, 1.29vh));
 }
 
 .pose-hint {
@@ -528,13 +551,13 @@ img.live:not([src]) {
 
 .pose-bar .primary-btn {
   flex: 0 0 auto;
-  min-width: clamp(140px, 26vmin, 300px);
+  min-width: clamp(140px, 26vmin, max(300px, 27.77vh));
 }
 
 /* ---------------------------------------------------------------- edit */
 
 .screen-edit {
-  padding: clamp(8px, 1.6vmin, 22px);
+  padding: clamp(8px, 1.6vmin, max(22px, 2.03vh));
   gap: var(--gap-2);
   justify-content: flex-start;
 }
@@ -570,8 +593,8 @@ img.live:not([src]) {
   width: auto;
   height: auto;
   background: #fff;
-  border: clamp(3px, 0.6vmin, 8px) solid #fff;
-  box-shadow: 0 clamp(4px, 1.2vmin, 18px) clamp(10px, 2.6vmin, 34px) -8px rgba(22, 33, 90, 0.5);
+  border: clamp(3px, 0.6vmin, max(8px, 0.74vh)) solid #fff;
+  box-shadow: 0 clamp(4px, 1.2vmin, max(18px, 1.66vh)) clamp(10px, 2.6vmin, 34px) -8px rgba(22, 33, 90, 0.5);
 }
 
 .edit-controls {
@@ -600,7 +623,7 @@ img.live:not([src]) {
   /* --thumb-scale and --thumb-ar are set per session from the photos' shape. */
   grid-template-columns: repeat(
     auto-fit,
-    minmax(0, calc(clamp(58px, 13vmin, 132px) * var(--thumb-scale, 1)))
+    minmax(0, calc(clamp(58px, 13vmin, max(132px, 12.22vh)) * var(--thumb-scale, 1)))
   );
   justify-content: start;
   gap: var(--gap-2);
@@ -612,7 +635,7 @@ img.live:not([src]) {
   overflow: hidden;
   padding: 0;
   background: var(--paper-2);
-  border: clamp(2px, 0.45vmin, 6px) solid transparent;
+  border: clamp(2px, 0.45vmin, max(6px, 0.55vh)) solid transparent;
   outline: 1px solid var(--ink-line);
   outline-offset: 0;
 }
@@ -647,8 +670,8 @@ img.live:not([src]) {
   position: absolute;
   top: 0;
   right: 0;
-  min-width: clamp(18px, 3.4vmin, 34px);
-  height: clamp(18px, 3.4vmin, 34px);
+  min-width: clamp(18px, 3.4vmin, max(34px, 3.14vh));
+  height: clamp(18px, 3.4vmin, max(34px, 3.14vh));
   padding: 0 0.4em;
   background: var(--ink);
   color: var(--paper);
@@ -666,8 +689,8 @@ img.live:not([src]) {
 
 .chip {
   flex: 0 0 auto;
-  min-height: clamp(38px, 6vmin, 68px);
-  padding: 0 clamp(12px, 2.2vmin, 28px);
+  min-height: clamp(38px, 6vmin, max(68px, 6.29vh));
+  padding: 0 clamp(12px, 2.2vmin, max(28px, 2.59vh));
   border-radius: 999px;
   background: transparent;
   border: 1px solid var(--ink-line);
@@ -710,8 +733,8 @@ img.live:not([src]) {
 }
 
 .step {
-  width: clamp(38px, 6vmin, 66px);
-  height: clamp(38px, 6vmin, 66px);
+  width: clamp(38px, 6vmin, max(66px, 6.11vh));
+  height: clamp(38px, 6vmin, max(66px, 6.11vh));
   border-radius: 50%;
   border: 1px solid var(--ink-line);
   color: var(--ink);
@@ -739,8 +762,8 @@ img.live:not([src]) {
 }
 
 .spinner i {
-  width: clamp(6px, 1.1vmin, 14px);
-  height: clamp(6px, 1.1vmin, 14px);
+  width: clamp(6px, 1.1vmin, max(14px, 1.29vh));
+  height: clamp(6px, 1.1vmin, max(14px, 1.29vh));
   border-radius: 50%;
   background: var(--ink);
   animation: bounce 1.2s ease-in-out infinite;
@@ -760,8 +783,8 @@ img.live:not([src]) {
   position: fixed;
   top: 0;
   left: 0;
-  width: clamp(60px, 12vmin, 150px);
-  height: clamp(60px, 12vmin, 150px);
+  width: clamp(60px, 12vmin, max(150px, 13.88vh));
+  height: clamp(60px, 12vmin, max(150px, 13.88vh));
   z-index: 90;
 }
 
@@ -772,7 +795,7 @@ img.live:not([src]) {
   display: grid;
   place-items: center;
   background: rgba(11, 16, 44, 0.88);
-  padding: clamp(10px, 2.4vmin, 34px);
+  padding: clamp(10px, 2.4vmin, max(34px, 3.14vh));
 }
 
 /*
@@ -780,16 +803,16 @@ img.live:not([src]) {
   pinned. This is what stopped the panel from being readable on a laptop.
 */
 .modal-card {
-  width: min(560px, 94vw);
+  width: min(max(560px, 51.85vh), 94vw);
   max-height: min(92dvh, 900px);
   display: flex;
   flex-direction: column;
   gap: var(--gap-2);
   background: var(--paper);
-  border-radius: clamp(6px, 1vmin, 14px);
-  padding: clamp(14px, 2.6vmin, 32px);
+  border-radius: clamp(6px, 1vmin, max(14px, 1.29vh));
+  padding: clamp(14px, 2.6vmin, max(32px, 2.96vh));
   text-align: center;
-  box-shadow: 0 clamp(8px, 2vmin, 28px) clamp(20px, 5vmin, 70px) -14px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 clamp(8px, 2vmin, max(28px, 2.59vh)) clamp(20px, 5vmin, 70px) -14px rgba(0, 0, 0, 0.8);
 }
 
 .modal-title {
@@ -839,7 +862,7 @@ img.live:not([src]) {
 }
 
 .pin-key {
-  min-height: clamp(42px, 7vmin, 78px);
+  min-height: clamp(42px, 7vmin, max(78px, 7.22vh));
   border-radius: var(--radius);
   border: 1px solid var(--ink-line);
   color: var(--ink);
@@ -862,7 +885,7 @@ img.live:not([src]) {
   display: flex;
   align-items: flex-start;
   gap: var(--gap-2);
-  padding: clamp(8px, 1.6vmin, 18px);
+  padding: clamp(8px, 1.6vmin, max(18px, 1.66vh));
   background: var(--paper-2);
   border-radius: var(--radius);
   font-size: var(--fs-xs);
@@ -872,8 +895,8 @@ img.live:not([src]) {
 
 .status-dot {
   flex: 0 0 auto;
-  width: clamp(7px, 1.2vmin, 13px);
-  height: clamp(7px, 1.2vmin, 13px);
+  width: clamp(7px, 1.2vmin, max(13px, 1.2vh));
+  height: clamp(7px, 1.2vmin, max(13px, 1.2vh));
   border-radius: 50%;
   margin-top: 0.45em;
   background: var(--ink-soft);
@@ -915,11 +938,11 @@ img.live:not([src]) {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: clamp(12px, 3vmin, 40px);
+  bottom: clamp(12px, 3vmin, max(40px, 3.7vh));
   transform: translateX(-50%);
   z-index: 120;
-  max-width: min(680px, 88vw);
-  padding: clamp(10px, 1.8vmin, 22px) clamp(14px, 2.8vmin, 34px);
+  max-width: min(max(680px, 62.96vh), 88vw);
+  padding: clamp(10px, 1.8vmin, max(22px, 2.03vh)) clamp(14px, 2.8vmin, 34px);
   border-radius: var(--radius);
   background: var(--paper);
   color: var(--ink);
@@ -927,7 +950,7 @@ img.live:not([src]) {
   font-size: var(--fs-sm);
   line-height: 1.4;
   text-align: center;
-  box-shadow: 0 clamp(6px, 1.6vmin, 22px) clamp(14px, 3.4vmin, 44px) -14px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 clamp(6px, 1.6vmin, max(22px, 2.03vh)) clamp(14px, 3.4vmin, 44px) -14px rgba(0, 0, 0, 0.8);
 }
 
 .toast.bad {
@@ -964,10 +987,10 @@ img.live:not([src]) {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  max-width: clamp(320px, 96vw, 1320px);
+  max-width: clamp(320px, 96vw, max(1320px, 122.22vh));
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: clamp(8px, 1.6vmin, 20px);
+  gap: clamp(8px, 1.6vmin, max(20px, 1.85vh));
   align-items: stretch;
 }
 
@@ -1009,16 +1032,16 @@ img.live:not([src]) {
    it cannot sit on top of the faces people are arranging. */
 .countdown {
   position: absolute;
-  top: clamp(8px, 1.6vmin, 22px);
-  right: clamp(8px, 1.6vmin, 22px);
+  top: clamp(8px, 1.6vmin, max(22px, 2.03vh));
+  right: clamp(8px, 1.6vmin, max(22px, 2.03vh));
   display: grid;
   place-items: center;
   pointer-events: none;
 }
 
 .countdown .ring {
-  width: clamp(56px, 11vmin, 130px);
-  height: clamp(56px, 11vmin, 130px);
+  width: clamp(56px, 11vmin, max(130px, 12.03vh));
+  height: clamp(56px, 11vmin, max(130px, 12.03vh));
   transform: rotate(-90deg);
   overflow: visible;
 }
@@ -1051,7 +1074,7 @@ img.live:not([src]) {
 .countdown-num {
   position: absolute;
   font-family: var(--serif);
-  font-size: clamp(22px, 4.6vmin, 54px);
+  font-size: clamp(24px, 4.97vmin, max(162px, 14.99vh));
   line-height: 1;
   color: var(--paper);
   text-shadow: 0 0 1.6vmin rgba(0, 0, 0, 0.85);
@@ -1072,15 +1095,15 @@ img.live:not([src]) {
   flex-wrap: wrap;
   align-content: center;
   justify-content: center;
-  gap: clamp(4px, 0.8vmin, 10px);
-  padding: clamp(6px, 1.2vmin, 14px);
+  gap: clamp(4px, 0.8vmin, max(10px, 0.92vh));
+  padding: clamp(6px, 1.2vmin, max(14px, 1.29vh));
   background: rgba(255, 248, 238, 0.09);
-  border-radius: clamp(6px, 1vmin, 14px);
+  border-radius: clamp(6px, 1vmin, max(14px, 1.29vh));
 }
 
 .film-cell {
   position: relative;
-  width: clamp(34px, 6vmin, 84px);
+  width: clamp(34px, 6vmin, max(84px, 7.77vh));
   aspect-ratio: var(--ar, 1.5);
   border-radius: 4px;
   background: rgba(9, 13, 40, 0.5);
@@ -1093,7 +1116,7 @@ img.live:not([src]) {
 
 .film-cell .n {
   font-family: var(--serif);
-  font-size: clamp(13px, 2vmin, 22px);
+  font-size: clamp(15px, 2.36vmin, max(66px, 6.11vh));
   color: rgba(255, 248, 238, 0.45);
 }
 
@@ -1141,7 +1164,7 @@ img.live:not([src]) {
     grid-template-rows: minmax(0, 1fr) auto;
   }
   .filmstrip { flex-direction: row; flex-wrap: wrap; justify-content: center; }
-  .film-cell { width: clamp(30px, 7.5vw, 62px); }
+  .film-cell { width: clamp(30px, 7.5vw, max(62px, 5.74vh)); }
 }
 
 /* ================================================================ poster
@@ -1160,7 +1183,7 @@ img.live:not([src]) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(8px, 1.8vmin, 26px);
+  gap: clamp(8px, 1.8vmin, max(26px, 2.4vh));
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -1174,11 +1197,11 @@ img.live:not([src]) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(4px, 1vmin, 12px);
+  gap: clamp(4px, 1vmin, max(12px, 1.11vh));
 }
 
 .cut-poster .wordmark-script {
-  font-size: clamp(30px, min(5.4vw, 9vh), 88px);
+  font-size: clamp(30px, min(5.4vw, 9vh), max(264px, 24.44vh));
   line-height: 1;
 }
 
@@ -1186,13 +1209,13 @@ img.live:not([src]) {
 .poster-lead {
   margin: 0;
   font-family: var(--serif);
-  font-size: clamp(15px, min(2vw, 3.2vh), 34px);
+  font-size: clamp(18px, calc(min(2vw, 3.2vh) * 1.18), max(102px, 9.44vh));
   color: var(--ink);
 }
 
 .poster-cta {
   margin: 0;
-  font-size: clamp(13px, min(1.5vw, 2.4vh), 24px);
+  font-size: clamp(15px, calc(min(1.5vw, 2.4vh) * 1.18), max(72px, 6.66vh));
   line-height: 1.45;
   color: var(--ink-soft);
 }
@@ -1212,22 +1235,22 @@ img.live:not([src]) {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  gap: clamp(8px, 2.2vw, 40px);
+  gap: clamp(8px, 2.2vw, max(40px, 3.7vh));
 }
 
 .menu-card {
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
-  max-width: clamp(190px, 25vw, 400px);
+  max-width: clamp(190px, 25vw, max(400px, 37.03vh));
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto auto auto;
   grid-template-areas: 'glyph' 'name' 'price' 'note';
   justify-items: center;
   align-items: center;
-  gap: clamp(2px, 0.7vmin, 10px);
-  padding: clamp(8px, 1.6vmin, 22px) clamp(6px, 1.2vw, 20px);
+  gap: clamp(2px, 0.7vmin, max(10px, 0.92vh));
+  padding: clamp(8px, 1.6vmin, max(22px, 2.03vh)) clamp(6px, 1.2vw, 20px);
   border: 1px dashed var(--ink-line);
   border-radius: 4px;
   background: transparent;
@@ -1262,7 +1285,7 @@ img.live:not([src]) {
 .menu-name {
   grid-area: name;
   font-family: var(--serif);
-  font-size: clamp(12px, min(1.4vw, 2.3vh), 24px);
+  font-size: clamp(14px, calc(min(1.4vw, 2.3vh) * 1.18), max(72px, 6.66vh));
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -1271,7 +1294,7 @@ img.live:not([src]) {
 .menu-price {
   grid-area: price;
   font-family: var(--serif);
-  font-size: clamp(24px, min(3.2vw, 5.4vh), 58px);
+  font-size: clamp(26px, calc(min(3.2vw, 5.4vh) * 1.08), max(174px, 16.11vh));
   font-weight: 600;
   line-height: 1;
   color: var(--ink);
@@ -1279,7 +1302,7 @@ img.live:not([src]) {
 
 .menu-note {
   grid-area: note;
-  font-size: clamp(11px, min(1.2vw, 2vh), 20px);
+  font-size: clamp(14px, calc(min(1.2vw, 2vh) * 1.3), max(60px, 5.55vh));
   color: var(--ink-soft);
 }
 
@@ -1289,8 +1312,8 @@ img.live:not([src]) {
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: center;
-  gap: clamp(8px, 2vw, 24px);
-  font-size: clamp(12px, min(1.4vw, 2.2vh), 22px);
+  gap: clamp(8px, 2vw, max(24px, 2.22vh));
+  font-size: clamp(14px, calc(min(1.4vw, 2.2vh) * 1.18), max(66px, 6.11vh));
   color: var(--ink);
 }
 
@@ -1309,7 +1332,7 @@ img.live:not([src]) {
 
 .menu-fine {
   margin: 0;
-  font-size: clamp(10px, min(1.1vw, 1.8vh), 18px);
+  font-size: clamp(13px, calc(min(1.1vw, 1.8vh) * 1.3), max(54px, 5vh));
   color: var(--ink-soft);
   text-align: center;
 }
@@ -1318,7 +1341,7 @@ img.live:not([src]) {
 @media (max-width: 560px) {
   .menu-cards {
     flex-direction: column;
-    gap: clamp(6px, 1.4vmin, 14px);
+    gap: clamp(6px, 1.4vmin, max(14px, 1.29vh));
   }
 
   .menu-card {
@@ -1330,12 +1353,12 @@ img.live:not([src]) {
       'glyph name  price'
       'glyph note  price';
     justify-items: start;
-    column-gap: clamp(10px, 3vw, 22px);
+    column-gap: clamp(10px, 3vw, max(22px, 2.03vh));
     text-align: left;
   }
 
   .menu-glyph {
-    width: clamp(46px, 16vw, 92px);
+    width: clamp(46px, 16vw, max(92px, 8.51vh));
     height: auto;
     aspect-ratio: 2 / 3;
   }
@@ -1357,12 +1380,12 @@ img.live:not([src]) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: clamp(6px, 1.4vmin, 18px);
+  gap: clamp(6px, 1.4vmin, max(18px, 1.66vh));
 }
 
 .panel-label {
   margin: 0;
-  font-size: clamp(10px, min(1.1vw, 1.9vh), 18px);
+  font-size: clamp(13px, calc(min(1.1vw, 1.9vh) * 1.3), max(54px, 5vh));
   letter-spacing: 0.26em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -1371,7 +1394,7 @@ img.live:not([src]) {
 .ticket-code {
   margin: 0;
   font-family: var(--mono);
-  font-size: clamp(56px, min(11vw, 19vh), 210px);
+  font-size: clamp(56px, min(11vw, 19vh), max(630px, 58.33vh));
   font-weight: 700;
   line-height: 0.92;
   letter-spacing: 0.1em;
@@ -1379,8 +1402,8 @@ img.live:not([src]) {
 }
 
 .ticket {
-  width: min(100%, clamp(230px, 32vw, 460px));
-  padding: clamp(6px, 1.4vmin, 18px) clamp(10px, 2.2vmin, 26px);
+  width: min(100%, clamp(230px, 32vw, max(460px, 42.59vh)));
+  padding: clamp(6px, 1.4vmin, max(18px, 1.66vh)) clamp(10px, 2.2vmin, 26px);
   border: 1px dashed var(--ink-line);
   border-radius: 4px;
   text-align: left;
@@ -1390,7 +1413,7 @@ img.live:not([src]) {
   display: flex;
   flex-direction: column;
   gap: 0.3em;
-  font-size: clamp(12px, min(1.3vw, 2.1vh), 21px);
+  font-size: clamp(14px, calc(min(1.3vw, 2.1vh) * 1.18), max(63px, 5.83vh));
   color: var(--ink-soft);
 }
 
@@ -1408,7 +1431,7 @@ img.live:not([src]) {
   padding-top: 0.4em;
   border-top: 1px solid var(--ink-line);
   font-family: var(--serif);
-  font-size: clamp(20px, min(2.6vw, 4.2vh), 44px);
+  font-size: clamp(22px, calc(min(2.6vw, 4.2vh) * 1.08), max(132px, 12.22vh));
   color: var(--ink);
 }
 
@@ -1417,7 +1440,7 @@ img.live:not([src]) {
    print will use, because the whole point is letting a group see what will be
    cut off before the first shutter rather than after the tenth. */
 .screen-ready {
-  padding: clamp(8px, 1.6vmin, 22px);
+  padding: clamp(8px, 1.6vmin, max(22px, 2.03vh));
   gap: var(--gap-2);
 }
 
@@ -1427,28 +1450,28 @@ img.live:not([src]) {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  max-width: clamp(320px, 96vw, 1180px);
+  max-width: clamp(320px, 96vw, max(1180px, 109.25vh));
   background: #0d1130;
-  border: clamp(3px, 0.7vmin, 9px) solid var(--paper);
-  border-radius: clamp(6px, 1vmin, 14px);
+  border: clamp(3px, 0.7vmin, max(9px, 0.83vh)) solid var(--paper);
+  border-radius: clamp(6px, 1vmin, max(14px, 1.29vh));
   overflow: hidden;
   display: grid;
   place-items: center;
-  box-shadow: 0 clamp(6px, 1.6vmin, 22px) clamp(14px, 3.4vmin, 44px) -14px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 clamp(6px, 1.6vmin, max(22px, 2.03vh)) clamp(14px, 3.4vmin, 44px) -14px rgba(0, 0, 0, 0.8);
 }
 
 .ready-timer {
   position: absolute;
-  top: clamp(8px, 1.6vmin, 22px);
-  right: clamp(8px, 1.6vmin, 22px);
-  min-width: clamp(48px, 9vmin, 108px);
-  padding: clamp(4px, 0.8vmin, 10px) clamp(8px, 1.6vmin, 20px);
+  top: clamp(8px, 1.6vmin, max(22px, 2.03vh));
+  right: clamp(8px, 1.6vmin, max(22px, 2.03vh));
+  min-width: clamp(48px, 9vmin, max(108px, 10vh));
+  padding: clamp(4px, 0.8vmin, max(10px, 0.92vh)) clamp(8px, 1.6vmin, 20px);
   border-radius: 999px;
   background: rgba(9, 13, 40, 0.72);
   border: 1px solid rgba(255, 248, 238, 0.32);
   color: var(--paper);
   font-family: var(--serif);
-  font-size: clamp(22px, 4.6vmin, 54px);
+  font-size: clamp(24px, 4.97vmin, max(162px, 14.99vh));
   line-height: 1.1;
   text-align: center;
   z-index: 2;
@@ -1457,14 +1480,14 @@ img.live:not([src]) {
 .ready-bar {
   flex: 0 0 auto;
   width: 100%;
-  max-width: clamp(320px, 96vw, 1180px);
+  max-width: clamp(320px, 96vw, max(1180px, 109.25vh));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--gap-3);
-  padding: clamp(8px, 1.4vmin, 18px) clamp(12px, 2.4vmin, 30px);
+  padding: clamp(8px, 1.4vmin, max(18px, 1.66vh)) clamp(12px, 2.4vmin, 30px);
   background: var(--paper);
-  border-radius: clamp(6px, 1vmin, 14px);
+  border-radius: clamp(6px, 1vmin, max(14px, 1.29vh));
   text-align: left;
 }
 
@@ -1472,7 +1495,7 @@ img.live:not([src]) {
   margin: 0;
   font-family: var(--serif);
   font-weight: 400;
-  font-size: clamp(22px, 4vmin, 52px);
+  font-size: clamp(24px, 4.32vmin, max(156px, 14.44vh));
   line-height: 1.05;
   color: var(--ink);
 }
@@ -1486,7 +1509,7 @@ img.live:not([src]) {
 
 .ready-bar .primary-btn {
   flex: 0 0 auto;
-  min-width: clamp(140px, 26vmin, 300px);
+  min-width: clamp(140px, 26vmin, max(300px, 27.77vh));
 }
 
 /* ================================================================== locked
@@ -1494,7 +1517,7 @@ img.live:not([src]) {
    only way on is a member of staff, which is the entire point. */
 .lock-mark {
   margin: 0;
-  font-size: clamp(40px, min(8vw, 13vh), 130px);
+  font-size: clamp(40px, min(8vw, 13vh), max(390px, 36.11vh));
   line-height: 1;
   color: var(--ink-soft);
 }
@@ -1503,7 +1526,7 @@ img.live:not([src]) {
   margin: 0;
   font-family: var(--serif);
   font-weight: 400;
-  font-size: clamp(26px, min(4.4vw, 7vh), 72px);
+  font-size: clamp(26px, min(4.4vw, 7vh), max(216px, 20vh));
   line-height: 1.05;
   color: var(--ink);
 }
@@ -1514,12 +1537,12 @@ img.live:not([src]) {
 .chip-swatch {
   display: inline-flex;
   align-items: center;
-  gap: clamp(6px, 1.2vmin, 12px);
+  gap: clamp(6px, 1.2vmin, max(12px, 1.11vh));
 }
 
 .chip-swatch .swatch {
-  width: clamp(14px, 2.4vmin, 24px);
-  height: clamp(14px, 2.4vmin, 24px);
+  width: clamp(14px, 2.4vmin, max(24px, 2.22vh));
+  height: clamp(14px, 2.4vmin, max(24px, 2.22vh));
   border-radius: 50%;
   border: 1px solid;
   flex: 0 0 auto;
@@ -1541,15 +1564,15 @@ img.live:not([src]) {
 .ready-swap {
   display: flex;
   flex-wrap: wrap;
-  gap: clamp(6px, 1.2vmin, 14px);
-  margin-top: clamp(4px, 1vmin, 12px);
+  gap: clamp(6px, 1.2vmin, max(14px, 1.29vh));
+  margin-top: clamp(4px, 1vmin, max(12px, 1.11vh));
 }
 
 .ready-chip {
   display: flex;
   align-items: center;
-  gap: clamp(5px, 1vmin, 10px);
-  padding: clamp(5px, 1vmin, 11px) clamp(9px, 1.8vmin, 18px);
+  gap: clamp(5px, 1vmin, max(10px, 0.92vh));
+  padding: clamp(5px, 1vmin, max(11px, 1.01vh)) clamp(9px, 1.8vmin, 18px);
   border-radius: 999px;
   border: 1px solid var(--ink-line);
   color: var(--ink);
@@ -1567,7 +1590,7 @@ img.live:not([src]) {
 /* A little box in the real slot proportions, so the choice reads as a shape
    rather than as a word people have to decode. */
 .ready-chip-shape {
-  width: clamp(16px, 2.6vmin, 26px);
+  width: clamp(16px, 2.6vmin, max(26px, 2.4vh));
   aspect-ratio: var(--ar, 1.5);
   border: 1.5px solid currentColor;
   border-radius: 2px;
@@ -1577,7 +1600,7 @@ img.live:not([src]) {
 .ready-chip-price { opacity: 0.7; }
 
 .ready-warn {
-  margin: clamp(4px, 1vmin, 10px) 0 0;
+  margin: clamp(4px, 1vmin, max(10px, 0.92vh)) 0 0;
   font-size: var(--fs-xs);
   letter-spacing: 0.04em;
   color: var(--seal);
@@ -1585,9 +1608,9 @@ img.live:not([src]) {
 
 .ready-stage-label {
   position: absolute;
-  top: clamp(8px, 1.6vmin, 22px);
-  left: clamp(8px, 1.6vmin, 22px);
-  padding: clamp(4px, 0.8vmin, 10px) clamp(10px, 2vmin, 22px);
+  top: clamp(8px, 1.6vmin, max(22px, 2.03vh));
+  left: clamp(8px, 1.6vmin, max(22px, 2.03vh));
+  padding: clamp(4px, 0.8vmin, max(10px, 0.92vh)) clamp(10px, 2vmin, 22px);
   background: var(--paper);
   color: var(--ink);
   border: 1px dashed var(--ink-line);
@@ -1622,7 +1645,7 @@ img.live:not([src]) {
   margin: 0;
   font-family: var(--serif);
   font-weight: 400;
-  font-size: clamp(19px, 3.2vmin, 40px);
+  font-size: clamp(21px, 3.46vmin, max(120px, 11.11vh));
   line-height: 1.1;
   color: var(--ink);
 }
@@ -1654,7 +1677,7 @@ img.live:not([src]) {
   background: transparent;
   border: none;
   box-shadow: none;
-  filter: drop-shadow(0 clamp(4px, 1.2vmin, 18px) clamp(10px, 2.6vmin, 34px) rgba(22, 33, 90, 0.45));
+  filter: drop-shadow(0 clamp(4px, 1.2vmin, max(18px, 1.66vh)) clamp(10px, 2.6vmin, 34px) rgba(22, 33, 90, 0.45));
 }
 
 /* Outside the crop is solid black on both the get-ready screen and while the
@@ -1679,7 +1702,7 @@ img.live:not([src]) {
 .decor-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(6px, 1.4vmin, 14px);
+  gap: clamp(6px, 1.4vmin, max(14px, 1.29vh));
   width: 100%;
 }
 
@@ -1687,8 +1710,8 @@ img.live:not([src]) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(3px, 0.7vmin, 8px);
-  padding: clamp(5px, 1.1vmin, 12px) clamp(4px, 0.9vmin, 10px);
+  gap: clamp(3px, 0.7vmin, max(8px, 0.74vh));
+  padding: clamp(5px, 1.1vmin, max(12px, 1.11vh)) clamp(4px, 0.9vmin, 10px);
   border: 1px solid var(--ink-line);
   border-radius: var(--radius);
   background: transparent;
@@ -1723,7 +1746,7 @@ img.live:not([src]) {
      the card is 320px, so each tile grew to 260px tall and three rows ran
      clean off the bottom. Height is the scarce axis here, so height is what
      gets pinned; the box just shows more or less of the corner. */
-  height: clamp(38px, 7.5vmin, 92px);
+  height: clamp(38px, 7.5vmin, max(92px, 8.51vh));
   background: var(--paper-2);
   border: 1px solid var(--ink-line);
   border-radius: 1px;
@@ -1785,21 +1808,21 @@ img.live:not([src]) {
 */
 .design-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(46px, 7.4vmin, 84px), 1fr));
-  gap: clamp(6px, 1.2vmin, 12px);
+  grid-template-columns: repeat(auto-fill, minmax(clamp(46px, 7.4vmin, max(84px, 7.77vh)), 1fr));
+  gap: clamp(6px, 1.2vmin, max(12px, 1.11vh));
   width: 100%;
 }
 
 .design-grid.is-sheet {
-  grid-template-columns: repeat(auto-fill, minmax(clamp(64px, 11vmin, 130px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(clamp(64px, 11vmin, max(130px, 12.03vh)), 1fr));
 }
 
 .design-tile {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: clamp(3px, 0.6vmin, 6px);
-  padding: clamp(3px, 0.6vmin, 6px);
+  gap: clamp(3px, 0.6vmin, max(6px, 0.55vh));
+  padding: clamp(3px, 0.6vmin, max(6px, 0.55vh));
   border: 1px solid var(--ink-line);
   border-radius: var(--radius);
   background: transparent;
@@ -1861,14 +1884,14 @@ img.live:not([src]) {
 .addon-rows {
   display: flex;
   flex-direction: column;
-  gap: clamp(4px, 1vmin, 10px);
+  gap: clamp(4px, 1vmin, max(10px, 0.92vh));
 }
 
 .addon-row {
   display: flex;
   align-items: center;
   gap: var(--gap-2);
-  padding: clamp(4px, 0.9vmin, 10px) 0;
+  padding: clamp(4px, 0.9vmin, max(10px, 0.92vh)) 0;
   border-bottom: 1px dashed var(--ink-line);
 }
 
@@ -1936,4 +1959,8 @@ img.live:not([src]) {
   font-size: var(--fs-xs);
   line-height: 1.35;
   opacity: 0.7;
+}
+
+.nowrap {
+  white-space: nowrap;
 }

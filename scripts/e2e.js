@@ -108,6 +108,10 @@ function restoreSettings() {
      * checked.
      */
     const SIZES = [
+      // Text used to stop growing at a fixed pixel size while the layout kept
+      // scaling, so a big screen made everything relatively smaller. Checking
+      // past 1080p is what keeps that from coming back.
+      ['large screen', 2560, 1440],
       ['booth screen', 1920, 1080],
       ['laptop landscape', 1440, 900],
       ['short window', 900, 560],
@@ -266,6 +270,12 @@ function restoreSettings() {
     t('a two-column strip previews as two separate strips',
       showcase === `${564 + 564 + 72}x1764`, showcase);
 
+    // Nothing is chosen for them: picking is the thing to do on this screen.
+    t('no photos are chosen to begin with',
+      (await evalJs('S.selected.length')) === 0);
+    // Pick one on purpose, so the fill has to work around a real choice.
+    await evalJs('togglePhoto(2)');
+
     const before = await evalJs('document.getElementById("pickTimer").textContent');
     await sleep(1200);
     t('each step runs its own clock',
@@ -274,6 +284,12 @@ function restoreSettings() {
     await evalJs('document.getElementById("pickNextBtn").click()');
     await sleep(300);
     t('next goes to the frame step', (await screen()) === 'frame');
+    // Leaving with one chosen must still fill every hole in the print, their
+    // pick first, the gaps from the rest in the order they were taken.
+    const sel = JSON.parse(await evalJs('JSON.stringify({s:S.selected,max:currentFrame().slotCount})'));
+    t('the gaps are filled, with their pick first',
+      sel.s.length === Math.min(sel.max, 3) && sel.s[0] === 2 && new Set(sel.s).size === sel.s.length,
+      JSON.stringify(sel));
     const decorCount = await evalJs('document.querySelectorAll("#decorChips [data-decor]").length');
     t('decorations are offered, plus None', decorCount >= 2, decorCount + ' options');
     t('the picker keeps a full grid',
