@@ -259,128 +259,256 @@ const PAGE = `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Xinhmo queue</title>
+<meta name="theme-color" content="#F4F3EF" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0E1020" media="(prefers-color-scheme: dark)" />
+<title>Xinhmo staff</title>
 <style>
-  :root{--ink:#26357E;--paper:#FFF8EE;--soft:#6a74a8;--line:rgba(38,53,126,.22);--ok:#1d7a4c;--bad:#a32b2b}
+  :root{
+    --bg:#F4F3EF; --surface:#FFFFFF; --surface-2:#F7F6F3;
+    --ink:#14183A; --ink-2:#5B6180; --ink-3:#9A9EB4;
+    --line:rgba(20,24,58,.08); --line-2:rgba(20,24,58,.14);
+    --accent:#26357E; --accent-ink:#FFFFFF; --accent-soft:rgba(38,53,126,.08);
+    --good:#1F8A5B; --warn:#B26A00; --bad:#C23B3B;
+    --r:16px; --r-sm:12px;
+    --shadow:0 1px 2px rgba(20,24,58,.04),0 8px 24px rgba(20,24,58,.06);
+    --tabbar:64px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0E1020; --surface:#171A2E; --surface-2:#1E2238;
+      --ink:#F2F2F7; --ink-2:#A3A8C3; --ink-3:#6B7090;
+      --line:rgba(255,255,255,.07); --line-2:rgba(255,255,255,.13);
+      --accent:#8B98FF; --accent-ink:#0E1020; --accent-soft:rgba(139,152,255,.12);
+      --good:#4CC38A; --warn:#E8A33D; --bad:#FF6B6B;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
+    }
+  }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{margin:0;background:var(--ink);color:var(--paper);
-    font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-  header{position:sticky;top:0;z-index:5;background:var(--ink);padding:14px 16px 10px;
-    border-bottom:1px solid rgba(255,248,238,.18);display:flex;align-items:baseline;gap:10px}
-  h1{margin:0;font:600 19px/1 Didot,Georgia,serif;letter-spacing:.02em}
-  .count{margin-left:auto;font-size:13px;opacity:.72}
-  main{padding:12px 12px 40px;max-width:640px;margin:0 auto}
-  .gate{padding:32px 20px;max-width:360px;margin:0 auto;text-align:center}
-  .gate input{width:100%;padding:16px;font-size:24px;text-align:center;letter-spacing:.4em;
-    border-radius:12px;border:1px solid var(--line);background:var(--paper);color:var(--ink);margin:16px 0}
-  button{font:inherit;border:0;border-radius:12px;padding:14px 16px;background:var(--paper);
-    color:var(--ink);font-weight:600;cursor:pointer}
-  button:disabled{opacity:.45}
-  .card{background:var(--paper);color:var(--ink);border-radius:16px;padding:14px;margin-bottom:12px;
-    display:grid;grid-template-columns:76px 1fr;gap:14px;align-items:start}
-  .card img{width:76px;height:114px;object-fit:cover;border-radius:8px;background:#e9e2d6;
-    border:1px solid var(--line)}
-  .code{font:700 30px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em}
-  .ago{font-size:12px;color:var(--soft)}
-  .lines{margin:8px 0 0;font-size:14px}
-  .lines div{display:flex;justify-content:space-between;gap:8px;color:var(--soft)}
-  .total{display:flex;justify-content:space-between;font-weight:700;font-size:21px;
-    border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
-  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-  .chip{border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:500;
-    padding:9px 12px;font-size:14px;border-radius:999px}
-  .chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-  .stepper{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:999px;overflow:hidden}
-  .stepper button{background:transparent;color:var(--ink);padding:9px 14px;border-radius:0;font-size:17px}
-  .stepper span{padding:0 4px;font-size:14px;min-width:74px;text-align:center}
-  .go{width:100%;margin-top:12px;padding:17px;background:var(--ink);color:var(--paper);font-size:17px}
-  .go.busy{opacity:.6}
-  .err{color:var(--bad);font-size:13px;margin-top:8px}
-  .empty{text-align:center;opacity:.6;padding:56px 20px}
-  .past{opacity:.55;font-size:14px;display:flex;justify-content:space-between;
-    padding:9px 4px;border-bottom:1px solid rgba(255,248,238,.14)}
-  h2{font:600 12px/1 system-ui;letter-spacing:.14em;text-transform:uppercase;opacity:.6;margin:26px 4px 8px}
-  .void{background:transparent;color:var(--soft);border:1px solid var(--line);padding:10px;
-    font-size:13px;font-weight:500;width:100%;margin-top:8px}
-  .booth{background:var(--paper);color:var(--ink);border-radius:16px;padding:14px;margin-bottom:12px}
-  .booth p{margin:0 0 10px;font-size:14px;color:var(--soft)}
-  .booth .start{width:100%;padding:17px;background:var(--ink);color:var(--paper);font-size:17px}
-  .booth.open{background:transparent;color:var(--paper);padding:4px 4px 10px;text-align:center;
-    font-size:13px;opacity:.6}
-  .qrows{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
-  .qrow{display:flex;align-items:center;gap:10px;padding:5px 0}
-  .qrow.off{opacity:.45}
-  .qname{font-size:14px;text-transform:capitalize}
-  .qname b{font-weight:600;color:var(--soft)}
-  .done{display:block;font-size:11px;color:var(--ok)}
-  .qrow .stepper{margin-left:auto}
-  .qrow .stepper span{min-width:34px}
+  html{background:var(--bg)}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+  button:disabled{cursor:default}
+  [hidden]{display:none!important}
+  .mono{font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace}
 
+  /* ---------- buttons ---------- */
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+    min-height:52px;padding:0 18px;border-radius:14px;font-weight:600;font-size:16px;
+    transition:transform .08s ease,opacity .15s ease}
+  .btn:active:not(:disabled){transform:scale(.98)}
+  .btn:disabled{opacity:.4}
+  .btn.primary{background:var(--accent);color:var(--accent-ink)}
+  .btn.secondary{background:var(--accent-soft);color:var(--accent)}
+  .btn.quiet{min-height:44px;color:var(--bad);font-weight:500;font-size:15px}
+  .btn small{font-weight:500;opacity:.75;font-size:14px}
 
-  .bprint{background:var(--soft);color:#fff;margin-top:8px}
-  .bsummary{margin:0 0 12px;font-size:13px;line-height:1.5;color:#cbd2ee}
+  /* ---------- gate ---------- */
+  .gate{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;
+    padding:32px 28px calc(32px + env(safe-area-inset-bottom));max-width:400px;margin:0 auto}
+  .brand{font:600 22px/1 Didot,"Bodoni 72",Georgia,serif;letter-spacing:.01em}
+  .gate .brand{font-size:34px;margin-bottom:6px}
+  .gate p{margin:0 0 28px;color:var(--ink-2)}
+  .pin{width:100%;height:64px;border-radius:var(--r);border:1px solid var(--line-2);
+    background:var(--surface);color:var(--ink);font-size:28px;text-align:center;letter-spacing:.5em;
+    padding-left:.5em;margin-bottom:12px;outline:none}
+  .pin:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+  .gate .err{min-height:20px;margin-top:12px;color:var(--bad);font-size:14px;text-align:center}
 
-  .past{align-items:center}
-  .tabs{display:flex;gap:8px;margin-left:auto}
-  .tab{background:transparent;color:var(--paper);border:1px solid rgba(255,248,238,.3);
-    padding:8px 12px;font-size:13px;border-radius:999px;font-weight:500}
-  .tab[aria-selected="true"]{background:var(--paper);color:var(--ink)}
-  .estimate{margin:10px 2px 14px;font-size:14px;opacity:.8;text-align:center}
-  .flow{display:flex;flex-direction:column;gap:16px}
-  .phase{background:var(--paper);color:var(--ink);border-radius:16px;overflow:hidden;
-    border-left:6px solid var(--tint)}
-  .phead{margin:0;padding:11px 14px;font:600 12px/1 system-ui;letter-spacing:.12em;
-    text-transform:uppercase;color:#fff;background:var(--tint)}
-  .fstep{display:flex;align-items:center;gap:12px;padding:12px 14px;
-    border-top:1px solid var(--line)}
-  .phase .fstep:first-of-type{border-top:0}
-  .gly{width:28px;height:28px;border-radius:8px;background:var(--tint);color:#fff;
-    display:grid;place-items:center;font-size:15px;flex:0 0 auto;opacity:.9}
-  .fstep .lab{font-weight:600;font-size:15px}
-  .fstep .hint{display:block;font-weight:400;font-size:12px;color:var(--soft)}
-  .fstep .val{margin-left:auto;display:flex;align-items:baseline;gap:6px;flex:0 0 auto}
-  .fstep input{width:76px;padding:10px;font-size:20px;text-align:center;border-radius:10px;
-    border:1px solid var(--line);background:#fff;color:var(--ink);font-weight:700}
-  .fstep .unit{font-size:11px;color:var(--soft);width:32px;text-align:left}
-  .saverow{position:sticky;bottom:0;padding:12px 0 0;background:linear-gradient(transparent,var(--ink) 30%)}
-  .saved{text-align:center;font-size:13px;opacity:.75;padding-top:8px}
+  /* ---------- shell ---------- */
+  .top{position:sticky;top:0;z-index:10;display:flex;align-items:center;
+    padding:calc(12px + env(safe-area-inset-top)) 20px 12px;
+    background:color-mix(in srgb,var(--bg) 86%,transparent);
+    -webkit-backdrop-filter:saturate(1.8) blur(18px);backdrop-filter:saturate(1.8) blur(18px)}
+  .top h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
+  .live{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
+  .live i{width:8px;height:8px;border-radius:50%;background:var(--good);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 20%,transparent)}
+  .live.off i{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 20%,transparent)}
+  main{padding:4px 16px calc(var(--tabbar) + 32px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
+
+  /* ---------- booth status ---------- */
+  .booth{border-radius:var(--r);margin:4px 0 20px}
+  .booth.locked{background:var(--surface);box-shadow:var(--shadow);padding:18px}
+  .booth.locked .bt{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
+  .booth.locked .bt i{width:10px;height:10px;border-radius:50%;background:var(--warn)}
+  .booth.locked p{margin:4px 0 14px;color:var(--ink-2);font-size:14px}
+  .booth.open{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2);padding:0 4px}
+  .booth.open i{width:8px;height:8px;border-radius:50%;background:var(--good)}
+
+  /* ---------- lists ---------- */
+  .sh{display:flex;align-items:baseline;gap:8px;margin:24px 4px 10px}
+  .sh h2{margin:0;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+  .sh .n{font-size:13px;color:var(--ink-3)}
+  .list{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .row{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:12px 16px;
+    position:relative;transition:background .12s ease}
+  .row:active{background:var(--surface-2)}
+  .row+.row::before{content:"";position:absolute;top:0;left:74px;right:0;height:1px;background:var(--line)}
+  .thumb{width:44px;height:60px;border-radius:8px;object-fit:cover;background:var(--surface-2);flex:0 0 auto}
+  .rmain{flex:1;min-width:0}
+  .rtop{display:flex;align-items:baseline;gap:8px}
+  .code{font-weight:700;font-size:17px;letter-spacing:.08em}
+  .ago{font-size:13px;color:var(--ink-3)}
+  .sub{font-size:14px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rend{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:0 0 auto}
+  .amt{font-weight:600;font-variant-numeric:tabular-nums}
+  .tag{font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .tag.todo{background:var(--accent-soft);color:var(--accent)}
+  .tag.small{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn)}
+  .tag.done{background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good)}
+  .tag.void{background:var(--surface-2);color:var(--ink-3)}
+  .row.muted .thumb,.row.muted .rmain{opacity:.55}
+  .chev{color:var(--ink-3);flex:0 0 auto}
+  .empty{text-align:center;padding:44px 24px;color:var(--ink-3);font-size:15px}
+  .empty b{display:block;color:var(--ink-2);font-weight:600;margin-bottom:4px}
+
+  /* ---------- settings ---------- */
+  .hero{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:18px;margin:4px 0 8px}
+  .hero span{display:block;font-size:13px;color:var(--ink-3)}
+  .hero b{display:block;font-size:26px;font-weight:700;letter-spacing:-.02em;margin-top:2px;font-variant-numeric:tabular-nums}
+  .sh .dot{width:8px;height:8px;border-radius:50%;background:var(--tint);align-self:center}
+  .srow{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 16px;position:relative}
+  .srow+.srow::before{content:"";position:absolute;top:0;left:16px;right:0;height:1px;background:var(--line)}
+  .slab{flex:1;min-width:0}
+  .slab b{display:block;font-weight:500}
+  .slab span{display:block;font-size:13px;color:var(--ink-3)}
+  .step{display:flex;align-items:center;background:var(--surface-2);border-radius:12px;flex:0 0 auto}
+  .step button{width:40px;height:40px;display:grid;place-items:center;color:var(--accent);font-size:22px;line-height:1}
+  .step button:disabled{color:var(--ink-3)}
+  .step input{width:44px;height:40px;border:0;background:transparent;color:var(--ink);text-align:center;
+    font:600 16px/1 inherit;font-variant-numeric:tabular-nums;outline:none;-moz-appearance:textfield;padding:0}
+  .step input::-webkit-inner-spin-button,.step input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+  .unit{font-size:12px;color:var(--ink-3);width:44px;text-align:left}
+  .note{text-align:center;font-size:13px;color:var(--ink-3);margin:18px 12px 0}
+  .dock{position:fixed;left:0;right:0;bottom:calc(var(--tabbar) + env(safe-area-inset-bottom));z-index:15;
+    padding:12px 16px;background:linear-gradient(transparent,var(--bg) 35%)}
+  .dock .btn{max-width:608px;margin:0 auto;box-shadow:var(--shadow)}
+
+  /* ---------- tab bar ---------- */
+  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;
+    height:calc(var(--tabbar) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);
+    background:color-mix(in srgb,var(--surface) 88%,transparent);border-top:1px solid var(--line);
+    -webkit-backdrop-filter:saturate(1.8) blur(18px);backdrop-filter:saturate(1.8) blur(18px)}
+  .tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    font-size:11px;font-weight:500;color:var(--ink-3);position:relative}
+  .tabbar button[aria-selected="true"]{color:var(--accent)}
+  .tabbar svg{width:24px;height:24px}
+  .badge{position:absolute;top:8px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;
+    border-radius:9px;background:var(--bad);color:#fff;font-size:11px;font-weight:700;
+    display:grid;place-items:center}
+
+  /* ---------- order sheet ---------- */
+  .scrim{position:fixed;inset:0;z-index:30;background:rgba(10,12,28,.36);opacity:0;transition:opacity .22s ease}
+  .scrim.on{opacity:1}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:31;max-height:92vh;max-height:92dvh;
+    background:var(--bg);border-radius:22px 22px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.18);
+    transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);
+    display:flex;flex-direction:column;max-width:640px;margin:0 auto}
+  .sheet.on{transform:none}
+  .grab{width:36px;height:5px;border-radius:3px;background:var(--line-2);margin:8px auto 0;flex:0 0 auto}
+  .shead{display:flex;align-items:center;gap:12px;padding:12px 20px 4px;flex:0 0 auto}
+  .shead .code{font-size:26px}
+  .x{margin-left:auto;width:32px;height:32px;border-radius:50%;background:var(--surface-2);
+    display:grid;place-items:center;color:var(--ink-2)}
+  .sbody{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 16px 16px;flex:1}
+  .sfoot{flex:0 0 auto;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+  .top-grid{display:grid;grid-template-columns:36% 1fr;gap:12px;align-items:start;margin:4px 0 12px}
+  .photo{display:block;width:100%;aspect-ratio:2/3;object-fit:contain;border-radius:var(--r-sm);
+    background:var(--surface-2);cursor:zoom-in}
+  .top-grid.big{grid-template-columns:1fr}
+  .top-grid.big .photo{aspect-ratio:auto;max-height:60vh;cursor:zoom-out}
+  .top-grid .card{margin-bottom:0}
+  .top-grid .li{padding:10px 14px;font-size:14px}
+  .top-grid .li.total{font-size:16px}
+  .card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:12px}
+  .li{display:flex;justify-content:space-between;gap:12px;padding:11px 16px;font-size:15px;color:var(--ink-2)}
+  .li+.li{border-top:1px solid var(--line)}
+  .li span:last-child{font-variant-numeric:tabular-nums}
+  .li.total{color:var(--ink);font-weight:700;font-size:17px}
+  .qrow{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 16px}
+  .qrow+.qrow{border-top:1px solid var(--line)}
+  .qrow .slab b{text-transform:capitalize}
+  .qrow.off{opacity:.5}
+  .ok{color:var(--good)!important}
+  .err{color:var(--bad);font-size:14px;text-align:center;margin:4px 0 0}
 </style></head><body>
+
 <div id="gate" class="gate">
-  <h1>Xinhmo</h1>
-  <p style="opacity:.7;font-size:14px">Enter the staff code.</p>
-  <input id="pin" type="tel" inputmode="numeric" autocomplete="off" placeholder="••••" />
-  <button id="enter" style="width:100%">Open queue</button>
-  <p id="gateErr" class="err"></p>
+  <div class="brand">Xinhmo</div>
+  <p>Staff</p>
+  <input id="pin" class="pin mono" type="tel" inputmode="numeric" autocomplete="off" placeholder="&bull;&bull;&bull;&bull;" aria-label="Staff code" />
+  <button id="enter" class="btn primary">Continue</button>
+  <div id="gateErr" class="err"></div>
 </div>
+
 <div id="app" hidden>
-  <header><h1>Queue</h1><span class="count" id="count"></span>
-    <span class="tabs">
-      <button class="tab" id="tabQueue" aria-selected="true">Queue</button>
-      <button class="tab" id="tabSet" aria-selected="false">Timing</button>
-    </span>
+  <header class="top">
+    <h1 id="title">Orders</h1>
+    <div class="live" id="live"><i></i><span id="liveText">Live</span></div>
   </header>
+
   <main>
-    <div id="queueView"><div id="booth"></div><div id="batch"></div><div id="list"></div>
-      <h2 id="pastHead" hidden>Done</h2><div id="past"></div>
-    </div>
-    <div id="setView" hidden>
-      <p class="estimate" id="estimate"></p>
-      <div class="flow" id="flow"></div>
-      <div class="saverow"><button class="go" id="saveSet">Save timings</button></div>
-      <p class="saved" id="setMsg">Changes reach the booth straight away. It does not need restarting.</p>
-    </div>
+    <section id="viewQueue">
+      <div id="booth"></div>
+      <div class="sh"><h2>Waiting</h2><span class="n" id="nWait"></span></div>
+      <div id="list"></div>
+      <div id="doneWrap" hidden>
+        <div class="sh"><h2>Done</h2></div>
+        <div id="past" class="list"></div>
+      </div>
+    </section>
+
+    <section id="viewSet" hidden>
+      <div class="hero"><span>One session takes about</span><b id="estimate">&ndash;</b></div>
+      <div id="flow"></div>
+      <p class="note" id="setMsg">Changes reach the booth straight away. No restart.</p>
+    </section>
   </main>
+
+  <div class="dock" id="dock" hidden><button class="btn primary" id="saveSet">Save changes</button></div>
+
+  <nav class="tabbar">
+    <button data-tab="queue" aria-selected="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+      Orders<span class="badge" id="badge" hidden></span>
+    </button>
+    <button data-tab="set" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      Settings
+    </button>
+  </nav>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="sheet" id="sheet" aria-hidden="true" role="dialog">
+    <div class="grab"></div>
+    <div class="shead">
+      <span class="code mono" id="sCode"></span><span class="ago" id="sAgo"></span>
+      <button class="x" id="sClose" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
+      </button>
+    </div>
+    <div class="sbody" id="sBody"></div>
+    <div class="sfoot" id="sFoot"></div>
+  </aside>
 </div>
+
 <script>
 (function(){
-  var K=null, pricing={}, busy={}, timer=null;
+  var K=null, pricing={}, busy={}, orders={}, openCode=null, lastSig='', openSig='';
   var $=function(id){return document.getElementById(id)};
   function api(path,opts){return fetch(path+(path.indexOf('?')<0?'?':'&')+'k='+encodeURIComponent(K),opts)}
-  function money(n){return '$'+n}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function money(n){return (pricing.currency||'$')+n}
   function ago(ts){var s=Math.round((Date.now()-ts)/1000);
-    if(s<60)return s+'s ago'; var m=Math.round(s/60); return m<60?m+'m ago':Math.round(m/60)+'h ago';}
+    if(s<60)return 'now'; var m=Math.round(s/60); return m<60?m+'m':Math.round(m/60)+'h'}
+  function plural(n,w){return n+' '+w+(n===1?'':'s')}
+  var CHEV='<svg class="chev" width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
 
+  /* ---------------- gate ---------------- */
   $('enter').addEventListener('click',unlock);
   $('pin').addEventListener('keydown',function(e){if(e.key==='Enter')unlock()});
   try{var saved=sessionStorage.getItem('xk'); if(saved){$('pin').value=saved; unlock();}}catch(e){}
@@ -393,269 +521,355 @@ const PAGE = `<!doctype html>
     }).then(function(d){
       try{sessionStorage.setItem('xk',K)}catch(e){}
       $('gate').hidden=true; $('app').hidden=false;
-      render(d); timer=setInterval(refresh,3000);
+      render(d); setInterval(refresh,3000); setInterval(tickAgo,20000);
     }).catch(function(e){$('gateErr').textContent=e.message});
   }
 
-  // Timing view. Drawn as the booth's own flow with a number in each step, so
-  // an operator who has never seen the code can still see what they are changing.
-  var settings=[], phases=[];
-  function loadSettings(){
-    api('/api/settings').then(function(r){return r.json()}).then(function(d){
-      settings=d.settings||[]; phases=d.phases||[]; renderFlow();
-    }).catch(function(){});
-  }
-
-  /**
-   * Grouped by stage rather than listed flat. Eight near-identical rows of
-   * "label / number / s" are impossible to tell apart at a glance, which is
-   * how an operator ends up editing the wrong one; four short stages with
-   * their own colour, and a running total of what a session costs in time,
-   * gives each number somewhere to belong.
-   */
-  function renderFlow(){
-    var f=$('flow'); f.innerHTML='';
-    var byPhase={}; settings.forEach(function(r){(byPhase[r.phase]=byPhase[r.phase]||[]).push(r)});
-
-    phases.forEach(function(ph){
-      var rows=byPhase[ph.id]||[]; if(!rows.length)return;
-      var sec=document.createElement('section'); sec.className='phase';
-      sec.style.setProperty('--tint',ph.tint);
-      sec.innerHTML='<h3 class="phead">'+ph.name+'</h3>';
-      rows.forEach(function(row){
-        var el=document.createElement('label'); el.className='fstep';
-        el.innerHTML='<span class="gly">'+(row.glyph||'')+'</span>'+
-          '<span class="lab">'+row.label+'<span class="hint">'+row.hint+'</span></span>'+
-          '<span class="val"><input type="number" inputmode="numeric" data-k="'+row.key+'" '+
-            'min="'+row.min+'" max="'+row.max+'" value="'+row.value+'" />'+
-            '<span class="unit">'+(row.unit||'sec')+'</span></span>';
-        el.querySelector('input').addEventListener('input',estimate);
-        sec.appendChild(el);
-      });
-      f.appendChild(sec);
-    });
-    estimate();
-  }
-
-  // What these numbers add up to is the thing staff actually care about, and
-  // it is not obvious from eight separate boxes.
-  function estimate(){
-    var v={}; $('flow').querySelectorAll('input[data-k]').forEach(function(i){
-      v[i.getAttribute('data-k')]=parseInt(i.value,10)||0;
-    });
-    var secs=(v.readySeconds||0)+(v.captureCount||0)*((v.countdownSeconds||0)+2)+
-      (v.pickSeconds||0)+(v.frameSeconds||0)+(v.filterSeconds||0);
-    var m=Math.floor(secs/60), sc=secs%60;
-    $('estimate').textContent='A session takes about '+(m?m+' min ':'')+sc+' sec';
-  }
-
-  $('saveSet').addEventListener('click',function(){
-    var b=this, body={};
-    $('flow').querySelectorAll('input[data-k]').forEach(function(i){
-      var v=parseInt(i.value,10); if(!isNaN(v))body[i.getAttribute('data-k')]=v;
-    });
-    b.disabled=true; b.textContent='Saving...';
-    api('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body)})
-      .then(function(r){return r.json()})
-      .then(function(d){
-        settings=d.settings||settings; renderFlow();
-        b.disabled=false; b.textContent='Save timings';
-        $('setMsg').textContent='Saved. The booth is using these now.';
-      })
-      .catch(function(){b.disabled=false;b.textContent='Save timings';
-        $('setMsg').textContent='Could not save. Try again.'});
+  /* ---------------- tabs ---------------- */
+  var tabNow='queue';
+  document.querySelectorAll('.tabbar button').forEach(function(b){
+    b.addEventListener('click',function(){tab(b.getAttribute('data-tab'))});
   });
   function tab(which){
+    tabNow=which;
     var q=which==='queue';
-    $('queueView').hidden=!q; $('setView').hidden=q;
-    $('tabQueue').setAttribute('aria-selected',String(q));
-    $('tabSet').setAttribute('aria-selected',String(!q));
+    $('viewQueue').hidden=!q; $('viewSet').hidden=q;
+    $('title').textContent=q?'Orders':'Settings';
+    document.querySelectorAll('.tabbar button').forEach(function(b){
+      b.setAttribute('aria-selected',String(b.getAttribute('data-tab')===which));
+    });
+    $('dock').hidden=q||!dirty();
     if(!q)loadSettings();
+    window.scrollTo(0,0);
   }
-  $('tabQueue').addEventListener('click',function(){tab('queue')});
-  $('tabSet').addEventListener('click',function(){tab('set')});
 
+  /* ---------------- polling ---------------- */
+  function setLive(ok){
+    $('live').classList.toggle('off',!ok);
+    $('liveText').textContent=ok?'Live':'Offline';
+  }
   function refresh(){
     if(Object.keys(busy).length)return;
-    if($('queueView').hidden)return;   // staff are on the timing tab
-    api('/api/queue').then(function(r){return r.json()}).then(render).catch(function(){});
+    api('/api/queue').then(function(r){if(!r.ok)throw 0;return r.json()})
+      .then(render).catch(function(){setLive(false)});
+  }
+  // The age labels move on their own; nothing else needs redrawing for that.
+  function tickAgo(){
+    document.querySelectorAll('[data-ts]').forEach(function(el){
+      el.textContent=ago(+el.getAttribute('data-ts'));
+    });
+  }
+
+  /* ---------------- queue ---------------- */
+  function owedOf(o,t){return Math.max(0,((o.qty||{})[t]||0)-((o.printed||{})[t]||0))}
+  function smallOwed(o){
+    if(!o.stripPath)return 0;
+    return (pricing.addons||[]).filter(function(a){return a.heightMm})
+      .reduce(function(n,a){return n+owedOf(o,a.id)},0);
+  }
+  function status(o){
+    if(o.status==='void')return {cls:'void',text:'Voided'};
+    var p=owedOf(o,'print');
+    if(p)return {cls:'todo',text:'To print'};
+    var s=smallOwed(o);
+    if(s)return {cls:'small',text:s+' to cut'};
+    return {cls:'done',text:'Done'};
+  }
+  function summary(o){
+    var parts=[esc(o.frameName||((o.items||[])[0]||{}).label||'Photos')];
+    (pricing.addons||[]).forEach(function(a){
+      var n=(o.qty||{})[a.id]||0; if(n)parts.push(plural(n,a.name));
+    });
+    var c=(o.qty||{}).print||1; if(c>1)parts.push(c+' copies');
+    return parts.join(' &middot; ');
   }
 
   function render(d){
+    setLive(true);
     pricing=d.pricing||{};
-    booth(d.locked);
-    batch(d.batches||[]);
-    var list=$('list'); var pend=d.pending||[];
-    $('count').textContent=pend.length?pend.length+' waiting':'all clear';
-    if(!pend.length){list.innerHTML='<div class="empty">Nothing waiting.<br>Orders show up here the moment someone finishes.</div>'}
-    else{
-      list.innerHTML='';
-      pend.forEach(function(o){list.appendChild(card(o))});
+    var pend=d.pending||[], past=d.recent||[];
+    orders={}; pend.concat(past).forEach(function(o){orders[o.code]=o});
+
+    var n=pend.length;
+    $('badge').hidden=!n; $('badge').textContent=n;
+    $('nWait').textContent=n?n:'';
+
+    // Only redraw when something changed. Every redraw re-fetches every
+    // thumbnail, and on a phone hotspot that is not free.
+    var sig=JSON.stringify([d.locked,pend,past]);
+    if(sig!==lastSig){
+      lastSig=sig;
+      booth(d.locked);
+      var list=$('list');
+      if(!n){list.className='';list.innerHTML='<div class="empty"><b>All clear</b>Orders appear here the moment a group finishes.</div>'}
+      else{list.className='list';list.innerHTML='';pend.forEach(function(o){list.appendChild(row(o))})}
+      $('doneWrap').hidden=!past.length;
+      $('past').innerHTML=''; past.forEach(function(o){$('past').appendChild(row(o,true))});
     }
-    var past=d.recent||[];
-    $('pastHead').hidden=!past.length;
-    // Released orders keep their full card. A keychain sold ten minutes later
-    // is an amendment to this order, not a new one, because this is where the
-    // photo lives.
-    $('past').innerHTML='';
-    past.forEach(function(o){
-      if(o.status==='void'){
-        $('past').insertAdjacentHTML('beforeend',
-          '<div class="past"><span>'+o.code+' &middot; voided</span><span>'+money(o.total)+'</span></div>');
-        return;
-      }
-      $('past').appendChild(card(o));
-    });
+    if(openCode)syncSheet();
   }
 
-  /**
-   * Small prints waiting across every order. A keychain uses about an eighth
-   * of a sheet, so printing them one order at a time throws most of the paper
-   * away; this pools them and prints one full sheet, with each little strip
-   * stamped with its pickup code so the pile can be sorted after cutting.
-   */
-  // No pooled sheet any more: each order's keychains print on their own, from
-  // that order's card. All this needs to say is who is still waiting.
-  function batch(list){
-    var el=$('batch');
-    var live=(list||[]).filter(function(b){return b.waiting>0});
-    if(!live.length){el.innerHTML='';return}
-    el.innerHTML='<p class="bsummary">'+live.map(function(b){
-      return b.waiting+' '+b.name+(b.waiting>1?'s':'')+' to print &mdash; '+
-        b.orders.map(function(o){return o.code+(o.n>1?' x'+o.n:'')}).join(', ');
-    }).join('<br>')+'</p>';
+  function row(o,isPast){
+    var st=status(o), isVoid=o.status==='void';
+    var b=document.createElement('button');
+    b.className='row'+(isPast?' muted':'');
+    b.innerHTML='<img class="thumb" alt="" src="/api/thumb?code='+encodeURIComponent(o.code)+'&k='+encodeURIComponent(K)+'" />'+
+      '<span class="rmain"><span class="rtop"><span class="code mono">'+esc(o.code)+'</span>'+
+        '<span class="ago" data-ts="'+o.createdAt+'">'+ago(o.createdAt)+'</span></span>'+
+        '<span class="sub">'+summary(o)+'</span></span>'+
+      '<span class="rend"><span class="amt">'+money(o.total)+'</span><span class="tag '+st.cls+'">'+st.text+'</span></span>'+
+      (isVoid?'':CHEV);
+    if(isVoid){b.disabled=true}
+    else b.addEventListener('click',function(){openSheet(o.code)});
+    return b;
   }
 
-  // The booth locks itself between sessions. Once the last group has walked
-  // away and the next one is standing in front of it, this is what lets them in.
+  // Between sessions the booth locks itself. This is the one control staff
+  // need most often, so it leads the page rather than sitting among orders.
   function booth(locked){
     var el=$('booth');
-    if(!locked){el.className='booth open';el.textContent='Booth is open.';return}
-    el.className='booth';
-    el.innerHTML='<p>Booth is locked after the last session. Start it when the next group is ready.</p>'+
-      '<button class="start">Start next session</button>';
-    el.querySelector('.start').addEventListener('click',function(){
-      var b=this; b.disabled=true; b.textContent='Starting...';
-      api('/api/start',{method:'POST'}).then(function(){refresh()})
+    if(!locked){el.className='booth open';el.innerHTML='<i></i>Booth in use';return}
+    el.className='booth locked';
+    el.innerHTML='<div class="bt"><i></i>Booth is locked</div>'+
+      '<p>Start it when the next group is ready.</p>'+
+      '<button class="btn primary" id="startBtn">Start next session</button>';
+    $('startBtn').addEventListener('click',function(){
+      var b=this; b.disabled=true; b.textContent='Starting…';
+      api('/api/start',{method:'POST'}).then(function(){lastSig='';refresh()})
         .catch(function(){b.disabled=false;b.textContent='Start next session'});
     });
   }
 
-  function card(o){
-    var el=document.createElement('div'); el.className='card';
-    var img=document.createElement('img');
-    img.src='/api/thumb?code='+o.code+'&k='+encodeURIComponent(K); img.alt='';
-    var right=document.createElement('div');
-
-    var owed=function(t){return Math.max(0,((o.qty||{})[t]||0)-((o.printed||{})[t]||0))};
-    var head='<div style="display:flex;align-items:baseline;gap:10px">'+
-      '<span class="code">'+o.code+'</span><span class="ago">'+ago(o.createdAt)+'</span></div>';
-    var lines='<div class="lines">'+(o.items||[]).map(function(i){
-      return '<div><span>'+i.label+'</span><span>'+money(i.amount)+'</span></div>'}).join('')+
-      '<div class="total"><span>Total</span><span>'+money(o.total)+'</span></div></div>';
-
-    // One row per thing that can be sold, each with its own count. Quantities
-    // rather than on/off, because "how many" is what staff actually get asked.
-    var products=[{id:'print',name:'photo print'}].concat((pricing.addons||[]).map(function(a){
-      return {id:a.id,name:a.name,price:a.price,strip:!!a.heightMm};
-    }));
-    // A Grand sheet keeps no strip, so there is nothing to cut a keychain or a
-    // charm out of. Shown greyed with the reason rather than hidden: staff get
-    // asked for one, and "this frame cannot" is the answer they need.
-    var hasStrip=!!o.stripPath;
-    var rows=products.map(function(pr){
-      var n=(o.qty||{})[pr.id]||0, done=(o.printed||{})[pr.id]||0;
-      var off=pr.strip&&!hasStrip;
-      return '<div class="qrow'+(off?' off':'')+'"><span class="qname">'+pr.name+
-        (pr.price?' <b>'+money(pr.price)+'</b>':'')+
-        (done?'<span class="done">'+done+' printed</span>':'')+
-        (off?'<span class="done">no strip on this frame</span>':'')+'</span>'+
-        (off?'<span class="stepper"><span>&mdash;</span></span>'
-            :'<span class="stepper"><button data-q="'+pr.id+'" data-d="-1">&minus;</button>'+
-             '<span>'+n+'</span><button data-q="'+pr.id+'" data-d="1">+</button></span>')+
-        '</div>';
-    }).join('');
-
-    var owedPrints=owed('print');
-    // One button per add-on this order still owes. Their copies go on sheets
-    // of their own, so this prints for this customer and nobody else -- an
-    // order of one keychain prints one keychain, now, rather than waiting for
-    // strangers to buy three more.
-    var small=(pricing.addons||[]).filter(function(a){return a.heightMm}).map(function(a){
-      var n=owed(a.id);
-      if(!n||!hasStrip)return '';
-      var per=Math.max(1,a.perSheet||8), sheets=Math.ceil(n/per);
-      return '<button class="go bprint" data-type="'+a.id+'">Print '+n+' '+a.name+(n>1?'s':'')+
-        (sheets>1?' ('+sheets+' sheets)':'')+'</button>';
-    }).join('');
-
-    right.innerHTML=head+lines+'<div class="qrows">'+rows+'</div>'+
-      '<button class="go"'+(owedPrints?'':' disabled')+'>'+
-        (owedPrints?'Paid '+money(o.total)+' &middot; Print '+owedPrints+' photo'+(owedPrints>1?'s':'')
-                   :'Photos printed')+
-      '</button>'+
-      small+
-      (o.error?'<p class="err">'+o.error+'</p>':'')+
-      '<button class="void">Void this order</button>';
-
-    right.querySelectorAll('.bprint').forEach(function(btn){
-      btn.addEventListener('click',function(){
-        var type=btn.getAttribute('data-type');
-        btn.disabled=true; var was=btn.textContent; btn.textContent='Printing...';
-        api('/api/batch?type='+type+'&code='+encodeURIComponent(o.code),{method:'POST'})
-          .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})
-          .then(function(x){
-            if(x.ok){refresh()}
-            else{btn.disabled=false;btn.textContent=was;alert((x.j&&x.j.error)||'Sheet failed.')}
-          })
-          .catch(function(){btn.disabled=false;btn.textContent=was});
-      });
+  /* ---------------- order sheet ---------------- */
+  function openSheet(code){
+    openCode=code; openSig='';
+    syncSheet();
+    $('scrim').hidden=false;
+    // The slide-in waits a frame so the transition runs. A frame can arrive
+    // late -- a phone that was put away, a throttled tab -- and by then the
+    // sheet may have been closed; opening it then would leave it stranded over
+    // the page with no scrim to dismiss it.
+    requestAnimationFrame(function(){
+      if(openCode!==code)return;
+      $('scrim').classList.add('on');$('sheet').classList.add('on');
     });
+    $('sheet').setAttribute('aria-hidden','false');
+    document.body.style.overflow='hidden';
+  }
+  function closeSheet(){
+    openCode=null;
+    $('scrim').classList.remove('on'); $('sheet').classList.remove('on');
+    $('sheet').setAttribute('aria-hidden','true');
+    document.body.style.overflow='';
+    setTimeout(function(){if(!openCode)$('scrim').hidden=true},260);
+  }
+  $('scrim').addEventListener('click',closeSheet);
+  $('sClose').addEventListener('click',closeSheet);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&openCode)closeSheet()});
 
-    right.querySelectorAll('[data-q]').forEach(function(b){
+  // Keep an open order in step with the booth, without resetting the view
+  // under someone's thumb when nothing about it has changed.
+  function syncSheet(){
+    var o=orders[openCode];
+    if(!o||o.status==='void'){closeSheet();return}
+    if(busy[o.code])return;
+    var sig=JSON.stringify(o);
+    if(sig===openSig)return;
+    openSig=sig;
+    drawSheet(o);
+  }
+
+  function drawSheet(o){
+    $('sCode').textContent=o.code;
+    $('sAgo').setAttribute('data-ts',o.createdAt); $('sAgo').textContent=ago(o.createdAt);
+
+    var lines=(o.items||[]).map(function(i){
+      return '<div class="li"><span>'+esc(i.label)+'</span><span>'+money(i.amount)+'</span></div>'}).join('');
+    lines+='<div class="li total"><span>Total</span><span>'+money(o.total)+'</span></div>';
+
+    // "How many" is what staff get asked, so each thing sold has a count.
+    // A Grand sheet keeps no strip to cut keychains or charms from; those rows
+    // stay visible with the reason, because staff will be asked for one.
+    var hasStrip=!!o.stripPath;
+    var prods=[{id:'print',name:'Photo print',min:1}].concat((pricing.addons||[]).map(function(a){
+      return {id:a.id,name:a.name,price:a.price,strip:!!a.heightMm,min:0};
+    }));
+    var qrows=prods.map(function(p){
+      var n=(o.qty||{})[p.id]||0, done=(o.printed||{})[p.id]||0, off=p.strip&&!hasStrip;
+      var hint=off?'No strip on this frame':
+        (done?'<span class="ok">'+done+' printed</span>':(p.price?money(p.price)+' each':'Included'));
+      return '<div class="qrow'+(off?' off':'')+'"><div class="slab"><b>'+esc(p.name)+'</b><span>'+hint+'</span></div>'+
+        (off?'<span class="unit" style="text-align:right">&ndash;</span>':
+        '<div class="step"><button data-q="'+p.id+'" data-d="-1"'+(n<=Math.max(p.min,done)?' disabled':'')+' aria-label="Fewer">&minus;</button>'+
+        '<input value="'+n+'" readonly tabindex="-1" />'+
+        '<button data-q="'+p.id+'" data-d="1" aria-label="More">+</button></div>')+
+      '</div>';
+    }).join('');
+
+    // Photo beside the receipt, small enough that the counts below stay in
+    // view; tap it to check a face against the customer in front of you.
+    $('sBody').innerHTML=
+      '<div class="top-grid" id="tg"><img class="photo" alt="" src="/api/thumb?code='+encodeURIComponent(o.code)+'&k='+encodeURIComponent(K)+'" />'+
+      '<div class="card">'+lines+'</div></div>'+
+      '<div class="card">'+qrows+'</div>'+
+      (o.error?'<p class="err">'+esc(o.error)+'</p>':'')+
+      // Rare and destructive, so it sits at the end of the page rather than in
+      // the footer under the thumb.
+      '<button class="btn quiet" id="voidBtn">Void order</button>';
+    $('sBody').querySelector('.photo').addEventListener('click',function(){$('tg').classList.toggle('big')});
+
+    // One primary action, the next thing this order needs; small prints after.
+    var foot='', owed=owedOf(o,'print');
+    foot+=owed
+      ? '<button class="btn primary" id="relBtn">Print '+plural(owed,'photo')+' <small>&middot; once '+money(o.total)+' is paid</small></button>'
+      : '<button class="btn secondary" disabled>Photos printed</button>';
+    (pricing.addons||[]).filter(function(a){return a.heightMm}).forEach(function(a){
+      var n=owedOf(o,a.id); if(!n||!hasStrip)return;
+      var sheets=Math.ceil(n/Math.max(1,a.perSheet||8));
+      foot+='<button class="btn secondary" data-batch="'+a.id+'">Print '+plural(n,a.name)+
+        (sheets>1?' <small>&middot; '+sheets+' sheets</small>':'')+'</button>';
+    });
+    $('sFoot').innerHTML=foot;
+
+    $('sBody').querySelectorAll('[data-q]').forEach(function(b){
       b.addEventListener('click',function(){
-        var id=b.getAttribute('data-q');
-        var body={}; body[id]=((o.qty||{})[id]||0)+parseInt(b.getAttribute('data-d'),10);
+        var id=b.getAttribute('data-q'), body={};
+        body[id]=((o.qty||{})[id]||0)+parseInt(b.getAttribute('data-d'),10);
         patch(o,body);
       });
     });
-    right.querySelector('.go').addEventListener('click',function(){
-      if(!this.disabled)release(o,this);
+    if($('relBtn'))$('relBtn').addEventListener('click',function(){release(o,this)});
+    $('sFoot').querySelectorAll('[data-batch]').forEach(function(b){
+      b.addEventListener('click',function(){printSmall(o,b.getAttribute('data-batch'),b)});
     });
-    right.querySelector('.void').addEventListener('click',function(){
+    $('voidBtn').addEventListener('click',function(){
       if(!confirm('Void order '+o.code+'? It will not print.'))return;
       busy[o.code]=1;
-      api('/api/void?code='+o.code,{method:'POST'}).then(function(){delete busy[o.code];refresh()});
+      api('/api/void?code='+encodeURIComponent(o.code),{method:'POST'})
+        .then(function(){delete busy[o.code];closeSheet();lastSig='';refresh()})
+        .catch(function(){delete busy[o.code]});
     });
-
-    el.appendChild(img); el.appendChild(right);
-    return el;
   }
+
+  function working(btn,label){btn.disabled=true;btn.setAttribute('data-was',btn.innerHTML);btn.innerHTML=label}
+  function restore(btn){btn.disabled=false;btn.innerHTML=btn.getAttribute('data-was')||btn.innerHTML}
+  function fail(msg){
+    var p=document.createElement('p');p.className='err';p.textContent=msg;
+    $('sFoot').insertBefore(p,$('sFoot').firstChild);
+  }
+  function after(o){delete busy[o.code];openSig='';lastSig='';refresh()}
 
   function patch(o,body){
     busy[o.code]=1;
-    api('/api/order?code='+o.code,{method:'POST',headers:{'Content-Type':'application/json'},
+    api('/api/order?code='+encodeURIComponent(o.code),{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body)})
-      .then(function(r){return r.json()})
-      .then(function(){delete busy[o.code];refresh()})
+      .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
+      .then(function(x){if(!x.ok)fail((x.j&&x.j.error)||'Could not change that.');after(o)})
       .catch(function(){delete busy[o.code]});
   }
-
   function release(o,btn){
-    btn.disabled=true; btn.classList.add('busy'); btn.textContent='Sending to printer...';
-    busy[o.code]=1;
-    api('/api/release?code='+o.code,{method:'POST'})
-      .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})
+    working(btn,'Sending to printer&hellip;'); busy[o.code]=1;
+    api('/api/release?code='+encodeURIComponent(o.code),{method:'POST'})
+      .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
       .then(function(x){
-        delete busy[o.code];
-        if(x.ok){refresh()}
-        else{btn.disabled=false;btn.classList.remove('busy');
-          btn.textContent='Retry print';
-          var p=document.createElement('p');p.className='err';
-          p.textContent=(x.j&&x.j.error)||'Print failed.';btn.parentNode.appendChild(p);}
+        if(x.ok){after(o);return}
+        delete busy[o.code]; restore(btn); btn.innerHTML='Retry print';
+        fail((x.j&&x.j.error)||'Print failed.');
       })
-      .catch(function(){delete busy[o.code];btn.disabled=false;btn.textContent='Retry print'});
+      .catch(function(){delete busy[o.code];restore(btn)});
   }
+  // Each order's keychains go on a sheet of their own and print now; nobody
+  // waits for strangers to fill the paper.
+  function printSmall(o,type,btn){
+    working(btn,'Printing&hellip;'); busy[o.code]=1;
+    api('/api/batch?type='+type+'&code='+encodeURIComponent(o.code),{method:'POST'})
+      .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
+      .then(function(x){
+        if(x.ok){after(o);return}
+        delete busy[o.code]; restore(btn);
+        fail((x.j&&x.j.error)||'Sheet failed.');
+      })
+      .catch(function(){delete busy[o.code];restore(btn)});
+  }
+
+  /* ---------------- settings ---------------- */
+  // Grouped by stage, each with its own colour, and a running total of what a
+  // session costs in time -- eight near-identical number boxes are how the
+  // wrong one gets edited.
+  var settings=[], phases=[], base={};
+  function loadSettings(){
+    if(dirty())return;
+    api('/api/settings').then(function(r){return r.json()}).then(function(d){
+      settings=d.settings||[]; phases=d.phases||[];
+      base={}; settings.forEach(function(s){base[s.key]=s.value});
+      renderFlow();
+    }).catch(function(){});
+  }
+  function values(){
+    var v={}; $('flow').querySelectorAll('input[data-k]').forEach(function(i){
+      v[i.getAttribute('data-k')]=parseInt(i.value,10)||0});
+    return v;
+  }
+  function dirty(){
+    var v=values();
+    return Object.keys(v).some(function(k){return v[k]!==base[k]});
+  }
+  function renderFlow(){
+    var f=$('flow'); f.innerHTML='';
+    var by={}; settings.forEach(function(r){(by[r.phase]=by[r.phase]||[]).push(r)});
+    phases.forEach(function(ph){
+      var rows=by[ph.id]||[]; if(!rows.length)return;
+      var head=document.createElement('div'); head.className='sh';
+      head.style.setProperty('--tint',ph.tint);
+      head.innerHTML='<span class="dot"></span><h2>'+esc(ph.name)+'</h2>';
+      f.appendChild(head);
+      var box=document.createElement('div'); box.className='list';
+      rows.forEach(function(r){
+        var el=document.createElement('div'); el.className='srow';
+        el.innerHTML='<div class="slab"><b>'+esc(r.label)+'</b><span>'+esc(r.hint)+'</span></div>'+
+          '<div class="step"><button data-d="-1" aria-label="Less">&minus;</button>'+
+          '<input type="number" inputmode="numeric" data-k="'+r.key+'" min="'+r.min+'" max="'+r.max+'" value="'+r.value+'" />'+
+          '<button data-d="1" aria-label="More">+</button></div>'+
+          '<span class="unit">'+esc(r.unit||'sec')+'</span>';
+        var inp=el.querySelector('input');
+        function clamp(){var n=parseInt(inp.value,10);if(isNaN(n))return;
+          inp.value=Math.min(r.max,Math.max(r.min,n))}
+        el.querySelectorAll('button').forEach(function(b){
+          b.addEventListener('click',function(){
+            inp.value=(parseInt(inp.value,10)||0)+parseInt(b.getAttribute('data-d'),10);
+            clamp(); changed();
+          });
+        });
+        inp.addEventListener('input',changed);
+        inp.addEventListener('blur',function(){clamp();changed()});
+        box.appendChild(el);
+      });
+      f.appendChild(box);
+    });
+    changed();
+  }
+  function changed(){
+    var v=values();
+    var secs=(v.readySeconds||0)+(v.captureCount||0)*((v.countdownSeconds||0)+2)+
+      (v.pickSeconds||0)+(v.frameSeconds||0)+(v.filterSeconds||0);
+    var m=Math.floor(secs/60), s=secs%60;
+    $('estimate').textContent=(m?m+' min ':'')+s+' sec';
+    $('dock').hidden=tabNow!=='set'||!dirty();
+  }
+  $('saveSet').addEventListener('click',function(){
+    var b=this, body=values();
+    b.disabled=true; b.textContent='Saving…';
+    api('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){return r.json()})
+      .then(function(d){
+        settings=d.settings||settings;
+        base={}; settings.forEach(function(s){base[s.key]=s.value});
+        renderFlow();
+        b.disabled=false; b.textContent='Save changes';
+        $('setMsg').textContent='Saved. The booth is using these now.';
+      })
+      .catch(function(){b.disabled=false;b.textContent='Save changes';
+        $('setMsg').textContent='Could not save. Try again.'});
+  });
 })();
 </script></body></html>`;
