@@ -1103,7 +1103,9 @@ img.live:not([src]) {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(-1);
+  /* Not mirrored. The live view is, so posing feels like a mirror, but a
+     taken photo is shown the way it will print; mirroring these too meant
+     everyone swapped sides between the shoot and the selection screen. */
 }
 
 .film-cell.is-next {
@@ -1121,8 +1123,8 @@ img.live:not([src]) {
 .film-cell.just-in img { animation: land 0.45s cubic-bezier(0.2, 0.9, 0.3, 1); }
 
 @keyframes land {
-  from { transform: scaleX(-1) scale(1.7); opacity: 0; }
-  to   { transform: scaleX(-1) scale(1); opacity: 1; }
+  from { transform: scale(1.7); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
 }
 
 /* The shot counter has to be readable against a bright live view. */
