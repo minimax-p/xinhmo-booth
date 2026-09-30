@@ -687,6 +687,18 @@ async function runCountdown(secs) {
 
 async function startSession(frameId) {
   if (S.locked) return;
+  // Ask before leaving the welcome screen, not after: a booth that cannot
+  // store the photos should turn the group away here, not halfway through.
+  let started = null;
+  try {
+    started = await window.booth.startSession();
+  } catch (err) {
+    log('error', 'startSession: ' + err.message);
+  }
+  if (started && started.ok === false && started.blocking) {
+    toast(started.error, true, 7000);
+    return;
+  }
   S.photos = [];
   S.selected = [];
   // Decoded artwork is held per session, not for the life of the booth. A
@@ -736,11 +748,6 @@ async function startSession(frameId) {
     off.textContent = S.camError || 'Camera preview is off';
   });
 
-  try {
-    await window.booth.startSession();
-  } catch (err) {
-    log('error', 'startSession: ' + err.message);
-  }
   if (S.cfg.liveView && S.camMode !== 'webcam') {
     try {
       await window.booth.setLiveView(true);
@@ -2170,6 +2177,22 @@ async function refreshStaffStatus() {
         pr.ok ? 'ok' : 'bad',
         'Printer',
         pr.message || (pr.ok ? 'Ready.' : 'Not ready.')
+      )
+    );
+
+    const d = s.disk || {};
+    rows.push(
+      row(
+        d.level === 'ok' ? 'ok' : d.level === 'unknown' ? 'neutral' : 'bad',
+        'Storage',
+        d.level === 'unknown'
+          ? 'Could not read free space.'
+          : `${d.gb} GB free, room for about ${d.sessionsLeft} more sessions.` +
+              (d.level === 'stop'
+                ? ' Full: new sessions are refused until space is freed.'
+                : d.level === 'low'
+                ? ' Running low.'
+                : '')
       )
     );
 

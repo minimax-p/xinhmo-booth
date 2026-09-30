@@ -618,7 +618,49 @@ ipcMain.handle('camera:live', (_e, on) => {
   return camera.status();
 });
 
+/**
+ * How much room is left for photos.
+ *
+ * A session writes about 12 MB -- six shots at ~1.7 MB, a print and a strip --
+ * and until now nothing checked. The disk on this Mac filled up once already,
+ * and a booth that runs out mid-session loses the shots silently. Below LOW the
+ * staff are told; below STOP no new session starts, so a group is turned away
+ * at the welcome screen rather than halfway through their photos.
+ */
+const DISK_LOW_BYTES = 2 * 1024 ** 3; // ~170 sessions left
+// PB_DISK_STOP_BYTES lets a test pretend the disk is full; unset, it is 300 MB.
+const DISK_STOP_BYTES = Number(process.env.PB_DISK_STOP_BYTES) || 300 * 1024 ** 2; // ~25 sessions left
+let diskWarned = false;
+
+function diskStatus() {
+  try {
+    fs.mkdirSync(SESSIONS_ROOT, { recursive: true });
+    const st = fs.statfsSync(SESSIONS_ROOT);
+    const free = st.bavail * st.bsize;
+    const level = free < DISK_STOP_BYTES ? 'stop' : free < DISK_LOW_BYTES ? 'low' : 'ok';
+    const gb = (free / 1024 ** 3).toFixed(1);
+    const sessionsLeft = Math.floor(free / (12 * 1024 ** 2));
+    if (level !== 'ok' && !diskWarned) {
+      log.warn(`[main] storage ${level}: ${gb} GB free, about ${sessionsLeft} sessions`);
+      diskWarned = true;
+    }
+    if (level === 'ok') diskWarned = false;
+    return { level, free, gb, sessionsLeft };
+  } catch (err) {
+    return { level: 'unknown', error: err.message };
+  }
+}
+
 ipcMain.handle('session:start', () => {
+  const disk = diskStatus();
+  if (disk.level === 'stop') {
+    log.error(`[main] session refused: only ${disk.gb} GB free`);
+    return {
+      ok: false,
+      blocking: true,
+      error: 'The booth is almost out of storage. Please ask a member of staff.',
+    };
+  }
   try {
     sessionDir = newSessionDir();
     return { ok: true, dir: sessionDir };
@@ -764,6 +806,7 @@ ipcMain.handle('staff:status', async () => {
   return {
     camera: camera.status(),
     printer: printerStatus,
+    disk: diskStatus(),
     queues,
     settings: {
       printerName: cfg.printerName,
