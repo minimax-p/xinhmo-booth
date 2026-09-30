@@ -87,14 +87,18 @@ function restoreSettings() {
     const { cdp, evalJs, screen, waitForScreen } = booth;
 
     /**
-     * Window shapes to check every screen against. The booth panel is portrait,
-     * a laptop is landscape, and a short window is where clamped layouts fail
-     * first. A layout that has only been looked at in one of these has not been
-     * checked -- a portrait-only fix in this batch broke landscape badly, and
-     * nothing caught it because these checks had been dropped from this file.
+     * Window shapes to check every screen against. All landscape: the booth
+     * runs on a horizontal screen and nobody stands it on its end, so a
+     * portrait check proved nothing while hiding real landscape faults -- a
+     * frame picker that drew a portrait ratio as landscape, and an unscoped
+     * portrait rule that shrank the preview and clipped the grid.
+     *
+     * A short window is kept because that is where clamped layouts fail first.
+     * A layout that has only been looked at in one of these has not been
+     * checked.
      */
     const SIZES = [
-      ['kiosk portrait', 1080, 1920],
+      ['booth screen', 1920, 1080],
       ['laptop landscape', 1440, 900],
       ['short window', 900, 560],
     ];
@@ -146,7 +150,8 @@ function restoreSettings() {
      * A review screen has to hold its controls and still show a usable preview
      * at any shape. This is the check the landscape break needed.
      */
-    function checkReview(label, screenSel, itemSel) {
+    function checkReview(label, screenSel, itemSel, opts) {
+      const mayScroll = !!(opts && opts.mayScroll);
       return atEachSize(async (what) => {
         const m = JSON.parse(
           await evalJs(`(() => {
@@ -168,10 +173,11 @@ function restoreSettings() {
               fill: Math.round(main.height / card.height * 100) });
           })()`)
         );
-        // The two shapes the booth actually runs at must show everything
-        // without scrolling. A window smaller than either may scroll, as long
-        // as the content is genuinely reachable rather than simply cut off.
-        if (what === 'short window') {
+        // A screen the booth runs at should show its controls without
+        // scrolling, unless it holds a list that is genuinely long -- there are
+        // twenty-odd designs per layout and no tile size makes those fit. Those
+        // screens must still scroll rather than simply cut off.
+        if (what === 'short window' || mayScroll) {
           // Fitting is best; scrolling is acceptable. Being cut off with no way
           // to reach the rest is not.
           t(`${label}: all of it reachable (${what})`,
@@ -257,7 +263,13 @@ function restoreSettings() {
     t('the layout cannot be changed after the shoot',
       (await evalJs('!document.getElementById("frameChips")')) === true);
 
-    await checkReview('frame step', '.screen-review[data-screen="frame"]', '#decorChips .decor-tile');
+    // Both pickers on this step: the designs, and the decorations under them.
+    await checkReview(
+      'frame step',
+      '.screen-review[data-screen="frame"]',
+      '#designTiles .design-tile, #decorChips .decor-tile',
+      { mayScroll: true }
+    );
 
     await evalJs('document.querySelector(\'#decorChips [data-decor="corners"]\').click()');
     await sleep(300);

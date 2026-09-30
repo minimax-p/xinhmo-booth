@@ -80,26 +80,35 @@ if (!app.requestSingleInstanceLock()) {
  * window does not fit. Size a portrait window to the display instead, so what
  * you see while testing is the shape of the real panel.
  */
+/**
+ * The window to open when not in kiosk mode.
+ *
+ * Landscape, because the booth runs on a landscape screen. This used to ask
+ * for a 9:16 portrait window "like the real panel", which the real panel is
+ * not; in kiosk mode fullscreen quietly threw that size away and filled the
+ * monitor, so the mistake only showed up in a windowed run -- and in the tests,
+ * which had been sizing themselves to match it.
+ */
 function windowedSize() {
   try {
     const wa = screen.getPrimaryDisplay().workAreaSize;
-    const h = Math.max(600, Math.round(wa.height * 0.92));
-    // Portrait like the real panel, but never so narrow that the controls
-    // have nowhere to go on a small laptop.
-    const w = Math.max(480, Math.round(h * (1080 / 1920)));
-    return { width: Math.min(w, Math.round(wa.width * 0.94)), height: h };
+    const w = Math.max(900, Math.round(wa.width * 0.92));
+    const h = Math.max(560, Math.round(w * (9 / 16)));
+    return { width: w, height: Math.min(h, Math.round(wa.height * 0.94)) };
   } catch {
-    return { width: 720, height: 1080 };
+    return { width: 1280, height: 800 };
   }
 }
 
 function createWindow() {
-  const size = cfg.kiosk ? { width: 1080, height: 1920 } : windowedSize();
+  // Fullscreen ignores this and fills the display; it only matters if kiosk
+  // mode is ever turned off with the window already open.
+  const size = cfg.kiosk ? { width: 1920, height: 1080 } : windowedSize();
 
   win = new BrowserWindow({
     width: size.width,
     height: size.height,
-    minWidth: 400,
+    minWidth: 900,
     minHeight: 560,
     show: false,
     backgroundColor: '#1D2A68',
