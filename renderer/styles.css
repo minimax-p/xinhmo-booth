@@ -531,22 +531,6 @@ img.live:not([src]) {
   min-width: clamp(140px, 26vmin, 300px);
 }
 
-@media (orientation: portrait) {
-  .pose-bar {
-    flex-direction: column;
-    gap: var(--gap-2);
-    padding: clamp(12px, 2.4vmin, 30px);
-  }
-
-  .pose-hint {
-    text-align: center;
-  }
-
-  .pose-bar .primary-btn {
-    width: 100%;
-  }
-}
-
 /* ---------------------------------------------------------------- edit */
 
 .screen-edit {
@@ -744,17 +728,6 @@ img.live:not([src]) {
   font-family: var(--serif);
   font-size: var(--fs-lg);
   text-align: center;
-}
-
-@media (orientation: portrait) {
-  .edit-bar {
-    flex-wrap: wrap;
-    justify-content: space-between;
-  }
-
-  .edit-bar .primary-btn {
-    flex: 1 0 55%;
-  }
 }
 
 /* ---------------------------------------------------------------- printing / done */
@@ -1514,17 +1487,6 @@ img.live:not([src]) {
   min-width: clamp(140px, 26vmin, 300px);
 }
 
-@media (orientation: portrait) {
-  .ready-bar {
-    flex-direction: column;
-    gap: var(--gap-2);
-    text-align: center;
-  }
-
-  .ready-bar .primary-btn { width: 100%; }
-  .ready-hint { max-width: none; }
-}
-
 /* ================================================================== locked
    Between groups. Deliberately plain and deliberately without a button: the
    only way on is a member of staff, which is the entire point. */
@@ -1890,20 +1852,6 @@ img.live:not([src]) {
 
 [hidden].picker {
   display: none;
-}
-
-/* The frame step has one control and it is three rows tall, so in portrait it
-   gets an even split with the preview rather than the 1.4:1 the other steps
-   use; without this the last row of tiles sits under the fold.
-
-   Portrait only, and that scoping is the whole point: unscoped, this overrode
-   the landscape rule's single row, so on a wide screen both panes were pushed
-   into a half-height first row with an empty second row beneath -- a tiny
-   preview, a clipped grid, and half the screen blank. */
-@media (orientation: portrait) {
-  .screen-review[data-screen='frame'] .edit-main {
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1.05fr);
-  }
 }
 
 /* ----------------------------------------------------------- add-on rows
