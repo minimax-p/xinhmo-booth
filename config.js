@@ -51,6 +51,10 @@ const DEFAULTS = {
   // Falls back to gphoto2 by itself if the Canon helper has not been built.
   cameraDriver: 'gphoto2',
 
+  // --- printer supplies --- the SELPHY cannot report these, so the booth counts
+  paperCassetteSheets: 18, // a full CP1500 paper cassette
+  inkCassettePrints: 36, // one KP-108IN ink cassette
+
   // --- review steps --- one decision per screen, each on its own clock
   pickSeconds: 30, // choosing which photos go on the paper
   frameSeconds: 30, // choosing the decorative frame

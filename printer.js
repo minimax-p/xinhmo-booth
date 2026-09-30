@@ -50,8 +50,14 @@ function run(cmd, args, timeoutMs = 20000) {
 }
 
 class Printer {
-  constructor(cfg) {
+  /**
+   * @param {object} cfg
+   * @param {(sheets:number) => void} [onPrinted] told how many sheets each real
+   *   job used, so paper and ink can be counted. Not called for dry runs.
+   */
+  constructor(cfg, onPrinted) {
     this.cfg = cfg;
+    this.onPrinted = onPrinted || null;
     this.lastError = null;
     this.printing = false;
   }
@@ -70,10 +76,18 @@ class Printer {
     }
     const text = res.stdout.toLowerCase();
     const disabled = text.includes('disabled');
+    // A SELPHY out of paper or ink does not report an error; its jobs just
+    // stop moving. Several waiting at once is the sign to go and look.
+    const jobs = await run('lpstat', ['-o', this.cfg.printerName], 8000);
+    const waiting = jobs.ok ? jobs.stdout.split('\n').filter((l) => l.trim()).length : 0;
     return {
       ok: !disabled,
+      waiting,
+      stuck: waiting >= 2,
       message: disabled
         ? 'The printer is paused. Open Printers in System Settings and resume it.'
+        : waiting >= 2
+        ? `${waiting} prints are waiting in the printer. Check its paper and ink.`
         : 'Printer ready.',
       raw: res.stdout.trim(),
     };
@@ -115,6 +129,11 @@ class Printer {
         return { ok: false, error };
       }
       this.lastError = null;
+      if (this.onPrinted) {
+        try {
+          this.onPrinted(copies);
+        } catch {}
+      }
       return { ok: true, jobId: (res.stdout.match(/request id is (\S+)/) || [])[1] || null };
     } catch (err) {
       const error = String((err && err.message) || err);

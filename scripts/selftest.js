@@ -202,6 +202,35 @@ async function checkAsync(name, fn) {
     }
   }
 
+  // ---- printer supplies ----
+  console.log('\nPrinter supplies');
+  {
+    const { Supplies } = require('../supplies');
+    const os = require('os');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'xinhmo-supplies-'));
+    const file = path.join(dir, 'supplies.json');
+    try {
+      const cfg = { paperCassetteSheets: 18, inkCassettePrints: 36 };
+      const sp = new Supplies(file, cfg);
+      check('a new printer counts as full', () =>
+        sp.status().paper.left === 18 && sp.status().ink.left === 36);
+      sp.used(15);
+      check('three sheets left is "low"', () => sp.status().paper.level === 'low',
+        JSON.stringify(sp.status().paper));
+      sp.used(5);
+      check('it never counts below empty, and says "out"', () =>
+        sp.status().paper.left === 0 && sp.status().paper.level === 'out');
+      check('ink runs down with the paper', () => sp.status().ink.left === 16);
+      check('the count survives a restart', () => new Supplies(file, cfg).status().ink.left === 16);
+      sp.refill('paper');
+      check('reloading paper refills paper only', () =>
+        sp.status().paper.left === 18 && sp.status().ink.left === 16);
+      check('nonsense refills are refused', () => sp.refill('toner') === false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
   // ---- logging ----
   console.log('\nLogging');
   const log = require('../logger');

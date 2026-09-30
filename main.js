@@ -25,6 +25,7 @@ const log = require('./logger');
 const { Camera } = require('./camera');
 const { Printer } = require('./printer');
 const { EdsdkCamera } = require('./camera-edsdk');
+const { Supplies } = require('./supplies');
 const frames = require('./frames');
 const decor = require('./decor');
 const { Queue } = require('./queue');
@@ -39,6 +40,7 @@ let powerBlockerId = null;
 let allowQuit = false; // flipped by the staff panel
 let sessionDir = null;
 let queue = null;
+let supplies = null;
 let server = null;
 // The booth locks itself after each session and only staff can open it again,
 // from their phone or the staff panel. Kept here rather than in the renderer
@@ -352,6 +354,7 @@ app.whenReady().then(async () => {
   }
 
   queue = new Queue(path.join(SESSIONS_ROOT, 'queue.json'));
+  supplies = new Supplies(path.join(SESSIONS_ROOT, 'supplies.json'), cfg);
   try {
     server = staffServer.start({
       queue,
@@ -359,6 +362,11 @@ app.whenReady().then(async () => {
       onRelease: printPhotos,
       onBatch: printBatch,
       batchStatus,
+      health: boothHealth,
+      onRefill: (kind) => {
+        healthCache = null; // the phone should see the new count at once
+        return supplies.refill(kind);
+      },
       isLocked: () => boothLocked,
       // Staff change timings from the phone. Saved through config so the
       // clamps apply, then pushed straight at the renderer: a booth that had
@@ -386,7 +394,7 @@ app.whenReady().then(async () => {
   log.info('[main] starting Xinhmo booth', app.getVersion(), 'kiosk=' + !!cfg.kiosk);
 
   camera = makeCamera();
-  printer = new Printer(cfg);
+  printer = new Printer(cfg, (sheets) => supplies.used(sheets));
 
   try {
     fs.mkdirSync(SESSIONS_ROOT, { recursive: true });
@@ -671,6 +679,29 @@ function diskStatus() {
   }
 }
 
+/**
+ * Everything staff need to know at a glance, for the phone.
+ *
+ * Asked every few seconds by each phone that is open, and the printer part
+ * means running lpstat, so it is kept for a few seconds rather than rebuilt
+ * on every poll.
+ */
+let healthCache = null;
+let healthAt = 0;
+async function boothHealth() {
+  if (healthCache && Date.now() - healthAt < 4000) return healthCache;
+  const printerStatus = printer ? await printer.status() : { ok: false, message: 'Starting up.' };
+  healthCache = {
+    camera: camera ? camera.status() : { detected: false },
+    printer: printerStatus,
+    supplies: supplies ? supplies.status() : null,
+    disk: diskStatus(),
+    testMode: { camera: !!cfg.mockCamera, printing: !!cfg.printDryRun },
+  };
+  healthAt = Date.now();
+  return healthCache;
+}
+
 ipcMain.handle('session:start', () => {
   const disk = diskStatus();
   if (disk.level === 'stop') {
@@ -827,6 +858,7 @@ ipcMain.handle('staff:status', async () => {
     camera: camera.status(),
     printer: printerStatus,
     disk: diskStatus(),
+    supplies: supplies ? supplies.status() : null,
     queues,
     settings: {
       printerName: cfg.printerName,

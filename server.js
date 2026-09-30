@@ -91,7 +91,7 @@ function retotal(order, pricing) {
  * @param {object} opts.cfg
  * @param {(order) => Promise<{ok:boolean,error?:string}>} opts.onRelease
  */
-function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartSession, onSettings, timings, phases }) {
+function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartSession, onSettings, timings, phases, health, onRefill }) {
   // The port is bound once and cannot move without a restart. The PIN is read
   // on every request instead of copied here: settings.json is watched, and a
   // PIN changed there should work at once rather than the old one lingering
@@ -129,7 +129,16 @@ function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartS
         maxCopies: cfg.maxCopies || 3,
         locked: isLocked ? !!isLocked() : false,
         batches: batchStatus ? batchStatus() : [],
+        health: health ? await health() : null,
       });
+    }
+
+    /** Staff loaded paper or put in new ink: reset that count. */
+    if (p === '/api/supplies' && req.method === 'POST') {
+      if (!onRefill) return json(res, 501, { error: 'not supported' });
+      const kind = url.searchParams.get('kind');
+      if (!onRefill(kind)) return json(res, 400, { error: 'paper or ink?' });
+      return json(res, 200, { ok: true, health: health ? await health() : null });
     }
 
     // Let the next group in. The booth sits locked between sessions so the
@@ -335,6 +344,17 @@ const PAGE = `<!doctype html>
   main{padding:4px 16px calc(var(--tabbar) + 32px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
 
   /* ---------- booth status ---------- */
+  .health{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;font-size:13px;
+    font-weight:600;background:var(--surface);color:var(--ink-2);box-shadow:var(--shadow);font-variant-numeric:tabular-nums}
+  .pill i{width:7px;height:7px;border-radius:50%;background:var(--good)}
+  .pill.low{color:var(--warn)} .pill.low i{background:var(--warn)}
+  .pill.bad{color:var(--bad)} .pill.bad i{background:var(--bad)}
+  button.pill:active{transform:scale(.97)}
+  .alerts{margin:0 0 12px}
+  .alert{background:color-mix(in srgb,var(--bad) 12%,var(--surface));color:var(--bad);border-radius:var(--r-sm);
+    padding:11px 14px;font-size:14px;font-weight:600;margin-bottom:6px}
+  .alert.low{background:color-mix(in srgb,var(--warn) 12%,var(--surface));color:var(--warn)}
   .booth{border-radius:var(--r);margin:4px 0 20px}
   .booth.locked{background:var(--surface);box-shadow:var(--shadow);padding:18px}
   .booth.locked .bt{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
@@ -458,6 +478,8 @@ const PAGE = `<!doctype html>
 
   <main>
     <section id="viewQueue">
+      <div id="alerts" class="alerts"></div>
+      <div id="health" class="health"></div>
       <div id="booth"></div>
       <div class="sh"><h2>Waiting</h2><span class="n" id="nWait"></span></div>
       <div id="list"></div>
@@ -590,8 +612,61 @@ const PAGE = `<!doctype html>
     return parts.join(' &middot; ');
   }
 
+  /**
+   * What needs a person, before it becomes a guest waiting on a blank sheet.
+   * Paper and ink are counted by the booth (a SELPHY cannot say); tapping one
+   * after reloading tells the booth it is full again.
+   */
+  var healthSig='';
+  function health(h){
+    if(!h)return;
+    var sig=JSON.stringify(h); if(sig===healthSig)return; healthSig=sig;
+    var pills=[], alerts=[];
+    var tm=h.testMode||{};
+    if(tm.printing)alerts.push(['bad','Test mode: nothing is actually printing. Turn off printDryRun.']);
+    if(tm.camera)alerts.push(['bad','Test mode: the camera is not being used. Turn off mockCamera.']);
+
+    var c=h.camera||{};
+    pills.push('<span class="pill'+(c.detected?'':' bad')+'"><i></i>'+(c.detected?'Camera':'Camera off')+'</span>');
+    if(!c.detected&&!tm.camera)alerts.push(['bad','Camera: '+esc(c.lastError||'not connected. Check it is on and plugged in.')]);
+
+    var pr=h.printer||{};
+    var pcls=!pr.ok?' bad':pr.stuck?' low':'';
+    pills.push('<span class="pill'+pcls+'"><i></i>Printer</span>');
+    if(!pr.ok||pr.stuck)alerts.push([pr.ok?'low':'bad','Printer: '+esc(pr.message||'not ready')]);
+
+    var s=h.supplies;
+    if(s){
+      [['paper','Paper',s.paper,'Load 18 sheets, then tap Paper.'],['ink','Ink',s.ink,'Put in a new ink cassette, then tap Ink.']].forEach(function(x){
+        var v=x[2], cls=v.level==='out'?' bad':v.level==='low'?' low':'';
+        pills.push('<button class="pill'+cls+'" data-refill="'+x[0]+'"><i></i>'+x[1]+' '+v.left+'/'+v.cap+'</button>');
+        if(v.level==='out')alerts.push(['bad',x[1]+' is out. '+x[3]]);
+        else if(v.level==='low')alerts.push(['low',x[1]+': '+v.left+' left. '+x[3]]);
+      });
+    }
+
+    var d=h.disk||{};
+    if(d.level&&d.level!=='unknown'){
+      pills.push('<span class="pill'+(d.level==='stop'?' bad':d.level==='low'?' low':'')+'"><i></i>'+d.gb+' GB</span>');
+      if(d.level!=='ok')alerts.push([d.level==='stop'?'bad':'low','Storage: room for about '+d.sessionsLeft+' more sessions.']);
+    }
+
+    $('health').innerHTML=pills.join('');
+    $('alerts').innerHTML=alerts.map(function(a){return '<div class="alert'+(a[0]==='low'?' low':'')+'">'+a[1]+'</div>'}).join('');
+    $('health').querySelectorAll('[data-refill]').forEach(function(b){
+      b.addEventListener('click',function(){
+        var k=b.getAttribute('data-refill');
+        var q=k==='paper'?'Loaded a full paper cassette (18 sheets)?':'Put in a new ink cassette (36 prints)?';
+        if(!confirm(q))return;
+        api('/api/supplies?kind='+k,{method:'POST'}).then(function(r){return r.json()})
+          .then(function(x){healthSig='';health(x.health)}).catch(function(){});
+      });
+    });
+  }
+
   function render(d){
     setLive(true);
+    health(d.health);
     pricing=d.pricing||{};
     var pend=d.pending||[], past=d.recent||[];
     orders={}; pend.concat(past).forEach(function(o){orders[o.code]=o});
