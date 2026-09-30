@@ -867,16 +867,23 @@ async function runCaptureSequence() {
     // Every gap is the same generous length. The get-ready screen already
     // covered the settling-in, and between shots a group of people needs real
     // time to rearrange itself, not a three-second scramble.
-    // Focus while the countdown runs, so the shutter can fire the moment it
-    // reaches zero. The Canon camera's live-view focus takes about three
-    // seconds to lock; the countdown is longer than that. Not awaited: the
-    // countdown must not wait on the camera.
+    // Focus during the countdown, so the shutter fires the moment it reaches
+    // zero. As late as it can be and still lock: the Canon camera's live-view
+    // focus takes about three seconds, and anyone who steps forward or back
+    // after it locks comes out soft, so the less time between focus and
+    // shutter the better. Not awaited: the countdown never waits on the camera.
+    let focusTimer = null;
     if (S.camMode !== 'webcam') {
-      try {
-        window.booth.focus().catch(() => {});
-      } catch {}
+      const lead = Number(S.cfg.cameraFocusLeadSeconds) || 4.5;
+      const wait = Math.max(0, (S.cfg.countdownSeconds - lead) * 1000);
+      focusTimer = setTimeout(() => {
+        try {
+          window.booth.focus().catch(() => {});
+        } catch {}
+      }, wait);
     }
     await runCountdown(S.cfg.countdownSeconds);
+    clearTimeout(focusTimer);
 
     // The screen flash is the booth's only fill light, so it must stay lit for
     // the camera's actual capture time, not a fixed guess -- a real DSLR's

@@ -548,6 +548,7 @@ function rendererConfig() {
   return {
   captureCount: cfg.captureCount,
   countdownSeconds: cfg.countdownSeconds,
+  cameraFocusLeadSeconds: cfg.cameraFocusLeadSeconds,
   beepLastSeconds: cfg.beepLastSeconds,
   readySeconds: cfg.readySeconds,
   pickSeconds: cfg.pickSeconds,

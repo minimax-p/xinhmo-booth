@@ -50,6 +50,9 @@ const DEFAULTS = {
   //   "gphoto2" the original driver: a new gphoto2 process per shot.
   // Falls back to gphoto2 by itself if the Canon helper has not been built.
   cameraDriver: 'gphoto2',
+  // Seconds before the shutter that focusing starts. The 1300D needs about
+  // three to lock; later leaves less time for people to move after it has.
+  cameraFocusLeadSeconds: 4.5,
 
   // --- printer supplies --- the SELPHY cannot report these, so the booth counts
   paperCassetteSheets: 18, // a full CP1500 paper cassette
