@@ -30,7 +30,6 @@ contextBridge.exposeInMainWorld('booth', {
   startSession: () => ipcRenderer.invoke('session:start'),
   capture: (index) => ipcRenderer.invoke('camera:capture', index),
   focus: () => ipcRenderer.invoke('camera:focus'),
-  saveShot: (index, dataUrl) => ipcRenderer.invoke('camera:saveShot', { index, dataUrl }),
   submitOrder: (order) => ipcRenderer.invoke('order:submit', order),
 
   // booth lock, between sessions

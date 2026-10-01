@@ -12,7 +12,7 @@ source scripts/setup.sh
 ensure_ready
 
 # This is the event launcher, so it never inherits test switches from
-# whatever terminal it was started in. Test runs use TEST-MODE.command or npm.
+# whatever terminal it was started in. Test runs use npm run mock.
 unset PB_MOCK_CAMERA PB_PRINT_DRYRUN PB_KIOSK PB_CAMERA_DRIVER PB_SESSIONS_DIR PB_DISK_STOP_BYTES
 
 # settings.json can still switch test mode on by itself. That is how a booth
@@ -27,6 +27,14 @@ if [ -n "$TESTMODE" ]; then
   echo "  ============================================================"
   echo "  Press any key to start anyway."
   read -n 1 -s
+fi
+
+# Check the camera and printer before the booth opens, and help fix whatever
+# is wrong. Staff can start anyway; Q leaves the booth closed.
+if ! node scripts/check.js --start; then
+  echo ""
+  echo "  The booth was not started. You can close this window."
+  exit 0
 fi
 
 echo ""

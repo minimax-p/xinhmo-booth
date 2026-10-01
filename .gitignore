@@ -16,3 +16,6 @@ README.html
 README_files/
 *.quarto_ipynb
 .quarto/
+
+# Zips of the booth or of Canon's SDK are for moving between Macs, never for GitHub.
+*.zip

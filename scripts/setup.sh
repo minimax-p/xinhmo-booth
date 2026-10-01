@@ -2,7 +2,7 @@
 # ============================================================
 #  Make sure this Mac has everything the booth needs.
 #
-#  Sourced by START-BOOTH.command and TEST-MODE.command, so a
+#  Sourced by START-BOOTH.command and CHECK-BOOTH.command, so a
 #  brand-new Mac needs nothing but a double-click. On a Mac that
 #  is already set up it checks and moves on in a second.
 # ============================================================

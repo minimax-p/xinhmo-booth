@@ -14,7 +14,7 @@
 'use strict';
 
 const {
-  app, BrowserWindow, ipcMain, powerSaveBlocker, globalShortcut, shell, screen, systemPreferences,
+  app, BrowserWindow, ipcMain, powerSaveBlocker, globalShortcut, shell, screen,
   session,
 } = require('electron');
 const fs = require('fs');
@@ -390,28 +390,13 @@ function batchStatus() {
 }
 
 app.whenReady().then(async () => {
-  // Electron's default session REFUSES getUserMedia unless something answers
-  // the permission request. Without this the webcam fallback fails silently.
+  // The booth never uses the Mac's own camera or microphone. Refuse every
+  // request for them, so nothing can turn one on -- by mistake or otherwise.
   try {
-    session.defaultSession.setPermissionRequestHandler((_wc, permission, done) => {
-      done(permission === 'media' || permission === 'camera');
-    });
-    session.defaultSession.setPermissionCheckHandler(
-      (_wc, permission) => permission === 'media' || permission === 'camera'
-    );
+    session.defaultSession.setPermissionRequestHandler((_wc, _permission, done) => done(false));
+    session.defaultSession.setPermissionCheckHandler(() => false);
   } catch (err) {
     log.error('[main] permission handler failed:', err.message);
-  }
-
-  // The built-in camera is the fallback when no DSLR is plugged in. Ask now,
-  // while someone is still standing at the Mac, not mid-session at the event.
-  if (process.platform === 'darwin' && cfg.webcamFallback) {
-    try {
-      const granted = await systemPreferences.askForMediaAccess('camera');
-      log.info('[main] webcam access: ' + (granted ? 'granted' : 'denied'));
-    } catch (err) {
-      log.warn('[main] webcam access request failed: ' + err.message);
-    }
   }
 
   queue = new Queue(path.join(SESSIONS_ROOT, 'queue.json'));
@@ -626,7 +611,6 @@ function rendererConfig() {
   thankYouSeconds: cfg.thankYouSeconds,
   liveView: cfg.liveView,
   mockCamera: cfg.mockCamera,
-  webcamFallback: cfg.webcamFallback,
   printDryRun: cfg.printDryRun,
   pricing: cfg.pricing,
   print: cfg.print,
@@ -810,23 +794,6 @@ ipcMain.handle('camera:capture', async (_e, index) => {
   }
 });
 
-/**
- * Webcam mode: the renderer grabs the frame itself (getUserMedia gives it a
- * live <video>, which is far simpler than shelling out), and hands us the JPEG
- * to file next to the DSLR shots so everything downstream is identical.
- */
-ipcMain.handle('camera:saveShot', (_e, { index, dataUrl }) => {
-  try {
-    if (!sessionDir) sessionDir = newSessionDir();
-    const dest = path.join(sessionDir, `shot_${String(index).padStart(2, '0')}.jpg`);
-    const b64 = String(dataUrl).replace(/^data:image\/\w+;base64,/, '');
-    fs.writeFileSync(dest, Buffer.from(b64, 'base64'));
-    return { ok: true, path: dest };
-  } catch (err) {
-    log.error('[main] saveShot failed:', err.message);
-    return { ok: false, error: 'Could not save that photo.' };
-  }
-});
 
 /**
  * Renderer sends the finished 1200x1800 composite as a data URL. We do NOT

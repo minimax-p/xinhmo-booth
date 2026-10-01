@@ -8,8 +8,7 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <!-- Staff corner: hold for five seconds to open the staff panel. Emergency
-         use only; the booth is run from the staff phone. -->
+    <!-- Staff corner: hold for two seconds to open the staff panel. -->
     <div id="staffCorner" class="staff-corner" aria-hidden="true"></div>
 
     <div id="screens">
@@ -45,7 +44,6 @@
            group can arrange itself before the first countdown starts. -->
       <section class="screen screen-ready" data-screen="ready">
         <div class="ready-stage">
-          <video id="readyVid" class="live" autoplay playsinline muted hidden></video>
           <img id="readyImg" class="live" alt="" />
           <div class="live-off" id="readyOff">Camera preview is off</div>
           <div class="crop-mask"><div class="crop-window" id="readyWindow"></div></div>
@@ -72,7 +70,6 @@
       <section class="screen screen-pose" data-screen="pose">
         <div class="pose-wrap">
           <div class="stage-frame">
-            <video id="liveVid" class="live" autoplay playsinline muted hidden></video>
             <img id="liveImg" class="live" alt="" />
             <div class="live-off" id="liveOff">Camera preview is off</div>
 

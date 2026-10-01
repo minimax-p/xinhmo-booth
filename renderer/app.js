@@ -63,24 +63,7 @@ function show(name) {
   document.querySelectorAll('.screen').forEach((el) => {
     el.classList.toggle('is-active', el.dataset.screen === name);
   });
-  playWebcamOn(name);
   resetIdle();
-}
-
-/**
- * Start the webcam preview on whichever screen just came up.
- *
- * The stream is attached long before either screen is shown, and a play() on a
- * display:none <video> does not stick -- it can reject outright, and `autoplay`
- * does not fire again when the element is later revealed. The element then sits
- * there with a live stream attached, playing nothing, which on a stage whose
- * surround is now solid black looks exactly like a camera that has died. So
- * play it at the moment it becomes visible, which is here.
- */
-function playWebcamOn(name) {
-  if (S.camMode !== 'webcam') return;
-  const v = name === 'ready' ? $('readyVid') : name === 'pose' ? $('liveVid') : null;
-  if (v && v.srcObject) v.play().catch(() => {});
 }
 
 let toastTimer = null;
@@ -417,7 +400,7 @@ function preloadDecor() {
 // ---------------------------------------------------------------- live view
 
 function onLiveFrame(buf) {
-  if ((S.screen !== 'pose' && S.screen !== 'ready') || S.camMode === 'webcam') return;
+  if (S.screen !== 'pose' && S.screen !== 'ready') return;
   try {
     const blob = new Blob([buf], { type: 'image/jpeg' });
     const url = URL.createObjectURL(blob);
@@ -439,12 +422,10 @@ function onLiveFrame(buf) {
 // ------------------------------------------------------- camera source
 
 /**
- * Pick where photos come from, best first:
- *   dslr   - gphoto2 sees a real camera
- *   webcam - no DSLR, but the Mac has a built-in camera (getUserMedia)
- *   mock   - test mode, generated images
- * The webcam path lives in the renderer because getUserMedia hands us a live
- * <video> for free; shelling out for stills would give us no preview at all.
+ * Where photos come from: the Canon camera, or the generated test images in
+ * test mode. Never the Mac's own camera -- a booth that quietly switched to a
+ * laptop webcam would take worse photos all evening without anyone noticing.
+ * No camera means the screen says so, and staff see it on their phone.
  */
 async function chooseCameraSource() {
   if (S.cfg.mockCamera) {
@@ -463,136 +444,13 @@ async function chooseCameraSource() {
     S.camMode = 'dslr';
     return S.camMode;
   }
-  if (S.cfg.webcamFallback && (await startWebcam())) {
-    S.camMode = 'webcam';
-    log('info', 'falling back to the built-in camera');
-    return S.camMode;
-  }
   S.camMode = 'none';
-  S.camError = S.cfg.webcamFallback
-    ? 'No camera found. Check the DSLR cable, or allow camera access in System Settings > Privacy.'
-    : 'No camera found. Check the cable and that the camera is switched on.';
+  S.camError = 'No camera found. Check the camera is on, its battery is charged and the cable is in.';
   return S.camMode;
 }
 
-/**
- * A resolved getUserMedia is not a working camera.
- *
- * When macOS has camera access switched off, Chromium still hands back a
- * MediaStreamTrack: readyState "live", enabled true, and no frames -- it is
- * `muted`, and getSettings() never gets a width. Taking that as success is how
- * the booth ended up insisting the camera was fine while showing a black
- * rectangle, which is the worst of both: nothing to look at and nothing to act
- * on. So wait for the track to actually deliver before believing it.
- */
-async function trackIsDelivering(track, ms = 3000) {
-  const until = Date.now() + ms;
-  let good = 0;
-  while (Date.now() < until) {
-    const s = (track.getSettings && track.getSettings()) || {};
-    const live = track.readyState === 'live' && !track.muted && !!s.width;
-    // Must hold, not merely happen. When macOS is refusing the camera the
-    // track often looks healthy for a moment and then mutes with its
-    // dimensions gone, so a single passing sample proves nothing -- it is
-    // exactly the case that used to get through and leave a black rectangle.
-    if (!live) return false;
-    if (++good >= 8) return true;
-    await sleep(150);
-  }
-  return good > 0;
-}
-
-async function startWebcam() {
-  if (S.webcamStream) return true;
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
-  let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
-      audio: false,
-    });
-  } catch (err) {
-    log('error', 'webcam unavailable: ' + err.message);
-    S.camError = cameraBlockedMessage();
-    return false;
-  }
-
-  const track = stream.getVideoTracks()[0];
-  if (!track || !(await trackIsDelivering(track))) {
-    log('error', 'webcam opened but delivered no frames (access blocked?)');
-    stream.getTracks().forEach((t) => t.stop());
-    S.camError = cameraBlockedMessage();
-    return false;
-  }
-
-  S.webcamStream = stream;
-
-  // A camera can stop delivering after it has started -- access revoked, the
-  // device taken by another app, a lid closed. The track goes `muted` and the
-  // preview silently turns into a black rectangle with nothing to explain it,
-  // which is exactly how this was reported: "the preview stopped working".
-  // Say so on screen instead, and take it back when frames return.
-  track.addEventListener('mute', () => {
-    log('error', 'camera stopped delivering frames');
-    showCameraTrouble(cameraBlockedMessage());
-  });
-  track.addEventListener('unmute', () => showCameraTrouble(null));
-  // Both preview surfaces, not just the shooting one. The get-ready screen has
-  // its own <video>, and attaching to only #liveVid left that screen blank --
-  // which, now that everything outside the crop is solid black, looks exactly
-  // like a dead camera. One MediaStream feeds any number of video elements.
-  ['liveVid', 'readyVid'].forEach((id) => {
-    const v = $(id);
-    if (!v) return;
-    v.srcObject = S.webcamStream;
-    // Not awaited: both are still display:none here, and play() on a hidden
-    // element can stay pending forever, which would strand the handshake. They
-    // carry autoplay, so being shown is enough to start them.
-    v.play().catch(() => {});
-  });
-  return true;
-}
-
-/** Put a reason over the dead preview, on whichever screen is showing it. */
-function showCameraTrouble(message) {
-  S.camError = message || null;
-  [$('liveOff'), $('readyOff')].forEach((off) => {
-    if (!off) return;
-    off.style.display = message ? '' : 'none';
-    if (message) off.textContent = message;
-  });
-}
-
-/** Says the one thing that actually fixes it. */
-function cameraBlockedMessage() {
-  return (
-    'The Mac is not allowing camera access. ' +
-    'Open System Settings \u203a Privacy & Security \u203a Camera, switch it on for this app, ' +
-    'then reopen the booth.'
-  );
-}
-
-/** Grab the current webcam frame at full sensor size, un-mirrored for print. */
-async function captureFromWebcam(index) {
-  const v = $('liveVid');
-  if (!v || !v.videoWidth) return { ok: false, error: 'The camera is not ready.' };
-  const c = document.createElement('canvas');
-  c.width = v.videoWidth;
-  c.height = v.videoHeight;
-  const ctx = c.getContext('2d');
-  // The preview is mirrored so posing feels natural; the saved photo is not.
-  ctx.drawImage(v, 0, 0, c.width, c.height);
-  const dataUrl = c.toDataURL('image/jpeg', 0.92);
-  try {
-    await window.booth.saveShot(index, dataUrl);
-  } catch (err) {
-    log('error', 'saveShot: ' + err.message);
-  }
-  return { ok: true, dataUrl };
-}
-
 function captureOnce(index) {
-  return S.camMode === 'webcam' ? captureFromWebcam(index) : window.booth.capture(index);
+  return window.booth.capture(index);
 }
 
 // ------------------------------------------------------- pose furniture
@@ -728,32 +586,18 @@ async function startSession(frameId) {
   $('poseHint').textContent = 'Look at the camera.';
   $('shotPill').textContent = `Photo 1 of ${shotsNeeded()}`;
 
-  // Look again every session rather than once per launch. This camera drops
-  // off the USB bus when it power-saves, and a booth that decided "webcam" at
-  // 6pm would still be saying it at midnight with the DSLR sitting there
-  // plugged in and awake. Re-checking costs a few seconds of the get-ready
-  // screen, which is time the group is using anyway, and it means the booth
-  // heals itself both ways: back to the DSLR when it returns, over to the
-  // webcam if it dies mid-evening.
+  // Look again every session rather than once per launch: a camera that was
+  // switched off or ran flat at 6pm should be picked up again the moment it is
+  // back, without restarting the booth.
   S.camMode = null;
   await chooseCameraSource();
-  const webcam = S.camMode === 'webcam';
-  $('liveVid').hidden = !webcam;
-  $('liveImg').hidden = webcam;
-  $('readyVid').hidden = !webcam;
-  $('readyImg').hidden = webcam;
-  if (webcam) {
-    await startWebcam();
-    // show('ready') already ran, before there was a stream to play.
-    playWebcamOn(S.screen);
-  }
   [$('liveOff'), $('readyOff')].forEach((off) => {
     if (!off) return;
     off.style.display = S.camMode === 'none' ? '' : 'none';
     off.textContent = S.camError || 'Camera preview is off';
   });
 
-  if (S.cfg.liveView && S.camMode !== 'webcam') {
+  if (S.cfg.liveView && S.camMode === 'dslr') {
     try {
       await window.booth.setLiveView(true);
     } catch (err) {
@@ -878,7 +722,7 @@ async function runCaptureSequence() {
     // after it locks comes out soft, so the less time between focus and
     // shutter the better. Not awaited: the countdown never waits on the camera.
     let focusTimer = null;
-    if (S.camMode !== 'webcam') {
+    if (S.camMode === 'dslr') {
       const lead = Number(S.cfg.cameraFocusLeadSeconds) || 4.5;
       const wait = Math.max(0, (S.cfg.countdownSeconds - lead) * 1000);
       focusTimer = setTimeout(() => {
@@ -2015,10 +1859,9 @@ function wireEvents() {
   const corner = $('staffCorner');
   const startHold = () => {
     clearTimeout(holdTimer);
-    // Five seconds, not a quick press: the staff phone is how the booth is run,
-    // and this is the way in when the phone is not an option -- dead battery,
-    // no network. Long enough that nobody opens it by leaning on the corner.
-    holdTimer = setTimeout(openStaff, 5000);
+    // Two seconds: long enough that a guest brushing the corner does not open
+    // it, short enough not to be a chore. The staff code still guards it.
+    holdTimer = setTimeout(openStaff, 2000);
   };
   const cancelHold = () => clearTimeout(holdTimer);
   corner.addEventListener('pointerdown', startHold);

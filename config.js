@@ -34,7 +34,6 @@ const DEFAULTS = {
 
   // --- camera ---
   mockCamera: false, // true = generated test images, no camera needed
-  webcamFallback: true, // no DSLR detected? use the Mac's built-in camera
   liveView: true, // show the live camera feed while posing
   liveViewFps: 12,
   cameraTimeoutMs: 25000,

@@ -51,8 +51,10 @@ to check again, restart the camera, and send a test print.
 If you cannot fix it, take a photo of the screen and send it along with the day
 and time. The booth keeps its own log that can be read afterwards.
 
-## Practising without using up paper
+## Checking the camera and printer
 
-Double-click **TEST-MODE** instead of START-BOOTH. The booth then works normally
-but uses pretend photos and does not print anything. Good for training. Close the
-window when you are done and start it normally for real customers.
+Double-click **CHECK-BOOTH**. It checks the real camera and printer and, if
+something is wrong, tells you what to do step by step -- switch it on, check the
+battery, turn it off for 5 seconds and on again -- then checks again when you
+press Return. It can print a test page at the end. START-BOOTH runs the same
+check every time before the booth opens.

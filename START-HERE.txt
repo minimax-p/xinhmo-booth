@@ -1,53 +1,65 @@
 XINHMO BOOTH -- START HERE
 ==========================
 
-Needs: a Mac, internet for the first run, and the Mac's login password.
+You need: this Mac, the Canon camera, the SELPHY printer, and the Mac's
+login password. The very first time, also an internet connection.
 
 
-0. MOVED THIS FOLDER FROM ANOTHER MAC? (zip, AirDrop, USB stick)
+EVERY EVENT
+-----------
 
-   macOS flags files that arrive that way and may refuse to open them.
-   Open Terminal, type this, then a space, then drag this folder onto the
-   Terminal window and press Return:
+1. Plug in the camera and the printer. Switch both ON.
+   Use the camera's power adapter, not just its battery.
 
-     xattr -dr com.apple.quarantine
+2. Double-click  START-BOOTH.command
 
-   The Canon camera needs the EDSDK folder inside this one (it is Canon's,
-   licensed, and never goes on GitHub -- copy it across by hand). The first
-   start builds the camera helper from it. If a window asks to install
-   Apple's "command line developer tools", click Install, then start again.
+   It checks the camera and the printer first. If something is wrong it
+   says exactly what to do -- follow the steps, press Return, and it
+   checks again. When both say OK, the booth opens by itself.
 
-
-1. TRY IT (no camera or printer needed)
-
-   Double-click  TEST-MODE.command
-
-   The first time, macOS will say it "cannot be opened". Instead:
-     right-click TEST-MODE.command  >  Open  >  Open
-   You only have to do this once.
-
-   The first run sets everything up by itself: 5-15 minutes.
-   - It asks for this Mac's password. Nothing shows while you type. Press Return.
-   - Click "Allow" on any pop-up asking about the camera or files.
-
-   When the booth window opens, tap through a session. Nothing prints.
-
-
-2. RUN THE REAL BOOTH
-
-   Plug in the camera and printer, then double-click  START-BOOTH.command
    Leave the black Terminal window open while the booth runs.
 
-   No Canon camera? It uses the Mac's own camera instead.
+3. On the staff phone, open the address the booth shows and enter the
+   staff code. Tap the Booth tab to see the camera, printer, paper and ink.
+
+
+JUST WANT TO CHECK THE CAMERA AND PRINTER?
+------------------------------------------
+
+   Double-click  CHECK-BOOTH.command
+
+   Same check, without opening the booth. It can print a test page too.
+
+
+THE FIRST TIME ON A NEW MAC
+---------------------------
+
+   a. Moved this folder over by zip, AirDrop or USB stick? macOS may
+      refuse to open it. Open Terminal, type this, then a space, drag
+      this folder onto the Terminal window, and press Return:
+
+        xattr -dr com.apple.quarantine
+
+   b. The EDSDK folder must be inside this folder. It is Canon's camera
+      software: licensed, never on GitHub, so it is copied across by hand.
+
+   c. Double-click START-BOOTH.command. The first time, macOS may say it
+      "cannot be opened": right-click it > Open > Open. Only once.
+
+      Setting up takes 5-15 minutes, by itself:
+      - It asks for this Mac's password. Nothing shows while you type.
+        Press Return.
+      - If a window asks to install Apple's "command line developer
+        tools", click Install, then double-click START-BOOTH again.
 
 
 IF SOMETHING IS OFF
+-------------------
 
    Printer does nothing:
      System Settings > Printers & Scanners > add the printer.
-     Then open settings.json and set "printerName" to that printer's name,
-     written exactly as the Printers list shows it, with _ instead of spaces.
+     Its name must match "printerName" in settings.json.
 
-   Staff menu code is "staffPin" in settings.json (it is 1234 -- change it).
+   Staff code: "staffPin" in settings.json (it is 1234 -- change it).
 
    Everyday running: OPERATORS-GUIDE.md
