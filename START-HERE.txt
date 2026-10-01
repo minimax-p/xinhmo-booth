@@ -4,6 +4,20 @@ XINHMO BOOTH -- START HERE
 Needs: a Mac, internet for the first run, and the Mac's login password.
 
 
+0. MOVED THIS FOLDER FROM ANOTHER MAC? (zip, AirDrop, USB stick)
+
+   macOS flags files that arrive that way and may refuse to open them.
+   Open Terminal, type this, then a space, then drag this folder onto the
+   Terminal window and press Return:
+
+     xattr -dr com.apple.quarantine
+
+   The Canon camera needs the EDSDK folder inside this one (it is Canon's,
+   licensed, and never goes on GitHub -- copy it across by hand). The first
+   start builds the camera helper from it. If a window asks to install
+   Apple's "command line developer tools", click Install, then start again.
+
+
 1. TRY IT (no camera or printer needed)
 
    Double-click  TEST-MODE.command
