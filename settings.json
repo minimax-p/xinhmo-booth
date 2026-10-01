@@ -1,10 +1,10 @@
 {
-  "captureCount": 5,
-  "countdownSeconds": 3,
+  "captureCount": 6,
+  "countdownSeconds": 7,
   "printerName": "Canon_SELPHY_CP1500",
   "printerMedia": "Postcard(4x6in)",
   "printDryRun": false,
-  "maxCopies": 3,
+  "maxCopies": 20,
   "mockCamera": false,
   "liveView": true,
   "staffPin": "1234",
@@ -50,6 +50,10 @@
   "staffPort": 8080,
   "webcamFallback": true,
   "beepLastSeconds": 3,
-  "readySeconds": 10,
-  "lockAfterSession": true
+  "readySeconds": 6,
+  "lockAfterSession": true,
+  "pickSeconds": 30,
+  "frameSeconds": 30,
+  "filterSeconds": 30,
+  "cameraDriver": "edsdk"
 }
