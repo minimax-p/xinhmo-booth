@@ -236,6 +236,15 @@ async function printPhotos(order) {
  * keychains fit, so four are arranged on one -- and an order larger than a
  * sheet simply runs onto the next. One press prints the lot.
  */
+/**
+ * How many of an add-on fit on one sheet. perSheet counts strips; a keychain
+ * is two-sided, so it takes two of them and a sheet of four holds two.
+ */
+function itemsPerSheet(addon) {
+  const k = Math.max(1, addon.stripsPerItem || 1);
+  return Math.max(1, Math.floor(Math.max(1, addon.perSheet || 8) / k));
+}
+
 async function printBatch(type, code) {
   const addon = ((cfg.pricing || {}).addons || []).find((a) => a.id === type);
   if (!addon || !addon.heightMm) return { ok: false, error: 'That add-on is not a print.' };
@@ -248,19 +257,23 @@ async function printBatch(type, code) {
     return { ok: false, error: `No photo strip was kept for ${order.code}.` };
   }
 
-  const perSheet = Math.max(1, addon.perSheet || 8);
+  const perItem = Math.max(1, addon.stripsPerItem || 1);
+  const perSheet = itemsPerSheet(addon);
   const dataUrl = 'data:image/jpeg;base64,' + fs.readFileSync(order.stripPath).toString('base64');
   const sheets = Math.ceil(want / perSheet);
 
   let done = 0;
+  let strips = 0;
   const files = [];
   for (let i = 0; i < sheets; i++) {
     const n = Math.min(perSheet, want - done);
+    // Each keychain is its strips side by side: front and back, never split
+    // across two sheets.
     const payload = {
       heightMm: addon.heightMm,
       widthMm: addon.widthMm,
       gapMm: (cfg.keychain || {}).gapMm || 4,
-      cells: Array.from({ length: n }, () => ({ code: order.code, dataUrl })),
+      cells: Array.from({ length: n * perItem }, () => ({ code: order.code, dataUrl })),
     };
 
     // The renderer owns every canvas in this app, so it builds the sheet too.
@@ -287,7 +300,8 @@ async function printBatch(type, code) {
       return Object.assign({ used: done, want, file: files[0] || out }, res || { ok: false });
     }
     files.push(out);
-    done += built.used;
+    strips += built.used;
+    done += Math.floor(built.used / perItem);
   }
 
   if (done > 0) creditPrinted(order.code, type, done);
@@ -295,7 +309,7 @@ async function printBatch(type, code) {
   if (done < want) {
     return { ok: false, used: done, want, error: `Only ${done} of ${want} printed.`, file: files[0] };
   }
-  return { ok: true, used: done, want, sheets: files.length, file: files[0] };
+  return { ok: true, used: done, want, strips, sheets: files.length, file: files[0] };
 }
 
 /** Mark n of an add-on as having come out of the printer for this order. */
@@ -363,7 +377,7 @@ function batchStatus() {
         .all()
         .sort((x, y) => x.createdAt - y.createdAt)
         .filter((o) => owed(o, a.id) > 0)
-        .map((o) => ({ code: o.code, n: owed(o, a.id), sheets: Math.ceil(owed(o, a.id) / perSheet) }));
+        .map((o) => ({ code: o.code, n: owed(o, a.id), sheets: Math.ceil(owed(o, a.id) / itemsPerSheet(a)) }));
       return {
         id: a.id,
         name: a.name,

@@ -447,7 +447,8 @@ function restoreSettings() {
     t('it is listed against the order that wants them',
       q && q.orders.length === 1 && q.orders[0].n === 11,
       q && JSON.stringify(q.orders));
-    t('and knows how many sheets that takes', q && q.orders[0].sheets === 3,
+    // A keychain is two-sided: two strips each, four strips to a sheet.
+    t('and knows how many sheets that takes', q && q.orders[0].sheets === 6,
       q && q.orders[0].sheets + ' sheets');
 
     // The layout decides how many actually fit; perSheet is only a promise
@@ -455,8 +456,10 @@ function restoreSettings() {
     const sheet = await staff(`/api/batch?type=keychain&code=${code}`, { method: 'POST' });
     t('one press prints every one they bought', sheet.ok && sheet.body.used === 11,
       'used ' + (sheet.body && sheet.body.used));
-    t('across as many sheets as it takes', sheet.body && sheet.body.sheets === 3,
+    t('across as many sheets as it takes', sheet.body && sheet.body.sheets === 6,
       (sheet.body && sheet.body.sheets) + ' sheets');
+    t('two strips for every keychain, front and back', sheet.body && sheet.body.strips === 22,
+      (sheet.body && sheet.body.strips) + ' strips');
 
     const after = (await staff('/api/queue')).body.batches.find((b) => b.id === 'keychain');
     t('and none are left waiting', !after || after.waiting === 0,
@@ -471,7 +474,7 @@ function restoreSettings() {
     t('a single extra keychain is owed', solo.ok && solo.body.qty.keychain === 12);
     const one = await staff(`/api/batch?type=keychain&code=${code}`, { method: 'POST' });
     t('one keychain prints on its own sheet, not held back',
-      one.ok && one.body.used === 1 && one.body.sheets === 1,
+      one.ok && one.body.used === 1 && one.body.sheets === 1 && one.body.strips === 2,
       'used ' + (one.body && one.body.used) + ' on ' + (one.body && one.body.sheets) + ' sheet');
 
     t('charms queue separately, at their own size',

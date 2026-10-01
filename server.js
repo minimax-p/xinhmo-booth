@@ -899,7 +899,7 @@ const PAGE = `<!doctype html>
       : '<button class="btn secondary" disabled>Photos printed</button>';
     (pricing.addons||[]).filter(function(a){return a.heightMm}).forEach(function(a){
       var n=owedOf(o,a.id); if(!n||!hasStrip)return;
-      var sheets=Math.ceil(n/Math.max(1,a.perSheet||8));
+      var sheets=Math.ceil(n/Math.max(1,Math.floor(Math.max(1,a.perSheet||8)/Math.max(1,a.stripsPerItem||1))));
       foot+='<button class="btn secondary" data-batch="'+a.id+'">Print '+plural(n,a.name)+
         (sheets>1?' <small>&middot; '+sheets+' sheets</small>':'')+'</button>';
     });
