@@ -27,6 +27,30 @@ function lanAddresses() {
   return out;
 }
 
+/**
+ * The Mac's own name on the network (System Settings > General > Sharing >
+ * Local hostname), as in http://Chaus-baby-.local:8080. Unlike the number,
+ * it stays the same on any Wi-Fi or hotspot, so staff can bookmark it once.
+ */
+function localHostName() {
+  try {
+    const name = require('child_process')
+      .execFileSync('scutil', ['--get', 'LocalHostName'], { encoding: 'utf8', timeout: 2000 })
+      .trim();
+    return name ? name + '.local' : '';
+  } catch {
+    return '';
+  }
+}
+
+/** Addresses for the staff phone: the name first, then the numbers. */
+function staffUrls(port) {
+  const ips = lanAddresses();
+  if (!ips.length) return [];
+  const name = localHostName();
+  return [...(name ? [name] : []), ...ips].map((h) => `http://${h}:${port}/`);
+}
+
 function json(res, code, body) {
   const buf = Buffer.from(JSON.stringify(body));
   res.writeHead(code, {
@@ -261,19 +285,19 @@ function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartS
 
   server.on('error', (err) => log.error('[server] ' + err.message));
   server.listen(port, '0.0.0.0', () => {
-    const urls = lanAddresses().map((ip) => `http://${ip}:${port}/`);
+    const urls = staffUrls(port);
     log.info('[server] staff queue on ' + (urls.join('  ') || `port ${port}`));
   });
 
   return {
     server,
-    urls: () => lanAddresses().map((ip) => `http://${ip}:${port}/`),
+    urls: () => staffUrls(port),
     port,
     stop: () => new Promise((r) => server.close(r)),
   };
 }
 
-module.exports = { start, lanAddresses, retotal };
+module.exports = { start, lanAddresses, staffUrls, retotal };
 
 // ------------------------------------------------------------------ page
 // Inlined so there is exactly one file to deploy and nothing to 404.

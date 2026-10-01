@@ -122,6 +122,8 @@ const CSS = `
     border: 1px solid #ecdcc0; border-left: 5px solid var(--ink); border-radius: 8px; break-inside: avoid;
   }
   blockquote p:last-child { margin: 0; }
+  /* An address split at its hyphen gets typed wrong. */
+  blockquote code, p code, li code { white-space: nowrap; }
 
   hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
 `;

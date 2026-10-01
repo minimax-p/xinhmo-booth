@@ -25,9 +25,19 @@ password. The very first time, also an internet connection.
 
    Leave the black Terminal window open while the booth runs.
 
-3. **Open the staff page on your phone.** Use the address the booth shows and
-   enter the staff code. The **Booth** tab shows the camera, the printer, the
-   paper and the ink.
+3. **Open the staff page on your phone.** Join the phone to the same Wi-Fi
+   as the Mac, then open:
+
+   ```
+   http://Chaus-baby-.local:8080
+   ```
+
+   Enter the staff code and bookmark the page: the address stays the same on
+   any Wi-Fi. The **Booth** tab shows the camera, the printer, the paper and
+   the ink.
+
+   If it does not load, use the number address that START-BOOTH prints under
+   **ALL GOOD**, for example `http://10.11.20.247:8080`.
 
 > **Just want to check the camera and printer?** Double-click
 > **`CHECK-BOOTH`**. It runs the same check without opening the booth, and can

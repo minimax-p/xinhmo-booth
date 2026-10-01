@@ -1748,7 +1748,9 @@ async function refreshStaffStatus() {
           urls.length ? 'ok' : 'bad',
           'Staff phone queue',
           urls.length
-            ? `Open ${urls[0]} on a phone on the same network, then enter the staff code. ${q.pending} order(s) waiting.`
+            ? `Open ${urls[0]} on a phone on the same network, then enter the staff code.` +
+              (urls[1] ? ` If that does not load, try ${urls[1]}.` : '') +
+              ` ${q.pending} order(s) waiting.`
             : 'No network address yet. Join the Mac to the hotspot or router, then check again.'
         )
       );

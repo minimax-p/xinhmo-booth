@@ -203,7 +203,11 @@ cropping it. For editing words, colours and sizes on screen, see
 ## The staff phone
 
 `server.js` serves a page on `staffPort` to any phone on the same network,
-behind the staff code. **Orders** lists waiting and finished orders, each with
+behind the staff code. The address is given by the Mac's local hostname
+first (`http://Chaus-baby-.local:8080` on the event Mac), which stays the same
+on any network, then by number in case a phone cannot resolve the name. The
+hostname is under System Settings > General > Sharing > Local hostname.
+**Orders** lists waiting and finished orders, each with
 its print buttons. **Booth** shows the camera, its driver, the printer, paper,
 ink and storage, with controls to restart the camera, test print, end a
 session or shut down. **Settings** changes the timings. Settings can only be

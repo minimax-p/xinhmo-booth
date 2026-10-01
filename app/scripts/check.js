@@ -332,6 +332,12 @@ async function main() {
     if (!bad.length) {
       box(['', '   ALL GOOD -- camera and printer are ready.', ''], green);
       console.log('');
+      const urls = require('../server').staffUrls(cfg.staffPort || 8080);
+      if (urls.length) {
+        line('Staff phone, on the same Wi-Fi:  ' + urls[0]);
+        if (urls[1]) line(dim('If that does not load, try:     ' + urls[1]));
+        console.log('');
+      }
       if (MODE === 'check' && !running) await testPrint();
       return 0;
     }

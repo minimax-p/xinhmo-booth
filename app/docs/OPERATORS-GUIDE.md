@@ -17,8 +17,10 @@ Leave the small black Terminal window open behind the booth. It is what keeps
 the booth running.
 
 > **The staff phone.** Join the phone to the same Wi-Fi as the Mac, then open
-> the address the booth shows (for example `http://10.11.20.247:8080`) and
-> enter the staff code. Bookmark it. Everything below is done from the phone.
+> **`http://Chaus-baby-.local:8080`** and enter the staff code. Bookmark it:
+> the address stays the same on any Wi-Fi. If it does not load, use the
+> number address START-BOOTH prints under **ALL GOOD** (for example
+> `http://10.11.20.247:8080`). Everything below is done from the phone.
 
 ## How a session goes
 
