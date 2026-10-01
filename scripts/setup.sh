@@ -62,7 +62,7 @@ ensure_ready() {
     # The booth runs without gphoto2 -- it falls back to this Mac's own
     # camera -- so a failure here is a warning, not a stop.
     command -v gphoto2 >/dev/null 2>&1 \
-      || say "Note: gphoto2 did not install, so a Canon camera will not work. The Mac's own camera still will."
+      || say "Note: gphoto2 did not install. Only matters if settings.json chooses the gphoto2 driver."
   fi
 
   if [ ! -d node_modules ]; then
@@ -96,7 +96,7 @@ ensure_ready() {
   # The Canon camera helper. Built on this Mac rather than copied in, so macOS
   # has nothing to quarantine. Rebuilt whenever its source is newer than the
   # binary. Needs Canon's EDSDK folder, which is copied in by hand; without it
-  # this says so and the booth uses gphoto2.
+  # this says so, and the phone reports the camera as unavailable.
   local helper=camera-helper/bin/xinhmo-camera
   if [ -d EDSDK ] && { [ ! -x "$helper" ] || [ camera-helper/edsdk-helper.m -nt "$helper" ]; }; then
     if ! command -v clang >/dev/null 2>&1; then
@@ -104,7 +104,12 @@ ensure_ready() {
       say "A window will open; click Install, then double-click START-BOOTH again."
       xcode-select --install >/dev/null 2>&1
     else
-      bash scripts/build-camera-helper.sh || say "The Canon camera helper did not build; the booth will use gphoto2."
+      # Its own message says what went wrong and how to fix it. Pause so it is
+      # read: without the helper the Canon camera will not work at all.
+      if ! bash scripts/build-camera-helper.sh; then
+        say "Press any key to start the booth anyway."
+        read -n 1 -s
+      fi
     fi
   fi
 }
