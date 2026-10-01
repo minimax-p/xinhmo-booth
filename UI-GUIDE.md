@@ -86,8 +86,22 @@ Do not hard-code a colour anywhere else. If you find yourself typing `#26357e`
 into a rule, use `var(--ink)` instead — otherwise the next person changing the
 palette will miss it.
 
-**Frame decorations are separate, and they are not code.** Those are the art
-a customer picks between on the frame step, and they are PNG files in
+**Frame designs are not code either.** Most of what a guest picks between on
+the frame step is the designer's artwork in `frames/designs/`: a whole frame
+with transparent holes where the photos go. They come from the designer's PNGs
+through an importer, which finds every hole and works out the photo slots, so
+nobody types coordinates:
+
+```bash
+uv run --with pillow --with numpy --with scipy scripts/import-designs.py ~/Downloads
+```
+
+Point it at the folder holding the designer's `strip-frame 3` (Trio),
+`strip-frame 4` (Quad) and `bigframe 4` (Grand) folders. Holes that are shapes rather than rectangles (hearts, ovals)
+are detected and show the whole photo inside.
+
+**Decorations** only appear on the plain frame. They are the art a customer
+picks between when they choose no design, and they are PNG files in
 `frames/decor/`. Drop a PNG in that folder and it appears as a new option next
 time the booth starts — no edits anywhere.
 

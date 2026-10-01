@@ -15,11 +15,13 @@
     "pack": "electron-builder --mac",
     "mock-kiosk": "PB_MOCK_CAMERA=1 PB_PRINT_DRYRUN=1 electron .",
     "dev": "PB_PRINT_DRYRUN=1 PB_KIOSK=0 electron .",
-    "build:camera": "bash scripts/build-camera-helper.sh"
+    "build:camera": "bash scripts/build-camera-helper.sh",
+    "docs": "electron scripts/build-docs.js"
   },
   "devDependencies": {
     "electron": "^32.2.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "marked": "^14.1.4"
   },
   "build": {
     "appId": "com.xinhmo.kiosk",

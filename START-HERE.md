@@ -1,0 +1,57 @@
+# Start here
+
+You need this Mac, the Canon camera, the SELPHY printer, and the Mac's login
+password. The very first time, also an internet connection.
+
+## Every event
+
+1. **Plug in the camera and the printer, and switch both on.** Use the
+   camera's power adapter, not just its battery.
+
+2. **Double-click `START-BOOTH`.**
+
+   It checks the camera and the printer first. If something is wrong it says
+   exactly what to do: follow the steps, press **Return**, and it checks
+   again. When both say **OK**, the booth opens by itself.
+
+   Leave the black Terminal window open while the booth runs.
+
+3. **Open the staff page on your phone.** Use the address the booth shows and
+   enter the staff code. The **Booth** tab shows the camera, the printer, the
+   paper and the ink.
+
+> **Just want to check the camera and printer?** Double-click
+> **`CHECK-BOOTH`**. It runs the same check without opening the booth, and can
+> print a test page.
+
+## The first time on a new Mac
+
+1. **Moved this folder by zip, AirDrop or USB stick?** macOS may refuse to open
+   it. Open Terminal, type the line below and a space, drag this folder onto
+   the Terminal window, and press Return:
+
+   ```
+   xattr -dr com.apple.quarantine
+   ```
+
+2. **The `EDSDK` folder must be inside this folder.** It is Canon's camera
+   software: licensed, never on GitHub, so it is copied across by hand.
+
+3. **Double-click `START-BOOTH`.** The first time, macOS may say it *cannot be
+   opened*: right-click it, choose **Open**, then **Open** again. Only once.
+
+   Setting up takes 5 to 15 minutes, by itself:
+
+   - It asks for this Mac's password. Nothing shows while you type; press
+     Return.
+   - If a window asks to install Apple's *command line developer tools*, click
+     **Install**, then double-click START-BOOTH again.
+
+## If something is off
+
+| Problem | Fix |
+| --- | --- |
+| The printer does nothing | System Settings > Printers & Scanners: add the printer. Its name must match `printerName` in `settings.json`. |
+| Staff code | `staffPin` in `settings.json`. It starts as 1234. Change it. |
+
+Running an event: **OPERATORS-GUIDE.pdf**.

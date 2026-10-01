@@ -1,218 +1,241 @@
-# Xinhmo booth kiosk
+# Xinhmo booth
 
-A self-contained photobooth that runs on one computer with no internet. Camera,
-touchscreen, and printer all attached to the same machine, everything local.
+A self-contained photobooth that runs on one Mac with no internet: a Canon
+camera, a touchscreen and a SELPHY printer, all attached to the same machine.
 
-Customer flow: tap to start, pose against a live camera view, four shots with a
-countdown, then pick photos, a frame, and a look, and print.
+A guest taps a layout, poses for six photos with a countdown, taps their
+favourites, picks a frame design and a look, adds keychains or extra copies,
+and gets a pickup code. Staff take payment and print from their phone.
 
-For day-to-day operation give staff `OPERATORS-GUIDE.md`. This file is for
-whoever sets the booth up.
+For running an event, give staff **OPERATORS-GUIDE.pdf**. This guide is for
+whoever sets the booth up or works on it.
 
-## Why it is built this way
+## How it is built
 
-There is no server, no database, and no Python. Photos go from the camera into
-the app, get composited on a canvas, and go to the printer. Fewer moving parts
-means fewer things that can fail at an outdoor event with nobody technical
-present.
-
-The composite is drawn at true print size (1200x1800 = 4x6 inches at 300dpi) by
-the same function that draws the on-screen preview, so what the customer approves
-is exactly what prints.
+No server, no database, no cloud. Photos go from the camera into the app, are
+composited on a canvas at true print size (1200 x 1800 = 4 x 6 in at 300 dpi)
+by the same code that draws the on-screen preview, and go to the printer. What
+the guest approves is exactly what prints.
 
 ```
-main process (main.js)          renderer (renderer/app.js)
-  camera.js  -> gphoto2            screens and state machine
-  printer.js -> lp / CUPS          canvas compositing and filters
-  frames.js  -> layouts            staff panel
-        \___ preload.js bridge ___/
+main.js (main process)                  renderer/ (the touchscreen)
+  camera-edsdk.js -> camera-helper       app.js     screens, timing, compositing
+                     (Canon EDSDK)       sheets.js  print sheets, also run in a
+  printer.js      -> lp / CUPS                      hidden worker window
+  server.js       -> the staff phone     styles.css, index.html
+  queue.js           orders, on disk
+  supplies.js        paper and ink counts
+          \______ preload.js bridge ______/
 ```
+
+**The camera** is driven through Canon's EDSDK by `camera-helper/`, a small
+Mac app with no window that holds one connection to the camera for the whole
+night. Live view, focus and capture all go through it, so the preview never
+drops between shots, focus happens during the countdown, and a photo lands
+about a second after zero. The EDSDK only works from inside a real Mac app
+with an event loop, which is why it is a separate helper and not part of
+Electron.
+
+**Orders are decoupled from printing.** A finished session becomes an order in
+`sessions/queue.json` and the booth locks itself for the next group. Staff
+release prints from the phone once paid.
 
 ## Requirements
 
-- macOS or Linux
-- Node.js 18 or newer
-- `gphoto2` for the camera: `brew install gphoto2`, or `sudo apt install gphoto2`
-- CUPS with the printer installed (macOS has this already)
+- A Mac, Apple Silicon or Intel
+- **Canon's EDSDK** in a folder called `EDSDK` inside this one. It is licensed
+  from Canon and never committed: copy it across by hand.
+- Apple's command-line tools, to build the camera helper:
+  `xcode-select --install`
+- Node.js 20 or newer (setup installs it)
 - A Canon DSLR on USB. Developed against the EOS Rebel T6 / 1300D.
-- A Canon Selphy CP1500 or similar, added as a printer
+- A Canon SELPHY CP1500, added in System Settings > Printers & Scanners
 
-## Moving to another Mac
+## Setting up a Mac
 
-```bash
-scripts/make-bundle.sh      # -> ~/Desktop/Xinhmo-Booth.zip, committed files only
-```
+Double-click **START-BOOTH.command**. On a new Mac it installs Homebrew and
+Node.js, downloads the app's parts, builds the camera helper from `EDSDK/`,
+runs the self-test, then checks the camera and printer before opening the
+booth. It needs internet and an administrator's password the first time.
 
-Send the zip however you like. On the other Mac: unzip, open `START-HERE.txt`,
-double-click `CHECK-BOOTH.command`. Nothing else needs installing by hand: on a
-Mac without them, the first double-click installs Homebrew, Node.js and
-gphoto2, downloads the app's parts, and runs the self-test (`scripts/setup.sh`
-does this, and does nothing on a Mac already set up). It needs internet and the
-Mac's login password once, from an administrator account.
+If the newest SDK in the command-line tools will not link (a half-updated
+install, or a macOS beta), the helper build falls back to an older SDK by
+itself, and says how to repair the tools if none works.
 
-## First run (by hand, for development)
+### Moving to another Mac
 
 ```bash
-npm install
-npm run check      # self-test: settings, frames, camera, printer
-npm run mock       # full booth with no camera and no printing
-npm start          # the real thing
+scripts/make-bundle.sh      # -> ~/Desktop/Xinhmo-Booth.zip
 ```
 
-`npm run check` is the fastest way to confirm a new machine is set up correctly.
-It verifies the frame geometry, the mock camera, and whether the printer queue is
-actually reachable.
+The zip holds the committed files, the git history (so the other Mac can
+`git pull`) and the `EDSDK` folder. Keep it private: it contains Canon's SDK
+and the staff code. On the other Mac, unzip it, clear the download flag, and
+double-click START-BOOTH:
 
-For staff, the two double-clickable files are the whole interface:
+```bash
+xattr -dr com.apple.quarantine ~/Documents/kiosk
+```
 
-- `START-BOOTH.command` runs the booth, setting the Mac up on first use and
-  restarting the app automatically if it ever stops unexpectedly.
-- `CHECK-BOOTH.command` checks the real camera and printer and says, step by
-  step, how to fix anything that is wrong. START-BOOTH runs the same check
-  before the booth opens. (Developers: `npm run mock` runs with no camera or
-  printer.)
+## Running it
 
-On macOS you may need to allow the first one: right-click, Open, then Open
-again. After that the setup clears the download flag, so the rest just open.
+| Command | Camera | Printing | Window |
+| --- | --- | --- | --- |
+| `START-BOOTH.command` | real | real | full screen, checked first |
+| `CHECK-BOOTH.command` | checked | checked | just the check, no booth |
+| `npm start` | real | real | full screen |
+| `npm run windowed` | real | real | a normal window |
+| `npm run dev` | real | **off** | a normal window |
+| `npm run mock` | generated photos | off | a normal window |
+
+`npm run dev` never prints. For a real test, use `npm run windowed`.
 
 ## Settings
 
-Everything adjustable lives in `settings.json`. No code changes needed.
+Everything adjustable lives in `settings.json`. It is watched: most changes
+reach the running booth within a second. `staffPort` and `kiosk` need a
+restart. Defaults and comments for every setting are in `config.js`.
 
 | Setting | Meaning |
 | --- | --- |
-| `captureCount` | Photos taken per session (default 4) |
-| `countdownSeconds` | Countdown before each shot |
+| `captureCount` | Photos per session |
+| `countdownSeconds` | Countdown before each photo |
+| `readySeconds` | The get-ready screen before the first photo |
+| `pickSeconds`, `frameSeconds`, `filterSeconds` | Time on each choosing step |
+| `cameraDriver` | `"edsdk"` (Canon SDK). `"gphoto2"` only if chosen on purpose; there is no automatic fallback |
+| `cameraFocusLeadSeconds` | How long before the shutter focusing starts (4.5) |
 | `printerName` | CUPS queue name, from `lpstat -p` |
-| `printerMedia` | CUPS media size; check with `lpoptions -p NAME -l \| grep -i pagesize` |
-| `printDryRun` | `true` saves prints to disk instead of printing |
-| `maxCopies` | Most copies a customer can request |
-| `mockCamera` | `true` uses generated images, no camera needed |
-| `liveView` | Show the live camera feed while posing |
-| `staffPin` | Code for the staff panel. **Change this.** |
-| `kiosk` | `false` runs in a normal window, for setup |
-| `idleResetSeconds` | Return to the welcome screen after inactivity |
-| `keepSessionDays` | Delete old photo folders after this many days |
+| `printerMedia` | CUPS paper size, normally `Postcard(4x6in)` |
+| `printDryRun` | `true` saves prints instead of printing |
+| `mockCamera` | `true` uses generated photos |
+| `staffPin` | The staff code. **Change it.** |
+| `staffPort` | Port of the staff phone page (8080) |
+| `lockAfterSession` | Lock the booth after each group until staff start the next |
+| `idleResetSeconds` | Give up on an abandoned session |
+| `paperCassetteSheets`, `inkCassettePrints` | 18 and 36 for the CP1500 |
+| `pricing` | Layout prices, extra copies, and add-ons (see Keychains) |
+| `print.safeArea` | How much the printer trims at each edge, in mm |
 
-Environment variables override the file for one run: `PB_MOCK_CAMERA=1`,
-`PB_PRINT_DRYRUN=1`, `PB_PRINTER_NAME=...`, `PB_KIOSK=0`.
+Environment variables override the file for one run: `PB_MOCK_CAMERA`,
+`PB_PRINT_DRYRUN`, `PB_KIOSK`, `PB_CAMERA_DRIVER`, `PB_PRINTER_NAME`, and,
+for tests, `PB_SESSIONS_DIR` and `PB_SETTINGS_PATH`.
 
-## Camera setup
+## Camera
 
-Get the camera working on its own before running the booth:
+- **Lens switch on AF.** The booth focuses during the countdown, starting
+  `cameraFocusLeadSeconds` before the shot; the 1300D's live-view focus takes
+  about 3 seconds to lock.
+- **Run it on the power adapter** (Canon ACK-E10 for the T6). The battery
+  will not last an evening.
+- Turn **auto power off** to Disable, and the camera's **Wi-Fi off** (it
+  disables USB).
+- Photos are sent straight to the Mac; a memory card is not needed.
+- Quit Photos, Image Capture and EOS Utility. Do not kill macOS's
+  `ptpcamerad`: the EDSDK reaches the camera through it.
 
-```bash
-gphoto2 --auto-detect
-gphoto2 --capture-image-and-download --filename test.jpg
-```
+Mark where people should stand, and light them: anyone who steps forward or
+back after focus locks comes out soft.
 
-Then set the camera up for booth duty:
+`CHECK-BOOTH.command` opens the camera through the same helper the booth uses
+and needs a live picture back before it says OK.
 
-- **Set the lens switch to MF** and focus once for where people will stand. The
-  camera refuses to fire when autofocus cannot lock, which is the most common
-  reason captures silently fail in a booth.
-- Turn auto power off to disabled, or the camera sleeps between customers.
-- Use an AC adapter (Canon ACK-E10 for the T6). A battery will not last a day.
-- Turn the camera's Wi-Fi off. It disables the USB port.
-- Leave a memory card in.
+## Printer
 
-On macOS the system service `ptpcamerad` grabs any camera the moment it is
-plugged in, which makes gphoto2 fail with "Could not claim the USB device". The
-app kills that service immediately before each camera operation, so no kill loop
-is needed. Quit Photos, Image Capture, and Canon EOS Utility before running.
-
-## Printer setup
-
-Find the queue name and confirm printing works outside the app first:
+Confirm printing works outside the app first:
 
 ```bash
 lpstat -p -d
 lp -d Canon_SELPHY_CP1500 -o "media=Postcard(4x6in)" -o fit-to-page some.jpg
-lpoptions -p Canon_SELPHY_CP1500 -l | grep -i pagesize
 ```
 
-Put that queue name in `settings.json`. If your driver names the 4x6 sheet
-something other than `Postcard(4x6in)`, use its exact name for `printerMedia`.
+The CP1500's paper tray holds 18 sheets and each ink cassette prints 36; a
+KP-108IN pack is 108 sheets and three cassettes. The booth counts sheets and
+warns staff before either runs out, because a SELPHY does not report it: its
+jobs just stop moving. Staff tap Paper or Ink on the phone after reloading.
 
-A dye-sub Selphy uses one full set of ribbon panels per print no matter what the
-photo contains, so paper and ink run out together at 108 prints. Failed prints
-still consume media, which is why the app never silently retries a failed print:
-it tells staff instead.
+The calibration sheet (staff panel or phone) shows how much each edge loses.
+Put what you measure into `print.safeArea`.
 
-## Frames
+## Keychains and charms
 
-Frames live in `frames/frames.json`. Each has a canvas size and a list of slot
-rectangles in print pixels:
+Add-ons with a size are cut from the session's strip.
 
 ```json
-{
-  "id": "classic_4",
-  "name": "Classic 4",
-  "width": 1200,
-  "height": 1800,
-  "background": "#FFFFFF",
-  "caption": "Xinhmo",
-  "captionColor": "#7A6A78",
-  "slots": [{ "x": 80, "y": 90, "w": 480, "h": 700 }]
-}
+{ "id": "keychain", "price": 8, "heightMm": 76.2, "widthMm": 25.4,
+  "perSheet": 4, "stripsPerItem": 2 }
 ```
 
-Photos are drawn cover-fit and centred into each slot. A frame can also name an
-`overlay` PNG in the frames folder, which is drawn on top of the photos, so it
-needs transparent holes where the slots are.
+A keychain insert is **3 x 1 in**, the strip's own 1:3 shape, so it fills the
+insert with nothing added. A keychain is two-sided, so it takes **two
+identical strips**, and four strips to a sheet is **two keychains**. Each
+order's strips go on sheets of their own, so nobody waits for strangers to
+fill a sheet. Sheets are drawn in a hidden worker window, not on the guest's
+screen.
 
-Run `npm run check` after editing: it verifies slots stay inside the canvas, do
-not overlap, and keep the 4x6 aspect ratio.
+**Grand** layouts are one large sheet with no strip, so they offer no
+keychains or charms; the menu, the order screen and the phone all say so.
 
-Filters are defined in `renderer/app.js` as canvas filter strings and apply to
-both the preview and the print.
+## Frames and designs
+
+Layouts (Grand, Trio, Quad) are in `frames/frames.json`. The designer's frame
+artwork is in `frames/designs/`, imported from PNGs with transparent photo
+holes:
+
+```bash
+uv run --with pillow --with numpy --with scipy scripts/import-designs.py ~/Downloads
+```
+
+The importer finds each hole, works out the photo slots, and records which
+holes are shaped (hearts, ovals): those show the whole photo inside rather than
+cropping it. For editing words, colours and sizes on screen, see
+**UI-GUIDE.pdf**.
+
+## The staff phone
+
+`server.js` serves a page on `staffPort` to any phone on the same network,
+behind the staff code. **Orders** lists waiting and finished orders, each with
+its print buttons. **Booth** shows the camera, its driver, the printer, paper,
+ink and storage, with controls to restart the camera, test print, end a
+session or shut down. **Settings** changes the timings. Settings can only be
+changed there or in `settings.json`, never by a guest.
+
+The booth's own staff panel (hold the top-left corner for 2 seconds) has the
+same controls, for when no phone is available.
 
 ## Staying alive
 
-The booth is built to survive a day alone:
-
-- Uncaught errors are logged, not fatal.
-- If the UI process dies, the window reloads itself.
-- If the app exits unexpectedly, `START-BOOTH.command` restarts it.
-- Closing and quitting are blocked unless staff unlock with the code.
-- Display sleep is blocked while running.
-- A failed photo does not end the session; it carries on with the rest.
-- Sessions time out back to the welcome screen so an abandoned session does not
-  block the next customer.
-- Live view frames are released as they are replaced, so memory stays flat.
-- Photo folders older than `keepSessionDays` are deleted at startup.
-
-Logs are in `logs/`, one file per day, kept for two weeks. The staff panel has a
-button to open that folder.
+- The camera helper is restarted if it dies, reconnects when the camera comes
+  back, and keeps the camera from sleeping.
+- The order queue is written atomically, with a backup, and survives a crash or
+  a full disk.
+- A session that would not fit on the disk is refused at the welcome screen.
+- If the screen process dies, the window reloads; if the app exits,
+  START-BOOTH restarts it.
+- A failed photo does not end the session.
+- Logs are in `logs/`, one file a day.
 
 ## Locking the screen down
 
-macOS has no built-in single-app lock. The strongest practical measure is
-physical: **unplug the keyboard during operation.** Nearly every escape route is
-a keyboard shortcut, and a touchscreen cannot produce one. The app also runs
-fullscreen kiosk, blocks window close and quit, and swallows the common
-shortcuts, but treat those as a deterrent rather than security.
-
-For unattended use, also:
-
-- Create a dedicated macOS account for the booth and turn on automatic login.
-- Add `START-BOOTH.command` as a login item so a reboot returns to the booth.
-- Hide the Dock, auto-hide the menu bar, and turn off hot corners.
-- Disable screen saver, display sleep, and automatic updates.
+macOS has no single-app lock. The strongest measure is physical: **unplug the
+keyboard during operation**. The app runs full screen, blocks quitting, and
+swallows the common shortcuts, but treat those as a deterrent. For unattended
+use, also create a dedicated macOS account with automatic login, add
+START-BOOTH as a login item, and turn off screen saver, display sleep and
+automatic updates.
 
 ## Testing
 
 ```bash
-npm run check      # settings, frames, camera, printer, geometry
-node scripts/e2e.js  # drives a whole session end to end, no hardware needed
+npm run check          # self-test: settings, frames, queue, supplies, printer
+node scripts/e2e.js    # a whole session end to end, generated photos
 ```
 
-**`e2e.js` deletes the whole `sessions/` folder before it starts**, order
-queue included, and it cannot run while the booth is open (one instance at a
-time). Quit the booth and copy `sessions/` somewhere first on a machine that
-has taken real orders.
+`e2e.js` uses its own temporary sessions folder and settings file, so it never
+touches the booth's photos, orders or `settings.json`. It cannot run while the
+booth is open (one instance at a time). Both run on any Mac; the camera and
+printer are checked with `CHECK-BOOTH.command`.
 
-The end-to-end test launches the app, runs a full customer session through live
-view, capture, editing, filters, and printing, and checks the resulting print
-file on disk. It needs `xvfb-run` on Linux; on macOS drop `xvfb-run` from the
-spawn line in `scripts/e2e.js`.
+## Documents
+
+`npm run docs` rebuilds the PDFs from their sources: `START-HERE.md`,
+`OPERATORS-GUIDE.md`, this file, `FLOW.md` and `UI-GUIDE.md`.

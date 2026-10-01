@@ -5,10 +5,13 @@
 #      scripts/make-bundle.sh                 -> ~/Desktop/Xinhmo-Booth.zip
 #      scripts/make-bundle.sh some/other.zip
 #
-#  The zip holds every committed file and nothing else. Photos,
-#  logs and node_modules stay behind: node_modules is built for
-#  this Mac's chip, and the other Mac downloads its own on first
-#  run. Uncommitted changes are left out too, so commit first.
+#  The zip holds every committed file, the git history (so the
+#  other Mac can `git pull` updates) and Canon's EDSDK folder,
+#  which is licensed and never committed but which the camera
+#  needs. Photos, logs, node_modules and the built camera helper
+#  stay behind: the other Mac downloads and builds its own.
+#
+#  KEEP THE ZIP PRIVATE: it contains Canon's SDK and the staff code.
 # ============================================================
 set -e
 cd "$(dirname "$0")/.."
@@ -18,9 +21,24 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   git status --short --untracked-files=no
   echo ""
 fi
+if [ ! -f EDSDK/Framework/EDSDK.framework/EDSDK ]; then
+  echo "Warning: no EDSDK folder here, so the bundle will have no camera support."
+  echo ""
+fi
 
 out="${1:-$HOME/Desktop/Xinhmo-Booth.zip}"
+stage="$(mktemp -d)"
+trap 'rm -rf "$stage"' EXIT
+dest="$stage/kiosk"
+mkdir -p "$dest"
+
+git archive HEAD | tar -x -C "$dest"
+ditto .git "$dest/.git"
+# ditto, not cp or zip: Canon's framework is built from symlinks, and they
+# have to survive the trip.
+[ -d EDSDK ] && ditto EDSDK "$dest/EDSDK"
+
 rm -f "$out"
-git archive --format=zip --prefix=Xinhmo-Booth/ -o "$out" HEAD
+ditto -c -k --sequesterRsrc --keepParent "$dest" "$out"
 echo "Wrote $out ($(du -h "$out" | cut -f1)) from commit $(git rev-parse --short HEAD)."
-echo "Send it any way you like. On the other Mac: unzip, open START-HERE.txt."
+echo "Keep it private. On the other Mac: unzip, open START-HERE.pdf."

@@ -1,118 +1,97 @@
-# Xinhmo booth: session flow spec
+# Session flow
 
-Locked decisions, event build. Steady line expected, one station.
-Staff releases the print and collects payment at the end.
+How one group goes through the booth, and what staff do around it. Times are
+the current `settings.json` values; all of them are adjustable.
 
-## Architecture: booth is decoupled from print
+## The shape of it
 
-The customer never waits for a print. When they hit Done, the session drops
-into a PENDING queue and the booth resets to the welcome screen immediately.
-Staff works the queue at the printer end.
+The guest never waits for a print. When they finish, their session becomes an
+order with a pickup code and the booth locks behind them. Staff take payment
+and print from their phone while the next group shoots.
 
-Booth occupancy per group: ~2 min 35 s.
-Printing runs in parallel and is not the bottleneck (CP1500 ~50 s/sheet).
-Realistic throughput: 15-18 groups/hour.
+A group spends about 2 to 2½ minutes at the booth: under a minute shooting,
+up to 90 seconds choosing. A print takes the SELPHY about a minute, in
+parallel, so printing is not the bottleneck.
 
-## Screens
+## 1. Welcome
 
-### 1. Welcome (attract)
-Xinhmo wordmark, price list, one big "Start" button.
-Idle reset returns here after 90 s.
+The menu: Grand, Trio and Quad with their prices, and the add-ons. A layout
+that cannot make keychains (Grand) says so on its card. Tapping a layout starts
+the session; an abandoned session comes back here after 90 seconds of nothing.
 
-### 2. Pick your frame
-Frame choice happens FIRST because it decides the slot aspect ratio.
-Frame chips with a small visual of the layout, not just a name.
-Selecting a frame locks the crop ratio used for the rest of the session.
+If the Mac is nearly out of storage, the session is refused here with a
+message to fetch staff, rather than failing halfway through.
 
-### 3. Pose
-Live view fills the stage.
-A dimmed mask overlays everything outside the frame's slot ratio, so people
-can see exactly what will be cut. Full sensor visible, crop area bright.
-Button: "I'm ready".
+## 2. Get ready (6 s)
 
-### 4. Capture
-- 5 s lead-in before shot 1 only. "Get ready."
-- Per shot: 3 s countdown (SVG ring + big number + beep), shutter, flash overlay.
-- Shoot captureCount + 1. Take 5, use 4.
-- The gphoto2 capture-and-download gap (2-4 s) is filled by the new shot
-  animating into a persistent filmstrip along one edge. No separate review sleep.
-- Live view stays visible the whole time. Nothing goes full-screen.
-- A failed shot is retried once, then skipped, and the session continues.
+Live view fills the screen with everything outside the layout's photo shape
+dimmed, so the group sees exactly what will be printed. The layout can still be
+switched here.
 
-Real cycle: ~7-9 s per shot. Four to five shots = 35-45 s.
+## 3. Shooting (6 photos)
 
-### 5. Edit (75 s hard cap)
-Everything preselected so the timer is generous, not tight:
-- frame already chosen in step 2
-- filter defaults to none
-- the first N shots auto-selected; they deselect/swap
-Visible countdown bar. On expiry it auto-advances with current selection.
-Add-ons chosen here (extra copies, keychain, charm) so cost can be computed.
+For each photo:
 
-### 6. Done
-Composite rendered, session written to the PENDING queue with:
-  session id, short pickup code (3 chars), composite path, line items, total.
-Booth resets to Welcome. Customer walks to the print table.
+- A **7-second countdown**. About **4.5 seconds before zero** the camera starts
+  focusing, so the shutter can fire the moment the countdown ends.
+- At zero the screen flashes white with **Hold still**. The photo lands about
+  a second later, with a beep, and drops into the filmstrip at the side.
+- Live view stays up throughout, apart from about a second after each photo
+  while the camera saves it.
 
-### 7. Staff release
-Staff view shows the pending queue: pickup code, thumbnail, itemised cost, total.
-Staff collects cash/Zelle, taps Release, print job fires.
-Nothing prints without a release. Preview is free, print costs.
+A photo that fails is skipped with a message and the session carries on.
 
-Staff view lives in two places, same data:
-- On the kiosk itself behind the existing PIN pad. Zero dependencies. Always works.
-- Optional: a LAN page for a phone/tablet at the print table (see Network below).
+## 4. Choosing (30 s per step)
 
-### 8. Print wait
-Customer-facing note at the print table: the CP1500 pulls the paper in and out
-four times (Y, M, C, overcoat). Do not touch it until it drops. ~1 minute.
+Each step runs on its own clock and moves on by itself when it runs out.
+
+1. **Pick photos.** Nothing is chosen to begin with; the guest taps their
+   favourites in order. Tiles show each photo cropped exactly as it will
+   print. Any slots left empty when the step ends are filled from the other
+   photos, so a print never has a blank hole.
+2. **Pick a frame.** The plain layout or any of the designer's designs drawn
+   for it. Designs with shaped windows (hearts, ovals) show the whole photo
+   inside the shape.
+3. **Pick a look,** extra copies, and keychains or charms, with a running
+   total. Grand offers no keychains or charms.
+
+Then **Done**.
+
+## 5. Pickup code
+
+The print is composited at full size, the session's strip is kept for
+keychains, and an order is saved with a three-character code, for example
+`B6W`. The guest takes the code to the print table. The booth **locks** until
+staff start the next session.
+
+## 6. Staff, on the phone
+
+1. Take payment against the code.
+2. Release the photo print. Extra copies print together.
+3. Print keychains or charms for that order. A keychain is two identical
+   strips (one per side), two keychains to a sheet.
+4. Start the next session.
+
+An order can be changed afterwards: more copies or keychains are added from the
+phone and the price updates. An order can also be voided.
+
+## When things go wrong
+
+Every failure ends somewhere a person can act on, never a stuck screen.
+
+| Failure | What happens |
+| --- | --- |
+| Camera off, unplugged or flat | The screen says *No camera found*; the phone shows a camera alert; the booth reconnects by itself when the camera comes back |
+| Camera helper crashes | It is restarted automatically; staff can also tap **Restart camera** |
+| A photo fails | Skipped with a message, the session continues |
+| Print fails | The order stays waiting; staff release it again |
+| Printer out of paper or ink | The booth counts sheets and warns before; stuck jobs are flagged on the phone |
+| Guest walks off | The step clocks move the session on; staff can end it from the phone |
+| Disk nearly full | New sessions refused at the welcome screen; the phone warns earlier |
+| App crashes | The window reloads, or START-BOOTH restarts the app |
 
 ## Network
 
-The staff phone view does NOT need internet. It needs a LAN.
-Ranked by reliability:
-1. Kiosk-screen staff view. No network at all. This is the day-one default.
-2. $25 travel router (GL.iNet mini) making a LAN with no WAN. Mac joins,
-   any phone/tablet joins, deterministic, no dependency on whose phone it is.
-3. Someone's iPhone Personal Hotspot (works as a LAN with zero cellular data).
-4. macOS Internet Sharing with no upstream. Free, finicky, don't rely on it.
-
-Build the queue model so 1 works standalone and 2/3 are a bonus.
-
-## Hardware notes (verified working)
-
-Camera. macOS grabs the camera over PTP; kill the daemon in a loop while
-capturing. This MUST run from inside the app on startup, never a Terminal
-window a staffer can close:
-
-    while true; do killall -9 ptpcamerad PTPCamera 2>/dev/null; sleep 0.3; done
-
-Capture:
-
-    gphoto2 --capture-image-and-download --filename test.jpg
-
-Live view and still capture cannot hold the camera at the same time.
-Stop the movie stream, capture, respawn. That is the 2-4 s gap.
-Live view over USB is still UNTESTED.
-
-Printer (verified):
-
-    lp -d Canon_SELPHY_CP1500 -o "media=Postcard(4x6in)" -o fit-to-page composite.jpg
-
-Consumables: KP-108IN cartridge = 108 prints. Count expected groups + a spare.
-
-## Open: frames do not match the menu
-
-Menu sells 4-cut and 5-cut STRIPS. frames.json has 2x2 grid (4), 3-stack,
-2-stack and single, all 1200x1800 (4x6). A classic strip is 2x6 with photos
-stacked, two per 4x6 sheet, cut down the middle. That is also what the poster's
-dashed cut lines imply, and it explains why "two strips" is $8 and not $10.
-Needs resolving before the frame set is final. There is no 5-cut layout at all.
-
-## Failure paths
-
-Every failure ends at a clear "please get staff" screen, never a stuck one.
-- camera not detected at startup: staff screen, booth will not open
-- capture fails twice: skip the shot, continue, log it
-- print job fails: session stays PENDING, staff can re-release
-- abandoned after Done: session stays PENDING until staff clears it
+The staff phone needs the Mac and the phone on the same network; it does not
+need internet. A phone's personal hotspot works. The booth's own staff panel
+(top-left corner, 2 seconds) works with no network at all.
