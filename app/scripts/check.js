@@ -336,6 +336,13 @@ async function testPrint() {
   if (a !== 'y' && a !== 'yes') return;
   const r = await run('lp', ['-d', cfg.printerName, '-o', `media=${cfg.printerMedia}`, '-o', 'fit-to-page', TEST_PAGE]);
   line(r.ok ? green('Sent. It takes about a minute to come out.') : red('It would not print: ' + (r.err || r.out).trim()));
+  // It uses a sheet and a print's worth of ink like any other, so the phone's
+  // counts must hear about it. Only offered while the booth is closed, so
+  // nothing else is writing the file.
+  if (r.ok) {
+    const { Supplies } = require(path.join(ROOT, 'supplies.js'));
+    new Supplies(path.join(ROOT, 'sessions', 'supplies.json'), cfg).used(1);
+  }
 }
 
 async function main() {

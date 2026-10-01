@@ -1,12 +1,16 @@
 /**
  * Paper and ink left in the printer.
  *
- * A SELPHY cannot say how much is left, and it does not complain when it runs
- * out -- the next job simply sits in the queue while a guest waits. So the
+ * A SELPHY cannot say how much is left, and only says it has run out once a
+ * print is already stuck waiting (see printerProblem in printer.js). So the
  * booth counts: the paper cassette holds 18 sheets, an ink cassette prints 36,
  * every sheet the printer accepts takes one of each, and staff tell the booth
  * when they reload. Staff then hear about it before the tray is empty, not
  * after someone asks where their photo is.
+ *
+ * Every print counts, whoever sends it: the booth through Printer's onPrinted,
+ * and CHECK-BOOTH's test page directly. Prints from the SELPHY's own menu
+ * cannot be seen.
  *
  * Saved like the order queue -- a temporary file renamed into place -- so the
  * count survives a crash or a restart mid-evening.
