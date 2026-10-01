@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build the Canon camera helper (camera-helper/bin/xinhmo-camera).
 #
-# Needs Canon's EDSDK in ./EDSDK -- it is licensed and never committed, so each
+# Needs Canon's EDSDK in app/EDSDK -- it is licensed and never committed, so each
 # Mac gets its own copy by hand -- and Apple's command-line tools (clang).
 # Without it the booth reports the camera as unavailable -- it does not switch
 # to another driver by itself.
@@ -13,7 +13,7 @@ LOG="${TMPDIR:-/tmp}/xinhmo-camera-build.log"
 
 if [ ! -f "$SDK/Framework/EDSDK.framework/EDSDK" ] || [ ! -f "$SDK/Header/EDSDK.h" ]; then
   echo "  Canon EDSDK not found in ./$SDK -- skipping the Canon camera helper."
-  echo "  (Copy the EDSDK folder in, then run: npm run build:camera)"
+  echo "  (Copy the EDSDK folder into the app folder, then run: npm run build:camera)"
   exit 0
 fi
 if ! command -v clang >/dev/null 2>&1; then

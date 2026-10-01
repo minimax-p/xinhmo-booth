@@ -158,7 +158,7 @@ async function checkCamera(running, health) {
         'The Canon camera helper could not be built on this Mac.',
         fs.existsSync(path.join(ROOT, 'EDSDK'))
           ? 'Double-click START-BOOTH once -- it installs what is needed.'
-          : 'The EDSDK folder is missing. Copy it into this folder.',
+          : 'The EDSDK folder is missing. Copy it into the app folder.',
         ...built.out.split('\n').filter((l) => /sudo|xcode/.test(l)).map((l) => l.trim()),
       ] };
     }

@@ -3,6 +3,8 @@
 Everything a customer sees lives in three files in `renderer/`. Nothing else in
 the project needs touching to change how the booth looks or reads.
 
+Every path in this guide is inside the booth's `app` folder.
+
 | File | What it holds |
 |---|---|
 | `renderer/index.html` | The screens, and every word on them |
@@ -204,7 +206,7 @@ node scripts/e2e.js  # about a minute, drives a whole session
 
 The flow test catches the two things that are easy to break by accident:
 elements overlapping each other, and a button whose `id` the JavaScript still
-expects. It restores your `settings.json` afterwards.
+expects. It never touches your `settings.json`.
 
 If a screen goes blank after an edit, open the console — `View ▸ Toggle
 Developer Tools`, or `Cmd+Option+I`. A renamed or deleted `id` is nearly always

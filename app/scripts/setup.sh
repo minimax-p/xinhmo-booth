@@ -29,11 +29,33 @@ node_ok() {
   [ -n "$major" ] && [ "$major" -ge 18 ]
 }
 
+# The app used to sit at the top of the booth folder, next to the guides. A
+# git pull moves its committed files into app/ but leaves behind what git
+# never tracked: Canon's SDK, the downloaded parts, the built camera helper,
+# and the photos and orders. Bring them across, once, so nothing is lost or
+# downloaded again. Runs from inside app/.
+move_old_layout() {
+  local name
+  for name in EDSDK node_modules sessions logs camera-helper/bin; do
+    if [ -e "../$name" ] && [ ! -e "$name" ]; then
+      mkdir -p "$(dirname "$name")"
+      mv "../$name" "$name" && say "Moved $name into the app folder."
+    fi
+  done
+  # What git leaves of the old camera-helper folder once bin/ has gone.
+  rm -f ../camera-helper/.DS_Store ../docs/.DS_Store 2>/dev/null
+  rmdir ../camera-helper ../docs 2>/dev/null
+  return 0
+}
+
 ensure_ready() {
+  move_old_layout
+
   # Files that arrive by AirDrop, email or a download are quarantined, and
   # macOS refuses to open quarantined .command files. The first one has to be
-  # opened with right-click > Open; clearing the flag here spares the rest.
-  xattr -dr com.apple.quarantine . 2>/dev/null
+  # opened with right-click > Open; clearing the flag here spares the rest,
+  # including the guides and launchers one folder up.
+  xattr -dr com.apple.quarantine .. 2>/dev/null
 
   local missing=()
   node_ok || missing+=(node)
@@ -89,7 +111,7 @@ ensure_ready() {
       echo ""
       say "Something above needs attention. The booth will still start."
       say "The printer line usually just means the printer is not added yet:"
-      say "System Settings > Printers & Scanners, then put its name in settings.json."
+      say "System Settings > Printers & Scanners, then put its name in app/settings.json."
       echo ""
       say "Press any key to continue."
       read -n 1 -s

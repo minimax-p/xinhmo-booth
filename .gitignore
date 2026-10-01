@@ -9,7 +9,7 @@ preview/
 
 # Canon EDSDK: licensed, never redistributed. Each machine supplies its own.
 EDSDK/
-camera-helper/bin/
+app/camera-helper/bin/
 
 # Rendered previews (e.g. Quarto in VS Code). README.md is the source.
 README.html

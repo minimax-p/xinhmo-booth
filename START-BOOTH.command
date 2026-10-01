@@ -5,7 +5,8 @@
 #  A black window will open. Leave it open while the booth runs.
 # ============================================================
 
-cd "$(dirname "$0")" || exit 1
+# Everything but the guides and these two launchers lives in app/.
+cd "$(dirname "$0")/app" || exit 1
 
 # On a new Mac this installs everything first (once). See scripts/setup.sh.
 source scripts/setup.sh
@@ -15,15 +16,15 @@ ensure_ready
 # whatever terminal it was started in. Test runs use npm run mock.
 unset PB_MOCK_CAMERA PB_PRINT_DRYRUN PB_KIOSK PB_CAMERA_DRIVER PB_SESSIONS_DIR PB_DISK_STOP_BYTES
 
-# settings.json can still switch test mode on by itself. That is how a booth
+# app/settings.json can still switch test mode on by itself. That is how a booth
 # ends up "running" all night without printing a thing, so say it loudly.
 TESTMODE="$(node -e 'const c=require("./config.js").load();const o=[];if(c.mockCamera)o.push("no camera (fake photos)");if(c.printDryRun)o.push("not printing");console.log(o.join(" and "))' 2>/dev/null)"
 if [ -n "$TESTMODE" ]; then
   echo ""
   echo "  ============================================================"
-  echo "   WARNING: settings.json has TEST MODE on: $TESTMODE."
+  echo "   WARNING: app/settings.json has TEST MODE on: $TESTMODE."
   echo "   Guests will get no real photos or prints."
-  echo "   Fix: set \"mockCamera\" and \"printDryRun\" to false in settings.json."
+  echo "   Fix: set \"mockCamera\" and \"printDryRun\" to false in app/settings.json."
   echo "  ============================================================"
   echo "  Press any key to start anyway."
   read -n 1 -s

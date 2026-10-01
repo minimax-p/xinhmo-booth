@@ -6,7 +6,8 @@
 #  Nothing is photographed or printed unless you say so.
 # ============================================================
 
-cd "$(dirname "$0")" || exit 1
+# Everything but the guides and these two launchers lives in app/.
+cd "$(dirname "$0")/app" || exit 1
 
 # On a new Mac this installs everything first (once). See scripts/setup.sh.
 source scripts/setup.sh

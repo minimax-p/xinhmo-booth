@@ -3,6 +3,15 @@
 You need this Mac, the Canon camera, the SELPHY printer, and the Mac's login
 password. The very first time, also an internet connection.
 
+## What is in this folder
+
+| In the folder | What it is for |
+| --- | --- |
+| **START-BOOTH** | Double-click to run the booth |
+| **CHECK-BOOTH** | Double-click to check the camera and printer only |
+| **START-HERE**, **OPERATORS-GUIDE** | These guides |
+| **app** | The booth itself. Staff never need to open it. |
+
 ## Every event
 
 1. **Plug in the camera and the printer, and switch both on.** Use the
@@ -34,7 +43,7 @@ password. The very first time, also an internet connection.
    xattr -dr com.apple.quarantine
    ```
 
-2. **The `EDSDK` folder must be inside this folder.** It is Canon's camera
+2. **The `EDSDK` folder must be inside the `app` folder.** It is Canon's camera
    software: licensed, never on GitHub, so it is copied across by hand.
 
 3. **Double-click `START-BOOTH`.** The first time, macOS may say it *cannot be
@@ -51,7 +60,7 @@ password. The very first time, also an internet connection.
 
 | Problem | Fix |
 | --- | --- |
-| The printer does nothing | System Settings > Printers & Scanners: add the printer. Its name must match `printerName` in `settings.json`. |
-| Staff code | `staffPin` in `settings.json`. It starts as 1234. Change it. |
+| The printer does nothing | System Settings > Printers & Scanners: add the printer. Its name must match `printerName` in `app/settings.json`. |
+| Staff code | `staffPin` in `app/settings.json`. It starts as 1234. Change it. |
 
 Running an event: **OPERATORS-GUIDE.pdf**.

@@ -10,6 +10,11 @@ and gets a pickup code. Staff take payment and print from their phone.
 For running an event, give staff **OPERATORS-GUIDE.pdf**. This guide is for
 whoever sets the booth up or works on it.
 
+The booth folder shows staff only what they need: `START-BOOTH`,
+`CHECK-BOOTH` and the two staff PDFs. Everything else is in `app/`, and every
+path in this guide is inside `app/`. The launchers `cd` into it, and so does
+anything run by hand: `cd app` first.
+
 ## How it is built
 
 No server, no database, no cloud. Photos go from the camera into the app, are
@@ -43,7 +48,7 @@ release prints from the phone once paid.
 ## Requirements
 
 - A Mac, Apple Silicon or Intel
-- **Canon's EDSDK** in a folder called `EDSDK` inside this one. It is licensed
+- **Canon's EDSDK** in a folder called `EDSDK` inside `app/`. It is licensed
   from Canon and never committed: copy it across by hand.
 - Apple's command-line tools, to build the camera helper:
   `xcode-select --install`
@@ -69,13 +74,18 @@ scripts/make-bundle.sh      # -> ~/Desktop/Xinhmo-Booth.zip
 ```
 
 The zip holds the committed files, the git history (so the other Mac can
-`git pull`) and the `EDSDK` folder. Keep it private: it contains Canon's SDK
+`git pull`) and `app/EDSDK`. Keep it private: it contains Canon's SDK
 and the staff code. On the other Mac, unzip it, clear the download flag, and
 double-click START-BOOTH:
 
 ```bash
 xattr -dr com.apple.quarantine ~/Documents/kiosk
 ```
+
+A Mac set up before the app moved into `app/` updates with a plain
+`git pull`. The next START-BOOTH or CHECK-BOOTH moves what git does not track
+(`EDSDK`, the downloaded parts, the built camera helper, photos, orders and
+logs) into `app/` by itself, so nothing is downloaded again or lost.
 
 ## Running it
 
@@ -188,7 +198,7 @@ uv run --with pillow --with numpy --with scipy scripts/import-designs.py ~/Downl
 The importer finds each hole, works out the photo slots, and records which
 holes are shaped (hearts, ovals): those show the whole photo inside rather than
 cropping it. For editing words, colours and sizes on screen, see
-**UI-GUIDE.pdf**.
+**docs/Editing-the-screens.pdf**.
 
 ## The staff phone
 
@@ -237,5 +247,7 @@ printer are checked with `CHECK-BOOTH.command`.
 
 ## Documents
 
-`npm run docs` rebuilds the PDFs from their sources: `START-HERE.md`,
-`OPERATORS-GUIDE.md`, this file, `FLOW.md` and `UI-GUIDE.md`.
+`npm run docs` rebuilds the PDFs from their sources: this file and, in
+`docs/`, `START-HERE.md`, `OPERATORS-GUIDE.md`, `FLOW.md` and `UI-GUIDE.md`.
+The two staff PDFs are written to the top of the booth folder, the rest to
+`docs/`.

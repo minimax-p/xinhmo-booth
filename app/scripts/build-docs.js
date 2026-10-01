@@ -16,16 +16,18 @@ const fs = require('fs');
 const path = require('path');
 const { marked } = require('marked');
 
-const ROOT = path.join(__dirname, '..');
+// Paths below are relative to the booth folder, one level above app/.
+const ROOT = path.join(__dirname, '..', '..');
 
-// Staff documents sit at the top of the folder, where they will be found.
-// The technical ones go in docs/.
+// Staff documents sit at the top of the booth folder, next to the two
+// launchers and nothing else, where they will be found. Everything technical,
+// sources included, stays inside app/.
 const DOCS = [
-  { src: 'START-HERE.md', out: 'START-HERE.pdf', title: 'Start here', kind: 'For staff' },
-  { src: 'OPERATORS-GUIDE.md', out: 'OPERATORS-GUIDE.pdf', title: 'Staff guide', kind: 'For staff' },
-  { src: 'README.md', out: 'docs/Setup-and-technical-guide.pdf', title: 'Setup and technical guide', kind: 'Technical' },
-  { src: 'FLOW.md', out: 'docs/Session-flow.pdf', title: 'Session flow', kind: 'Technical' },
-  { src: 'UI-GUIDE.md', out: 'docs/Editing-the-screens.pdf', title: 'Editing the screens', kind: 'Technical' },
+  { src: 'app/docs/START-HERE.md', out: 'START-HERE.pdf', title: 'Start here', kind: 'For staff' },
+  { src: 'app/docs/OPERATORS-GUIDE.md', out: 'OPERATORS-GUIDE.pdf', title: 'Staff guide', kind: 'For staff' },
+  { src: 'app/README.md', out: 'app/docs/Setup-and-technical-guide.pdf', title: 'Setup and technical guide', kind: 'Technical' },
+  { src: 'app/docs/FLOW.md', out: 'app/docs/Session-flow.pdf', title: 'Session flow', kind: 'Technical' },
+  { src: 'app/docs/UI-GUIDE.md', out: 'app/docs/Editing-the-screens.pdf', title: 'Editing the screens', kind: 'Technical' },
 ];
 
 const CSS = `
