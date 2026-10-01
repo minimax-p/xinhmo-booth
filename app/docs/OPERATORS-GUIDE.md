@@ -87,11 +87,12 @@ The top of the tab says which camera driver is running. It should say
 
 | What you see | What to do |
 | --- | --- |
-| Phone shows **Camera off** | Is the camera on? Is the power adapter plugged in, or the battery charged? Turn it **off, wait 5 seconds, on**. Then tap **Restart camera**. |
-| Booth says *No camera found* | Same as above. |
+| Phone shows **Camera off**, or the booth says *No camera found* | Is the camera on? Is the power adapter plugged in, or the battery charged? Turn it **off, wait 5 seconds, on**. Then tap **Restart camera**. |
 | Photos are blurry | People moved, or stood too close to the camera. Ask them to stand on the floor mark. More light helps. |
-| A print does not come out | Check the paper tray and the ink. Turn the printer **off for 5 seconds, then on**. |
-| Phone banner: **prints are waiting** | The printer has stopped. Same fix as above. |
+| Phone says **Out of paper** | Fill the tray (18 sheets at most, shiny side up) and push it back in. Tap **Paper**. The waiting print should then come out. |
+| Phone says **Out of ink** | Put in a new ink cassette. Tap **Ink**. |
+| Phone says **Tray out** | Push the paper tray all the way in. |
+| A print does not come out, or the phone says **prints are waiting** | Check the tray is in, with paper, and the ink is in. Then turn the printer **off for 5 seconds, then on**. |
 | Phone says **Offline** | The phone lost the Wi-Fi. Reconnect it to the same network as the Mac. |
 | Red banner: **Test mode** | The booth is not really printing. Call whoever set the booth up. |
 | Booth screen is frozen or black | Wait 30 seconds; it restarts itself. If not, close the black window and double-click **START-BOOTH**. |

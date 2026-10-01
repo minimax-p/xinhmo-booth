@@ -696,7 +696,7 @@ const PAGE = `<!doctype html>
 
     var pr=h.printer||{};
     var pcls=!pr.ok?' bad':pr.stuck?' low':'';
-    pills.push('<span class="pill'+pcls+'"><i></i>Printer</span>');
+    pills.push('<span class="pill'+pcls+'"><i></i>'+(pr.label?esc(pr.label):'Printer')+'</span>');
     if(!pr.ok||pr.stuck)alerts.push([pr.ok?'low':'bad','Printer: '+esc(pr.message||'not ready')]);
 
     var s=h.supplies;
@@ -704,6 +704,8 @@ const PAGE = `<!doctype html>
       [['paper','Paper',s.paper,'Load 18 sheets, then tap Paper.'],['ink','Ink',s.ink,'Put in a new ink cassette, then tap Ink.']].forEach(function(x){
         var v=x[2], cls=v.level==='out'?' bad':v.level==='low'?' low':'';
         pills.push('<button class="pill'+cls+'" data-refill="'+x[0]+'"><i></i>'+x[1]+' '+v.left+'/'+v.cap+'</button>');
+        // The printer saying so itself beats the count saying the same thing.
+        if(pr.problem===x[0])return;
         if(v.level==='out')alerts.push(['bad',x[1]+' is out. '+x[3]]);
         else if(v.level==='low')alerts.push(['low',x[1]+': '+v.left+' left. '+x[3]]);
       });
@@ -739,7 +741,7 @@ const PAGE = `<!doctype html>
     rows.push(row('Camera', esc(driverName(c)),
       c.detected?esc(c.model||'Connected'):'Not connected', c.detected?'':'bad'));
     if(!c.detected&&c.lastError)rows.push('<div class="srow"><div class="slab"><span>'+esc(c.lastError)+'</span></div></div>');
-    rows.push(row('Printer', esc(pr.message||''), pr.ok?(pr.stuck?pr.waiting+' waiting':'Ready'):'Not ready', !pr.ok?'bad':pr.stuck?'low':''));
+    rows.push(row('Printer', esc(pr.message||''), pr.ok?(pr.stuck?pr.waiting+' waiting':'Ready'):(pr.label||'Not ready'), !pr.ok?'bad':pr.stuck?'low':''));
     if(sp){
       rows.push(row('Paper','cassette holds '+sp.paper.cap, sp.paper.left+' left', sp.paper.level==='out'?'bad':sp.paper.level==='low'?'low':'',
         '<button class="mini" data-refill="paper">Reloaded</button>'));

@@ -62,34 +62,39 @@ class Printer {
     this.printing = false;
   }
 
-  /** Is the CUPS queue present and enabled? Used by the staff panel. */
+  /** Is the CUPS queue present, enabled and not stopped on paper or ink? */
   async status() {
     if (this.cfg.printDryRun) {
       return { ok: true, dryRun: true, message: 'Dry run: prints are saved to disk.' };
     }
-    const res = await run('lpstat', ['-p', this.cfg.printerName], 8000);
+    // -l adds the Alerts line, where CUPS repeats what the printer reports.
+    const res = await run('lpstat', ['-l', '-p', this.cfg.printerName], 8000);
     if (!res.ok) {
       return {
         ok: false,
         message: `Printer "${this.cfg.printerName}" was not found. Check it is on and connected.`,
       };
     }
-    const text = res.stdout.toLowerCase();
-    const disabled = text.includes('disabled');
-    // A SELPHY out of paper or ink does not report an error; its jobs just
-    // stop moving. Several waiting at once is the sign to go and look.
+    const disabled = res.stdout.split('\n')[0].toLowerCase().includes('disabled');
+    const problem = printerProblem(res.stdout);
+    // Waiting prints with no reported problem still mean something is wrong:
+    // the backstop for anything the SELPHY does not name.
     const jobs = await run('lpstat', ['-o', this.cfg.printerName], 8000);
     const waiting = jobs.ok ? jobs.stdout.split('\n').filter((l) => l.trim()).length : 0;
     return {
-      ok: !disabled,
+      ok: !disabled && !problem,
+      problem: problem ? problem.kind : null,
+      label: problem ? problem.label : null,
       waiting,
       stuck: waiting >= 2,
       message: disabled
         ? 'The printer is paused. Open Printers in System Settings and resume it.'
+        : problem
+        ? problem.message
         : waiting >= 2
         ? `${waiting} prints are waiting in the printer. Check its paper and ink.`
         : 'Printer ready.',
-      raw: res.stdout.trim(),
+      raw: res.stdout.split('\n')[0].trim(),
     };
   }
 
@@ -172,4 +177,51 @@ function friendlyPrintError(res, name) {
   return first ? first.trim().slice(0, 160) : 'The printer would not accept the job.';
 }
 
-module.exports = { Printer };
+/**
+ * What stopped the printer, from the Alerts line of `lpstat -l -p`.
+ *
+ * Tested on the SELPHY CP1500: it says nothing while idle, even with the tray
+ * out, but as soon as a print is waiting it names the problem, and CUPS
+ * repeats it within a few seconds. So this catches the print that is stuck,
+ * not an empty tray before anyone prints.
+ *
+ *   tray out     input-tray-missing
+ *   tray empty   media-empty-error, media-needed
+ *   ink out      marker-supply-empty-error
+ *
+ * media-jam is the standard name for a jam; not seen on the SELPHY yet.
+ */
+const PROBLEMS = [
+  {
+    kind: 'tray',
+    label: 'Tray out',
+    match: /\binput-tray-missing\b/,
+    message: 'The paper tray is out. Push it back in.',
+  },
+  {
+    kind: 'paper',
+    label: 'Out of paper',
+    match: /\bmedia-(empty|needed)\b/,
+    message: 'Out of paper. Fill the tray (18 sheets at most), then tap Paper.',
+  },
+  {
+    kind: 'ink',
+    label: 'Out of ink',
+    match: /\bmarker-supply-(empty|missing)\b/,
+    message: 'Out of ink, or the ink cassette is out. Put in a new one, then tap Ink.',
+  },
+  {
+    kind: 'jam',
+    label: 'Paper jam',
+    match: /\bmedia-jam\b/,
+    message: 'Paper jam. Turn the printer off, pull the tray out, remove the stuck sheet, then turn it on.',
+  },
+];
+
+function printerProblem(lpstatLong) {
+  const m = /Alerts:(.*)/.exec(lpstatLong || '');
+  if (!m) return null;
+  return PROBLEMS.find((p) => p.match.test(m[1])) || null;
+}
+
+module.exports = { Printer, printerProblem };

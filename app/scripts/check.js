@@ -202,7 +202,7 @@ async function checkPrinter() {
   const name = cfg.printerName;
   const usb = await usbDevices();
   const seen = usb.some((n) => /selphy|printer/i.test(n));
-  const q = await run('lpstat', ['-p', name]);
+  const q = await run('lpstat', ['-l', '-p', name]);
   if (!seen) {
     return { ok: false, title: 'PRINTER: the Mac cannot see it', steps: [
       'Is the printer switched ON?',
@@ -217,11 +217,29 @@ async function checkPrinter() {
       `Its name must match settings.json: "${name}".`,
     ] };
   }
-  if (/disabled/i.test(q.out)) {
+  if (/disabled/i.test(q.out.split('\n')[0])) {
     return { ok: false, title: 'PRINTER: paused', steps: [
       'Open System Settings > Printers & Scanners.',
       'Click the SELPHY, then "Printer Queue", then Resume.',
     ] };
+  }
+  // What the printer itself says stopped it. It only says so once a print is
+  // waiting, so this names the problem behind a stuck print.
+  const problem = require('../printer').printerProblem(q.out);
+  if (problem) {
+    return { ok: false, title: 'PRINTER: ' + problem.label.toLowerCase(), steps: {
+      tray: ['Push the paper tray all the way into the printer.',
+        'The waiting print should then come out by itself.'],
+      paper: ['Pull out the paper tray and fill it: 18 sheets at most, shiny side up.',
+        'Push it back in. The waiting print should then come out.',
+        'On the staff phone, tap Paper so the count starts again.'],
+      ink: ['Open the side cover and take out the ink cassette.',
+        'Put in a new one until it clicks, and close the cover.',
+        'On the staff phone, tap Ink so the count starts again.'],
+      jam: ['Turn the printer OFF.',
+        'Pull out the paper tray and remove the stuck sheet.',
+        'Put the tray back and turn the printer ON.'],
+    }[problem.kind] };
   }
   const jobs = await run('lpstat', ['-o', name]);
   const waiting = jobs.out.split('\n').filter((l) => l.trim()).length;

@@ -289,6 +289,21 @@ async function checkAsync(name, fn) {
     return r.ok === false && !!r.error;
   });
 
+  // The SELPHY's own words for what stopped it, as seen on 2026-10-01.
+  const { printerProblem } = require('../printer');
+  for (const [alerts, want] of [
+    ['cups-waiting-for-job-completed input-tray-missing', 'tray'],
+    ['cups-waiting-for-job-completed media-empty-error media-needed', 'paper'],
+    ['cups-waiting-for-job-completed marker-supply-empty-error', 'ink'],
+    ['none', null],
+    ['offline-report', null],
+  ]) {
+    check(`printer alert "${alerts.replace('cups-waiting-for-job-completed ', '')}" reads as ${want || 'no problem'}`, () => {
+      const p = printerProblem(`printer x now printing x-1.\n\tAlerts: ${alerts}\n`);
+      return (p ? p.kind : null) === want;
+    });
+  }
+
   const realPrinter = new Printer(cfg);
   await checkAsync('printer queue check runs', async () => {
     const s = await realPrinter.status();

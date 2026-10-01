@@ -174,8 +174,12 @@ lp -d Canon_SELPHY_CP1500 -o "media=Postcard(4x6in)" -o fit-to-page some.jpg
 
 The CP1500's paper tray holds 18 sheets and each ink cassette prints 36; a
 KP-108IN pack is 108 sheets and three cassettes. The booth counts sheets and
-warns staff before either runs out, because a SELPHY does not report it: its
-jobs just stop moving. Staff tap Paper or Ink on the phone after reloading.
+warns staff before either runs out. The SELPHY itself says nothing while idle,
+even with its tray out, but once a print is waiting it names what stopped it
+(`input-tray-missing`, `media-empty-error`, `marker-supply-empty-error`), CUPS
+repeats that in `lpstat -l -p`, and the phone shows *Tray out*, *Out of paper*
+or *Out of ink* in red. Staff tap Paper or Ink on the phone after
+reloading.
 
 The calibration sheet (staff panel or phone) shows how much each edge loses.
 Put what you measure into `print.safeArea`.
