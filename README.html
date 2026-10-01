@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>readme</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="README_files/libs/clipboard/clipboard.min.js"></script>
+<script src="README_files/libs/quarto-html/quarto.js"></script>
+<script src="README_files/libs/quarto-html/popper.min.js"></script>
+<script src="README_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="README_files/libs/quarto-html/anchor.min.js"></script>
+<link href="README_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="README_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="README_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="README_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="README_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+
+
+
+<section id="xinhmo-booth-kiosk" class="level1">
+<h1>Xinhmo booth kiosk</h1>
+<p>A self-contained photobooth that runs on one computer with no internet. Camera, touchscreen, and printer all attached to the same machine, everything local.</p>
+<p>Customer flow: tap to start, pose against a live camera view, four shots with a countdown, then pick photos, a frame, and a look, and print.</p>
+<p>For day-to-day operation give staff <code>OPERATORS-GUIDE.md</code>. This file is for whoever sets the booth up.</p>
+<section id="why-it-is-built-this-way" class="level2">
+<h2 class="anchored" data-anchor-id="why-it-is-built-this-way">Why it is built this way</h2>
+<p>There is no server, no database, and no Python. Photos go from the camera into the app, get composited on a canvas, and go to the printer. Fewer moving parts means fewer things that can fail at an outdoor event with nobody technical present.</p>
+<p>The composite is drawn at true print size (1200x1800 = 4x6 inches at 300dpi) by the same function that draws the on-screen preview, so what the customer approves is exactly what prints.</p>
+<pre><code>main process (main.js)          renderer (renderer/app.js)
+  camera.js  -&gt; gphoto2            screens and state machine
+  printer.js -&gt; lp / CUPS          canvas compositing and filters
+  frames.js  -&gt; layouts            staff panel
+        \___ preload.js bridge ___/</code></pre>
+</section>
+<section id="requirements" class="level2">
+<h2 class="anchored" data-anchor-id="requirements">Requirements</h2>
+<ul>
+<li>macOS or Linux</li>
+<li>Node.js 18 or newer</li>
+<li><code>gphoto2</code> for the camera: <code>brew install gphoto2</code>, or <code>sudo apt install gphoto2</code></li>
+<li>CUPS with the printer installed (macOS has this already)</li>
+<li>A Canon DSLR on USB. Developed against the EOS Rebel T6 / 1300D.</li>
+<li>A Canon Selphy CP1500 or similar, added as a printer</li>
+</ul>
+</section>
+<section id="moving-to-another-mac" class="level2">
+<h2 class="anchored" data-anchor-id="moving-to-another-mac">Moving to another Mac</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">scripts/make-bundle.sh</span>      <span class="co"># -&gt; ~/Desktop/Xinhmo-Booth.zip, committed files only</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Send the zip however you like. On the other Mac: unzip, open <code>START-HERE.txt</code>, double-click <code>TEST-MODE.command</code>. Nothing else needs installing by hand: on a Mac without them, the first double-click installs Homebrew, Node.js and gphoto2, downloads the app’s parts, and runs the self-test (<code>scripts/setup.sh</code> does this, and does nothing on a Mac already set up). It needs internet and the Mac’s login password once, from an administrator account.</p>
+</section>
+<section id="first-run-by-hand-for-development" class="level2">
+<h2 class="anchored" data-anchor-id="first-run-by-hand-for-development">First run (by hand, for development)</h2>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> install</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run check      <span class="co"># self-test: settings, frames, camera, printer</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run mock       <span class="co"># full booth with no camera and no printing</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> start          <span class="co"># the real thing</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>npm run check</code> is the fastest way to confirm a new machine is set up correctly. It verifies the frame geometry, the mock camera, and whether the printer queue is actually reachable.</p>
+<p>For staff, the two double-clickable files are the whole interface:</p>
+<ul>
+<li><code>START-BOOTH.command</code> runs the booth, setting the Mac up on first use and restarting the app automatically if it ever stops unexpectedly.</li>
+<li><code>TEST-MODE.command</code> runs it with no camera and no printing, for training.</li>
+</ul>
+<p>On macOS you may need to allow the first one: right-click, Open, then Open again. After that the setup clears the download flag, so the rest just open.</p>
+</section>
+<section id="settings" class="level2">
+<h2 class="anchored" data-anchor-id="settings">Settings</h2>
+<p>Everything adjustable lives in <code>settings.json</code>. No code changes needed.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Setting</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>captureCount</code></td>
+<td>Photos taken per session (default 4)</td>
+</tr>
+<tr class="even">
+<td><code>countdownSeconds</code></td>
+<td>Countdown before each shot</td>
+</tr>
+<tr class="odd">
+<td><code>printerName</code></td>
+<td>CUPS queue name, from <code>lpstat -p</code></td>
+</tr>
+<tr class="even">
+<td><code>printerMedia</code></td>
+<td>CUPS media size; check with <code>lpoptions -p NAME -l \| grep -i pagesize</code></td>
+</tr>
+<tr class="odd">
+<td><code>printDryRun</code></td>
+<td><code>true</code> saves prints to disk instead of printing</td>
+</tr>
+<tr class="even">
+<td><code>maxCopies</code></td>
+<td>Most copies a customer can request</td>
+</tr>
+<tr class="odd">
+<td><code>mockCamera</code></td>
+<td><code>true</code> uses generated images, no camera needed</td>
+</tr>
+<tr class="even">
+<td><code>liveView</code></td>
+<td>Show the live camera feed while posing</td>
+</tr>
+<tr class="odd">
+<td><code>staffPin</code></td>
+<td>Code for the staff panel. <strong>Change this.</strong></td>
+</tr>
+<tr class="even">
+<td><code>kiosk</code></td>
+<td><code>false</code> runs in a normal window, for setup</td>
+</tr>
+<tr class="odd">
+<td><code>idleResetSeconds</code></td>
+<td>Return to the welcome screen after inactivity</td>
+</tr>
+<tr class="even">
+<td><code>keepSessionDays</code></td>
+<td>Delete old photo folders after this many days</td>
+</tr>
+</tbody>
+</table>
+<p>Environment variables override the file for one run: <code>PB_MOCK_CAMERA=1</code>, <code>PB_PRINT_DRYRUN=1</code>, <code>PB_PRINTER_NAME=...</code>, <code>PB_KIOSK=0</code>.</p>
+</section>
+<section id="camera-setup" class="level2">
+<h2 class="anchored" data-anchor-id="camera-setup">Camera setup</h2>
+<p>Get the camera working on its own before running the booth:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">gphoto2</span> <span class="at">--auto-detect</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">gphoto2</span> <span class="at">--capture-image-and-download</span> <span class="at">--filename</span> test.jpg</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Then set the camera up for booth duty:</p>
+<ul>
+<li><strong>Set the lens switch to MF</strong> and focus once for where people will stand. The camera refuses to fire when autofocus cannot lock, which is the most common reason captures silently fail in a booth.</li>
+<li>Turn auto power off to disabled, or the camera sleeps between customers.</li>
+<li>Use an AC adapter (Canon ACK-E10 for the T6). A battery will not last a day.</li>
+<li>Turn the camera’s Wi-Fi off. It disables the USB port.</li>
+<li>Leave a memory card in.</li>
+</ul>
+<p>On macOS the system service <code>ptpcamerad</code> grabs any camera the moment it is plugged in, which makes gphoto2 fail with “Could not claim the USB device”. The app kills that service immediately before each camera operation, so no kill loop is needed. Quit Photos, Image Capture, and Canon EOS Utility before running.</p>
+</section>
+<section id="printer-setup" class="level2">
+<h2 class="anchored" data-anchor-id="printer-setup">Printer setup</h2>
+<p>Find the queue name and confirm printing works outside the app first:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">lpstat</span> <span class="at">-p</span> <span class="at">-d</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">lp</span> <span class="at">-d</span> Canon_SELPHY_CP1500 <span class="at">-o</span> <span class="st">"media=Postcard(4x6in)"</span> <span class="at">-o</span> fit-to-page some.jpg</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">lpoptions</span> <span class="at">-p</span> Canon_SELPHY_CP1500 <span class="at">-l</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-i</span> pagesize</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Put that queue name in <code>settings.json</code>. If your driver names the 4x6 sheet something other than <code>Postcard(4x6in)</code>, use its exact name for <code>printerMedia</code>.</p>
+<p>A dye-sub Selphy uses one full set of ribbon panels per print no matter what the photo contains, so paper and ink run out together at 108 prints. Failed prints still consume media, which is why the app never silently retries a failed print: it tells staff instead.</p>
+</section>
+<section id="frames" class="level2">
+<h2 class="anchored" data-anchor-id="frames">Frames</h2>
+<p>Frames live in <code>frames/frames.json</code>. Each has a canvas size and a list of slot rectangles in print pixels:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"id"</span><span class="fu">:</span> <span class="st">"classic_4"</span><span class="fu">,</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"name"</span><span class="fu">:</span> <span class="st">"Classic 4"</span><span class="fu">,</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"width"</span><span class="fu">:</span> <span class="dv">1200</span><span class="fu">,</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"height"</span><span class="fu">:</span> <span class="dv">1800</span><span class="fu">,</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"background"</span><span class="fu">:</span> <span class="st">"#FFFFFF"</span><span class="fu">,</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"caption"</span><span class="fu">:</span> <span class="st">"Xinhmo"</span><span class="fu">,</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"captionColor"</span><span class="fu">:</span> <span class="st">"#7A6A78"</span><span class="fu">,</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"slots"</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span> <span class="dt">"x"</span><span class="fu">:</span> <span class="dv">80</span><span class="fu">,</span> <span class="dt">"y"</span><span class="fu">:</span> <span class="dv">90</span><span class="fu">,</span> <span class="dt">"w"</span><span class="fu">:</span> <span class="dv">480</span><span class="fu">,</span> <span class="dt">"h"</span><span class="fu">:</span> <span class="dv">700</span> <span class="fu">}</span><span class="ot">]</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Photos are drawn cover-fit and centred into each slot. A frame can also name an <code>overlay</code> PNG in the frames folder, which is drawn on top of the photos, so it needs transparent holes where the slots are.</p>
+<p>Run <code>npm run check</code> after editing: it verifies slots stay inside the canvas, do not overlap, and keep the 4x6 aspect ratio.</p>
+<p>Filters are defined in <code>renderer/app.js</code> as canvas filter strings and apply to both the preview and the print.</p>
+</section>
+<section id="staying-alive" class="level2">
+<h2 class="anchored" data-anchor-id="staying-alive">Staying alive</h2>
+<p>The booth is built to survive a day alone:</p>
+<ul>
+<li>Uncaught errors are logged, not fatal.</li>
+<li>If the UI process dies, the window reloads itself.</li>
+<li>If the app exits unexpectedly, <code>START-BOOTH.command</code> restarts it.</li>
+<li>Closing and quitting are blocked unless staff unlock with the code.</li>
+<li>Display sleep is blocked while running.</li>
+<li>A failed photo does not end the session; it carries on with the rest.</li>
+<li>Sessions time out back to the welcome screen so an abandoned session does not block the next customer.</li>
+<li>Live view frames are released as they are replaced, so memory stays flat.</li>
+<li>Photo folders older than <code>keepSessionDays</code> are deleted at startup.</li>
+</ul>
+<p>Logs are in <code>logs/</code>, one file per day, kept for two weeks. The staff panel has a button to open that folder.</p>
+</section>
+<section id="locking-the-screen-down" class="level2">
+<h2 class="anchored" data-anchor-id="locking-the-screen-down">Locking the screen down</h2>
+<p>macOS has no built-in single-app lock. The strongest practical measure is physical: <strong>unplug the keyboard during operation.</strong> Nearly every escape route is a keyboard shortcut, and a touchscreen cannot produce one. The app also runs fullscreen kiosk, blocks window close and quit, and swallows the common shortcuts, but treat those as a deterrent rather than security.</p>
+<p>For unattended use, also:</p>
+<ul>
+<li>Create a dedicated macOS account for the booth and turn on automatic login.</li>
+<li>Add <code>START-BOOTH.command</code> as a login item so a reboot returns to the booth.</li>
+<li>Hide the Dock, auto-hide the menu bar, and turn off hot corners.</li>
+<li>Disable screen saver, display sleep, and automatic updates.</li>
+</ul>
+</section>
+<section id="testing" class="level2">
+<h2 class="anchored" data-anchor-id="testing">Testing</h2>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run check      <span class="co"># settings, frames, camera, printer, geometry</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">node</span> scripts/e2e.js  <span class="co"># drives a whole session end to end, no hardware needed</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><strong><code>e2e.js</code> deletes the whole <code>sessions/</code> folder before it starts</strong>, order queue included, and it cannot run while the booth is open (one instance at a time). Quit the booth and copy <code>sessions/</code> somewhere first on a machine that has taken real orders.</p>
+<p>The end-to-end test launches the app, runs a full customer session through live view, capture, editing, filters, and printing, and checks the resulting print file on disk. It needs <code>xvfb-run</code> on Linux; on macOS drop <code>xvfb-run</code> from the spawn line in <code>scripts/e2e.js</code>.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
