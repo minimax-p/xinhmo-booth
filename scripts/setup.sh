@@ -59,8 +59,8 @@ ensure_ready() {
     brew install "${missing[@]}"
 
     node_ok || stop_setup "Node.js did not install. Double-click START-BOOTH again to retry."
-    # The booth runs without gphoto2 -- it falls back to this Mac's own
-    # camera -- so a failure here is a warning, not a stop.
+    # The booth uses Canon's SDK, not gphoto2, so a failure here is a
+    # warning, not a stop.
     command -v gphoto2 >/dev/null 2>&1 \
       || say "Note: gphoto2 did not install. Only matters if settings.json chooses the gphoto2 driver."
   fi
@@ -71,7 +71,10 @@ ensure_ready() {
     # --loglevel=error: npm's deprecation notices are about build tooling the
     # booth never runs, and "security vulnerabilities" scrolling past would
     # only alarm whoever is setting this up. Real errors still show.
-    NODE_NO_WARNINGS=1 npm install --no-audit --no-fund --loglevel=error \
+    # npm ci, not npm install: it installs exactly what package-lock.json
+    # lists and never rewrites it, so a later git pull is not blocked by a
+    # lock file this Mac's npm reformatted.
+    NODE_NO_WARNINGS=1 npm ci --no-audit --no-fund --loglevel=error \
       || stop_setup "The download failed. Check the internet connection and double-click START-BOOTH again."
 
     # Once, right after a fresh install: prove the machine works before anyone
