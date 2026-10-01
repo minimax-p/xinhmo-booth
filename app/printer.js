@@ -99,51 +99,61 @@ class Printer {
   }
 
   /**
-   * Print one file. Resolves { ok } or { ok:false, error }.
-   * `copies` is passed to lp so the Selphy handles duplicates itself.
+   * Print a file `copies` times. Resolves { ok, printed } or
+   * { ok:false, error, printed }, where printed is how many copies CUPS took.
+   *
+   * Each copy is a job of its own. lp -n is no use here: the SELPHY's AirPrint
+   * queue hands a JPEG straight to the printer with copies=2, and the printer
+   * prints it once, so a second copy that was paid for never came out.
    */
   async print(filePath, copies = 1) {
     if (!fs.existsSync(filePath)) {
-      return { ok: false, error: 'The photo file to print is missing.' };
+      return { ok: false, error: 'The photo file to print is missing.', printed: 0 };
     }
+    copies = Math.max(1, Math.floor(copies) || 1);
     this.printing = true;
+    let printed = 0;
     try {
       if (this.cfg.printDryRun) {
         log.info(`[printer] DRY RUN: would print ${copies} copy(ies) of ${filePath}`);
         await new Promise((r) => setTimeout(r, 1200));
-        return { ok: true, dryRun: true };
+        return { ok: true, dryRun: true, printed: copies };
       }
 
       const args = [
         '-d',
         this.cfg.printerName,
         '-n',
-        String(copies),
+        '1',
         '-o',
         `media=${this.cfg.printerMedia}`,
         '-o',
         'fit-to-page',
         filePath,
       ];
-      log.info('[printer] lp', args.join(' '));
-      const res = await run('lp', args, 30000);
-      if (!res.ok) {
-        const error = friendlyPrintError(res, this.cfg.printerName);
-        this.lastError = error;
-        log.error('[printer] failed:', error, res.stderr.trim());
-        return { ok: false, error };
+      const jobIds = [];
+      for (; printed < copies; printed++) {
+        log.info('[printer] lp', args.join(' ') + (copies > 1 ? ` (copy ${printed + 1} of ${copies})` : ''));
+        const res = await run('lp', args, 30000);
+        if (!res.ok) {
+          const error = friendlyPrintError(res, this.cfg.printerName);
+          this.lastError = error;
+          log.error('[printer] failed:', error, res.stderr.trim());
+          return { ok: false, error, printed };
+        }
+        jobIds.push((res.stdout.match(/request id is (\S+)/) || [])[1] || null);
+        if (this.onPrinted) {
+          try {
+            this.onPrinted(1);
+          } catch {}
+        }
       }
       this.lastError = null;
-      if (this.onPrinted) {
-        try {
-          this.onPrinted(copies);
-        } catch {}
-      }
-      return { ok: true, jobId: (res.stdout.match(/request id is (\S+)/) || [])[1] || null };
+      return { ok: true, printed, jobId: jobIds[0], jobIds };
     } catch (err) {
       const error = String((err && err.message) || err);
       log.error('[printer] threw:', error);
-      return { ok: false, error };
+      return { ok: false, error, printed };
     } finally {
       this.printing = false;
     }

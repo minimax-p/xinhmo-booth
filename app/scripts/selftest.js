@@ -289,6 +289,56 @@ async function checkAsync(name, fn) {
     return r.ok === false && !!r.error;
   });
 
+  // Copies, against a stand-in lp that records each job and can be told to
+  // refuse one. The SELPHY prints a JPEG once whatever lp -n says, so every
+  // copy has to be a job of its own.
+  {
+    const os = require('os');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'xinhmo-lp-'));
+    const calls = path.join(dir, 'calls');
+    const img = path.join(dir, 'photo.jpg');
+    fs.writeFileSync(img, png.encode(4, 4, () => [0, 0, 0]));
+    fs.writeFileSync(
+      path.join(dir, 'lp'),
+      '#!/bin/sh\n' +
+        `echo "$*" >> "${calls}"\n` +
+        `n=$(wc -l < "${calls}" | tr -d ' ')\n` +
+        'if [ "$n" = "$LP_FAIL_AT" ]; then echo "lp: printer is out of paper" >&2; exit 1; fi\n' +
+        'echo "request id is SELPHY-$n (1 file(s))"\n',
+      { mode: 0o755 }
+    );
+    const oldPath = process.env.PATH;
+    process.env.PATH = dir + path.delimiter + oldPath;
+    const sheets = [];
+    const realPrinter = new Printer(Object.assign({}, cfg, { printDryRun: false }), (n) => sheets.push(n));
+    const jobs = () => (fs.existsSync(calls) ? fs.readFileSync(calls, 'utf8').trim().split('\n') : []);
+    try {
+      await checkAsync('3 copies go to the printer as 3 jobs of one', async () => {
+        fs.rmSync(calls, { force: true });
+        const r = await realPrinter.print(img, 3);
+        const j = jobs();
+        if (!r.ok || r.printed !== 3) throw new Error(JSON.stringify(r));
+        if (j.length !== 3) throw new Error(`${j.length} lp calls`);
+        if (!j.every((a) => / -n 1 /.test(a))) throw new Error(j[0]);
+        if (sheets.reduce((a, b) => a + b, 0) !== 3) throw new Error(`counted ${sheets} sheets`);
+        return `${j.length} jobs`;
+      });
+      await checkAsync('a copy the printer refuses stops the rest and says how many went', async () => {
+        fs.rmSync(calls, { force: true });
+        process.env.LP_FAIL_AT = '2';
+        const r = await realPrinter.print(img, 3);
+        delete process.env.LP_FAIL_AT;
+        if (r.ok || r.printed !== 1 || !r.error) throw new Error(JSON.stringify(r));
+        if (jobs().length !== 2) throw new Error(`${jobs().length} lp calls`);
+        return r.error;
+      });
+    } finally {
+      process.env.PATH = oldPath;
+      delete process.env.LP_FAIL_AT;
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
   // The SELPHY's own words for what stopped it, as seen on 2026-10-01.
   const { printerProblem } = require('../printer');
   for (const [alerts, want] of [

@@ -209,9 +209,12 @@ async function printPhotos(order) {
   }
   log.info('[main] printing', order.code, 'x' + n);
   const res = await printer.print(order.imagePath, n);
-  if (res && res.ok) {
-    const printed = Object.assign({}, order.printed, { print: (order.printed?.print || 0) + n });
-    queue.update(order.code, { printed });
+  // Credit what went out even when a later copy failed, so the retry prints
+  // only the copies still owed rather than all of them again.
+  const done = Math.min(n, (res && res.printed) || 0);
+  if (done > 0) creditPrinted(order.code, 'print', done);
+  if (res && !res.ok && done > 0) {
+    return Object.assign({}, res, { error: `Only ${done} of ${n} printed. ${res.error || ''}`.trim() });
   }
   return res;
 }

@@ -427,8 +427,20 @@ function restoreSettings() {
       sneaky.status === 401 && JSON.parse(fs.readFileSync(TEST_SETTINGS, 'utf8')).countdownSeconds === countdownBefore,
       'status ' + sneaky.status);
 
+    // An extra copy goes out with the first, on the one press: staff should
+    // never have to sell it again to get it printed.
+    const extra = (JSON.parse(fs.readFileSync(TEST_SETTINGS, 'utf8')).pricing || {}).extraCopy || 0;
+    const two = await staff('/api/order?code=' + code, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ print: 2 }),
+    });
+    t('an extra copy can be sold before printing', two.ok && two.body.qty.print === 2,
+      JSON.stringify(two.body.qty));
     const rel = await staff('/api/release?code=' + code, { method: 'POST' });
     t('photos release to the printer', rel.ok && rel.body.status === 'released', rel.body.status);
+    t('both copies print together', rel.body.printed && rel.body.printed.print === 2,
+      JSON.stringify(rel.body.printed));
     // Selling an add-on after the photos have gone is an amendment to this
     // order, which is the whole reason quantities live on the order.
     const more = await staff('/api/order?code=' + code, {
@@ -438,7 +450,7 @@ function restoreSettings() {
     });
     t('staff can add to a released order', more.ok && more.body.qty.keychain === 11,
       JSON.stringify(more.body.qty));
-    t('and it re-prices', more.body.total === 8 + 11 * 8, '$' + more.body.total);
+    t('and it re-prices', more.body.total === 8 + extra + 11 * 8, '$' + more.body.total);
 
     // Eleven keychains is more than one sheet holds. They are all one
     // customer's, so they go on that customer's own sheets and nobody else's.
