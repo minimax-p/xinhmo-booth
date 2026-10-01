@@ -100,8 +100,9 @@ The top of the tab says which camera driver is running. It should say
 > **No phone?** Hold the **top-left corner** of the booth screen for **2
 > seconds** and enter the staff code. The same controls are there.
 
-If you cannot fix something, take a photo of the screen and note the time. The
-booth keeps a log that can be read afterwards.
+If you cannot fix something, open the **EMERGENCY** folder and follow
+**EMERGENCY.pdf**. It says what to send Minh, and how to put in a fix Minh
+sends from afar.
 
 ## Turning it off
 

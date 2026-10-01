@@ -10,6 +10,7 @@ password. The very first time, also an internet connection.
 | **START-BOOTH** | Double-click to run the booth |
 | **CHECK-BOOTH** | Double-click to check the camera and printer only |
 | **START-HERE**, **OPERATORS-GUIDE** | These guides |
+| **EMERGENCY** | When something goes wrong and Minh is not there. Open **EMERGENCY.pdf** inside. |
 | **app** | The booth itself. Staff never need to open it. |
 
 ## Every event

@@ -20,11 +20,13 @@ const { marked } = require('marked');
 const ROOT = path.join(__dirname, '..', '..');
 
 // Staff documents sit at the top of the booth folder, next to the two
-// launchers and nothing else, where they will be found. Everything technical,
+// launchers and nothing else, where they will be found. The emergency sheet
+// goes in EMERGENCY/ with the update launchers it explains. Everything technical,
 // sources included, stays inside app/.
 const DOCS = [
   { src: 'app/docs/START-HERE.md', out: 'START-HERE.pdf', title: 'Start here', kind: 'For staff' },
   { src: 'app/docs/OPERATORS-GUIDE.md', out: 'OPERATORS-GUIDE.pdf', title: 'Staff guide', kind: 'For staff' },
+  { src: 'app/docs/EMERGENCY.md', out: 'EMERGENCY/EMERGENCY.pdf', title: 'Emergency', kind: 'For staff' },
   { src: 'app/README.md', out: 'app/docs/Setup-and-technical-guide.pdf', title: 'Setup and technical guide', kind: 'Technical' },
   { src: 'app/docs/FLOW.md', out: 'app/docs/Session-flow.pdf', title: 'Session flow', kind: 'Technical' },
   { src: 'app/docs/UI-GUIDE.md', out: 'app/docs/Editing-the-screens.pdf', title: 'Editing the screens', kind: 'Technical' },
@@ -83,9 +85,10 @@ const CSS = `
   }
   /* Numbered steps get a navy disc, easy to follow with a finger. */
   ol { counter-reset: step; }
-  ol > li { list-style: none; padding-left: 34px; min-height: 22px; counter-increment: step; }
+  ol > li { list-style: none; position: relative; padding-left: 34px; min-height: 22px; counter-increment: step; }
+  /* Pinned inside its step, so no sliver of it is left behind at a page break. */
   ol > li::before {
-    content: counter(step); float: left; margin: -1px 0 0 -34px; width: 22px; height: 22px;
+    content: counter(step); position: absolute; left: 0; top: 0; width: 22px; height: 22px;
     border-radius: 50%; background: var(--ink); color: #fff; font: 700 9.5pt/22px -apple-system, Helvetica, sans-serif;
     text-align: center;
   }

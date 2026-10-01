@@ -87,6 +87,20 @@ A Mac set up before the app moved into `app/` updates with a plain
 (`EDSDK`, the downloaded parts, the built camera helper, photos, orders and
 logs) into `app/` by itself, so nothing is downloaded again or lost.
 
+### Updating from afar
+
+Staff can put in a pushed fix without git: **EMERGENCY/UPDATE.command** runs
+`scripts/update.sh`, which sets the checkout to exactly `origin/master` (no
+merge, so nothing can block it), keeps every setting this Mac changed from what
+it was shipped with (`scripts/merge-settings.js`), sets any other stray edit
+aside in `git stash`, and downloads new parts only if `package-lock.json`
+changed. **UNDO-UPDATE.command** goes back to the version before, with no
+internet. Every message is in plain words for staff; **EMERGENCY.pdf** walks
+them through it.
+
+So **anything pushed to master can reach the event Mac.** Push only what has
+been tested.
+
 ## Running it
 
 | Command | Camera | Printing | Window |
