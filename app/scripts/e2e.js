@@ -439,6 +439,8 @@ function restoreSettings() {
     t('photos release to the printer', rel.ok && rel.body.status === 'released', rel.body.status);
     t('both copies print together', rel.body.printed && rel.body.printed.print === 2,
       JSON.stringify(rel.body.printed));
+    const day = (await staff('/api/queue')).body.today || [];
+    t('the phone lists it under today', day.some((o) => o.code === code), day.length + ' today');
     // Selling an add-on after the photos have gone is an amendment to this
     // order, which is the whole reason quantities live on the order.
     const more = await staff('/api/order?code=' + code, {

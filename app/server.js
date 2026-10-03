@@ -148,7 +148,7 @@ function start({ queue, cfg, onRelease, onBatch, batchStatus, isLocked, onStartS
       queue.prune();
       return json(res, 200, {
         pending: queue.pending(),
-        recent: queue.recent(),
+        today: queue.today(),
         pricing: cfg.pricing || {},
         maxCopies: cfg.maxCopies || 3,
         locked: isLocked ? !!isLocked() : false,
@@ -411,6 +411,7 @@ const PAGE = `<!doctype html>
   .sh{display:flex;align-items:baseline;gap:8px;margin:24px 4px 10px}
   .sh h2{margin:0;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
   .sh .n{font-size:13px;color:var(--ink-3)}
+  .sh .sum{margin-left:auto;font-size:15px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
   .list{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
   .row{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:12px 16px;
     position:relative;transition:background .12s ease}
@@ -421,7 +422,7 @@ const PAGE = `<!doctype html>
   .rtop{display:flex;align-items:baseline;gap:8px}
   .code{font-weight:700;font-size:17px;letter-spacing:.08em}
   .ago{font-size:13px;color:var(--ink-3)}
-  .sub{font-size:14px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sub{display:block;font-size:14px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rend{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:0 0 auto}
   .amt{font-weight:600;font-variant-numeric:tabular-nums}
   .tag{font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap}
@@ -528,7 +529,7 @@ const PAGE = `<!doctype html>
       <div class="sh"><h2>Waiting</h2><span class="n" id="nWait"></span></div>
       <div id="list"></div>
       <div id="doneWrap" hidden>
-        <div class="sh"><h2>Done</h2></div>
+        <div class="sh"><h2>Done today</h2><span class="n" id="nDone"></span><span class="sum" id="sumDone"></span></div>
         <div id="past" class="list"></div>
       </div>
     </section>
@@ -787,7 +788,7 @@ const PAGE = `<!doctype html>
     health(d.health);
     boothTab(d.health);
     pricing=d.pricing||{};
-    var pend=d.pending||[], past=d.recent||[];
+    var pend=d.pending||[], past=d.today||[];
     orders={}; pend.concat(past).forEach(function(o){orders[o.code]=o});
 
     var n=pend.length;
@@ -804,6 +805,10 @@ const PAGE = `<!doctype html>
       if(!n){list.className='';list.innerHTML='<div class="empty"><b>All clear</b>Orders appear here the moment a group finishes.</div>'}
       else{list.className='list';list.innerHTML='';pend.forEach(function(o){list.appendChild(row(o))})}
       $('doneWrap').hidden=!past.length;
+      // What today's finished orders came to. Voided ones were never paid.
+      var paid=past.filter(function(o){return o.status!=='void'});
+      $('nDone').textContent=paid.length||'';
+      $('sumDone').textContent=money(paid.reduce(function(t,o){return t+(o.total||0)},0));
       $('past').innerHTML=''; past.forEach(function(o){$('past').appendChild(row(o,true))});
     }
     if(openCode)syncSheet();
@@ -813,7 +818,7 @@ const PAGE = `<!doctype html>
     var st=status(o), isVoid=o.status==='void';
     var b=document.createElement('button');
     b.className='row'+(isPast?' muted':'');
-    b.innerHTML='<img class="thumb" alt="" src="/api/thumb?code='+encodeURIComponent(o.code)+'&k='+encodeURIComponent(K)+'" />'+
+    b.innerHTML='<img class="thumb" alt="" loading="lazy" src="/api/thumb?code='+encodeURIComponent(o.code)+'&k='+encodeURIComponent(K)+'" />'+
       '<span class="rmain"><span class="rtop"><span class="code mono">'+esc(o.code)+'</span>'+
         '<span class="ago" data-ts="'+o.createdAt+'">'+ago(o.createdAt)+'</span></span>'+
         '<span class="sub">'+summary(o)+'</span></span>'+

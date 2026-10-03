@@ -197,6 +197,29 @@ async function checkAsync(name, fn) {
       let clash = false;
       for (let i = 0; i < 3000 && !clash; i++) clash = q3.newCode() === first.code;
       check('a finished order\'s code is never handed out again', () => !clash);
+
+      // Staff see the whole day, not the last few. 1am, after an evening event.
+      const q4 = new Queue(path.join(dir, 'day.json'));
+      const night = new Date(2026, 9, 4, 1, 0).getTime();
+      const hour = 3600 * 1000;
+      const at = (ago, status) => {
+        const o = q4.add({ total: 5 });
+        q4.update(o.code, { createdAt: night - ago * hour, status, releasedAt: night - ago * hour });
+        return o.code;
+      };
+      for (let i = 0; i < 30; i++) at(1 + i / 10, 'released');
+      const evening = at(6, 'released'); // 7pm the day before
+      const old = at(20, 'released'); // yesterday morning
+      const waiting = at(30, 'pending');
+      const day = q4.today(night);
+      check('every order from today is listed, not the last 8', () => day.length === 31, `${day.length} listed`);
+      check('an evening that ran past midnight is still today', () => day.some((o) => o.code === evening));
+      check('yesterday morning is not', () => !day.some((o) => o.code === old));
+      check('newest first', () => day[0].createdAt >= day[day.length - 1].createdAt);
+      q4.prune(night);
+      check('only orders from before today are dropped', () =>
+        !q4.get(old) && !!q4.get(evening) && q4.orders.length === 32);
+      check('an unpaid order is never dropped, however old', () => !!q4.get(waiting));
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

@@ -154,11 +154,25 @@ class Queue {
     return this.orders.filter((o) => o.status === 'pending').sort((a, b) => a.createdAt - b.createdAt);
   }
 
-  recent(n = 8) {
+  /**
+   * Where staff's day starts: midnight on this Mac, or 12 hours ago if that is
+   * earlier, so an event that runs past midnight keeps its evening on the list.
+   */
+  dayStart(now = Date.now()) {
+    const midnight = new Date(now);
+    midnight.setHours(0, 0, 0, 0);
+    return Math.min(midnight.getTime(), now - 12 * 3600 * 1000);
+  }
+
+  /**
+   * Every finished or voided order from today, newest first. All of them, not
+   * the last few: staff use the list to see how the day is going.
+   */
+  today(now = Date.now()) {
+    const since = this.dayStart(now);
     return this.orders
-      .filter((o) => o.status !== 'pending')
-      .sort((a, b) => (b.releasedAt || b.createdAt) - (a.releasedAt || a.createdAt))
-      .slice(0, n);
+      .filter((o) => o.status !== 'pending' && o.createdAt >= since)
+      .sort((a, b) => (b.releasedAt || b.createdAt) - (a.releasedAt || a.createdAt));
   }
 
   update(code, patch) {
@@ -169,11 +183,14 @@ class Queue {
     return o;
   }
 
-  /** Drop orders older than a few hours so the phone list stays short. */
-  prune(maxAgeHours = 12) {
-    const cutoff = Date.now() - maxAgeHours * 3600 * 1000;
+  /**
+   * Drop finished orders from before today so the file stays small. Their
+   * photos stay on disk for keepSessionDays; only the order record goes.
+   */
+  prune(now = Date.now()) {
+    const cutoff = this.dayStart(now);
     const before = this.orders.length;
-    this.orders = this.orders.filter((o) => o.status === 'pending' || o.createdAt > cutoff);
+    this.orders = this.orders.filter((o) => o.status === 'pending' || o.createdAt >= cutoff);
     if (this.orders.length !== before) this.save();
   }
 }
