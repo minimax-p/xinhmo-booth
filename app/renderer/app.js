@@ -1839,9 +1839,7 @@ function wireEvents() {
   $('readyNowBtn').addEventListener('click', () => beginShooting());
 
   $('pickNextBtn').addEventListener('click', () => advanceStep('pick'));
-  $('frameBackBtn').addEventListener('click', () => gotoStep('pick'));
   $('frameNextBtn').addEventListener('click', () => advanceStep('frame'));
-  $('filterBackBtn').addEventListener('click', () => gotoStep('frame'));
   $('filterDoneBtn').addEventListener('click', () => {
     stopStepTimer();
     doPrint();

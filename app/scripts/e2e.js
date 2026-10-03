@@ -331,11 +331,9 @@ function restoreSettings() {
     const ink = JSON.parse(inked);
     t('the decoration reaches the print', ink[2] > ink[0] + 40, 'corner pixel ' + inked);
 
-    await evalJs('document.getElementById("frameBackBtn").click()');
-    await sleep(250);
-    t('back returns to the previous step', (await screen()) === 'pick');
-    await evalJs('document.getElementById("pickNextBtn").click()');
-    await sleep(200);
+    // One pass through the choices: going back round them made sessions long.
+    t('there is no going back to an earlier step',
+      (await evalJs('!document.getElementById("frameBackBtn") && !document.getElementById("filterBackBtn")')) === true);
     await evalJs('document.getElementById("frameNextBtn").click()');
     await sleep(300);
     t('next goes to the filter step', (await screen()) === 'filter');
